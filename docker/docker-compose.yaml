@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres_service:
+    image: ${POSTGRES:-postgres:16}
+    container_name: postgres
+    environment:
+      # If only POSTGRES_PASSWORD is set, the image defaults to user=postgres, db=postgres.
+      # POSTGRES_DB: postgres
+      # POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init-data/db:/docker-entrypoint-initdb.d
+      - postgres_data_vol:/var/lib/postgresql/data
+    healthcheck:
+      # Wait until Postgres is ready to accept connections
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - example
+
+  pgadmin_service:
+    image: ${PGADMIN:-dpage/pgadmin4:9}
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Optional: re-import/replace servers on every container start
+      # PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    ports:
+      - "8090:80"
+    volumes:
+      # we don't need volume - pgadmin_data_vol -> saves initial password
+      - ./init-data/pgadmin/servers.json:/pgadmin4/servers.json
+    depends_on:
+      postgres_service:
+        condition: service_healthy
+    networks:
+      - example
+
+volumes:
+  postgres_data_vol:
+
+networks:
+  example:
