@@ -646,7 +646,10 @@ function ExpenseTable({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className={cn(header.column.id === "actions" && "text-left")}>
+                    <TableHead
+                      key={header.id}
+                      className={cn(header.column.id === "actions" && "text-center")}
+                    >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}
