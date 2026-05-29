@@ -23,7 +23,8 @@ export function buildBudgetAllocationSummaries(
         familyBudget: item.scope === "family" ? item : null,
         personalBudgets: item.scope === "personal" ? [item] : [],
         personalTotal: item.scope === "personal" ? item.amount : "0",
-        allocatedPercent: null,
+        availableCapacityAmount: null,
+        availableCapacityPercent: null,
         overageAmount: null,
       });
       continue;
@@ -44,9 +45,11 @@ export function buildBudgetAllocationSummaries(
 
     const familyAmount = Number(summary.familyBudget.amount);
     const personalTotal = Number(summary.personalTotal);
+    const availableCapacity = Math.max(familyAmount - personalTotal, 0);
 
-    summary.allocatedPercent =
-      familyAmount > 0 ? Number(((personalTotal / familyAmount) * 100).toFixed(0)) : null;
+    summary.availableCapacityAmount = availableCapacity.toFixed(2);
+    summary.availableCapacityPercent =
+      familyAmount > 0 ? Number(((availableCapacity / familyAmount) * 100).toFixed(0)) : null;
     summary.overageAmount =
       personalTotal > familyAmount ? (personalTotal - familyAmount).toFixed(2) : null;
   }

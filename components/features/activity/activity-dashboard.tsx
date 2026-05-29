@@ -47,9 +47,18 @@ const chartPalette = [
   "var(--color-chart-5)",
 ];
 
-type ScopeFilter = "all" | "personal" | "family";
-type TransactionTypeFilter = "all" | "expense" | "income";
+const expenseLegendItems = [
+  { label: "Income", color: "var(--color-chart-2)" },
+  { label: "Expense", color: "var(--color-chart-1)" },
+] as const;
+
+const budgetLegendItems = [
+  { label: "Budget", color: "var(--color-chart-4)" },
+  { label: "Actual", color: "var(--color-chart-1)" },
+] as const;
+
 type NecessityScore = 1 | 2 | 3 | 4 | 5;
+type ActivityAudience = "personal" | "family";
 
 const necessityLabels: Record<NecessityScore, string> = {
   1: "Optional",
@@ -151,6 +160,26 @@ function FilterChip({
   );
 }
 
+function getScopedActivityData(data: ActivityDashboardDataDto, audience: ActivityAudience) {
+  if (audience === "family") {
+    return {
+      ...data,
+      budgets: data.budgets.filter((budget) => budget.scope === "family"),
+      expenses: data.expenses.filter((expense) => expense.scope === "family"),
+    };
+  }
+
+  return {
+    ...data,
+    budgets: data.budgets.filter(
+      (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
+    ),
+    expenses: data.expenses.filter(
+      (expense) => expense.scope === "personal" && expense.userId === data.currentUser.id
+    ),
+  };
+}
+
 function MetricCard({
   label,
   value,
@@ -173,6 +202,27 @@ function MetricCard({
     <div className={cn("rounded-xl border p-4", toneClass)}>
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-2 text-xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function OrderedLegend({
+  items,
+}: {
+  items: readonly { label: string; color: string }[];
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-foreground">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 rounded-sm"
+            style={{ backgroundColor: item.color }}
+          />
+          <span>{item.label}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -239,81 +289,24 @@ function MultiChipFilter({
   );
 }
 
-function SingleChipFilter({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (nextValue: string) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <Label>{label}</Label>
-      <div className="flex flex-wrap gap-2">
-        <FilterChip active={value === "all"} onClick={() => onChange("all")}>
-          All
-        </FilterChip>
-        {options.map((option) => (
-          <FilterChip
-            key={option.value}
-            active={value === option.value}
-            onClick={() => onChange(option.value)}
-          >
-            {option.label}
-          </FilterChip>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function ExpenseActivityChart({
   expenses,
-  categories,
-  members,
-}: Pick<ActivityDashboardDataDto, "expenses" | "categories" | "members">) {
-  const allMonthKeys = useMemo(() => {
-    const monthKeys = expenses.map((expense) => getMonthKey(expense.occurredAt));
-    return monthKeys.length ? Array.from(new Set(monthKeys)).sort() : [];
-  }, [expenses]);
-
-  const minMonth = allMonthKeys[0] ?? getMonthKey(new Date().toISOString());
-  const maxMonth = allMonthKeys[allMonthKeys.length - 1] ?? minMonth;
-
-  const [startMonth, setStartMonth] = useState(minMonth);
-  const [endMonth, setEndMonth] = useState(maxMonth);
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
-
-  const categoryOptions = useMemo(
-    () => categories.map((category) => ({ value: String(category.id), label: category.name })),
-    [categories]
-  );
-  const memberOptions = useMemo(
-    () => members.map((member) => ({ value: member.id, label: member.name })),
-    [members]
-  );
-
+  monthStart,
+  monthEnd,
+}: {
+  expenses: ActivityDashboardDataDto["expenses"];
+  monthStart: string;
+  monthEnd: string;
+}) {
   const chartData = useMemo(() => {
-    const selectedCategories = new Set(selectedCategoryIds);
-    const selectedMembers = new Set(selectedMemberIds);
-    const months = buildMonthRange(startMonth, endMonth);
-    const filtered = expenses.filter((expense) => {
+    const months = buildMonthRange(monthStart, monthEnd);
+    const filteredExpenses = expenses.filter((expense) => {
       const expenseMonth = getMonthKey(expense.occurredAt);
-      if (expenseMonth < startMonth || expenseMonth > endMonth) return false;
-      if (selectedCategories.size > 0 && !selectedCategories.has(String(expense.categoryId))) return false;
-      if (selectedMembers.size > 0 && !selectedMembers.has(expense.userId)) return false;
-      if (scopeFilter !== "all" && expense.scope !== scopeFilter) return false;
-      return true;
+      return expenseMonth >= monthStart && expenseMonth <= monthEnd;
     });
 
     return months.map((monthKey) => {
-      const monthExpenses = filtered.filter((expense) => getMonthKey(expense.occurredAt) === monthKey);
+      const monthExpenses = filteredExpenses.filter((expense) => getMonthKey(expense.occurredAt) === monthKey);
       const income = monthExpenses
         .filter((expense) => expense.type === "income")
         .reduce((sum, expense) => sum + Number(expense.amount), 0);
@@ -329,7 +322,7 @@ function ExpenseActivityChart({
         isOverspent: expense > income,
       };
     });
-  }, [expenses, startMonth, endMonth, selectedCategoryIds, selectedMemberIds, scopeFilter]);
+  }, [expenses, monthStart, monthEnd]);
 
   const totals = useMemo(() => {
     const income = chartData.reduce((sum, item) => sum + item.income, 0);
@@ -340,71 +333,22 @@ function ExpenseActivityChart({
     return { income, expense, netSavings, overspentMonths };
   }, [chartData]);
 
-  const monthBoundsMissing = !allMonthKeys.length;
+  const hasDataInRange = expenses.some((expense) => {
+    const expenseMonth = getMonthKey(expense.occurredAt);
+    return expenseMonth >= monthStart && expenseMonth <= monthEnd;
+  });
 
   return (
     <Card className="py-2">
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
           title="Income vs Expense"
-          description="Track cash flow over time, compare income and spending by month, and spot when expenses overtake income."
+          description="Track cash flow over the selected month range, compare income and spending, and spot when expenses overtake income."
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <Label>Month range</Label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                type="month"
-                value={startMonth}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setStartMonth(nextValue);
-                  if (nextValue > endMonth) {
-                    setEndMonth(nextValue);
-                  }
-                }}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              />
-              <input
-                type="month"
-                value={endMonth}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setEndMonth(nextValue);
-                  if (nextValue < startMonth) {
-                    setStartMonth(nextValue);
-                  }
-                }}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              />
-            </div>
-          </div>
-
-          <SingleChipFilter
-            label="Family / personal scope"
-            value={scopeFilter}
-            onChange={(nextValue) => setScopeFilter(nextValue as ScopeFilter)}
-            options={[
-              { value: "personal", label: "Personal" },
-              { value: "family", label: "Family" },
-            ]}
-          />
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">Range {getMonthLabel(monthStart)} → {getMonthLabel(monthEnd)}</Badge>
         </div>
-
-        <MultiChipFilter
-          label="Categories"
-          options={categoryOptions}
-          selectedValues={selectedCategoryIds}
-          onChange={setSelectedCategoryIds}
-        />
-
-        <MultiChipFilter
-          label="Users"
-          options={memberOptions}
-          selectedValues={selectedMemberIds}
-          onChange={setSelectedMemberIds}
-        />
       </CardHeader>
 
       <CardContent className="space-y-6 px-4 pb-6 sm:px-8 sm:pb-8">
@@ -418,9 +362,9 @@ function ExpenseActivityChart({
           />
         </div>
 
-        {monthBoundsMissing ? (
+        {!hasDataInRange ? (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No expense records yet. Add income or expenses to see the activity chart.
+            No expense records match the selected range.
           </div>
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
@@ -431,28 +375,29 @@ function ExpenseActivityChart({
                 margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
                 style={{ width: "100%", height: "100%" }}
               >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" tickMargin={10} tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
-                  <Tooltip
-                    formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
-                    labelFormatter={(label) => String(label)}
-                    cursor={{ fill: "var(--color-muted)" }}
-                  />
-                  <Legend />
-                  <Bar dataKey="income" name="Income" radius={[6, 6, 0, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell key={`income-${entry.month}`} fill="var(--color-chart-2)" />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="expense" name="Expense" radius={[6, 6, 0, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell
-                        key={`expense-${entry.month}`}
-                        fill={entry.isOverspent ? "var(--color-destructive)" : "var(--color-chart-1)"}
-                      />
-                    ))}
-                  </Bar>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" tickMargin={10} tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
+                <Tooltip
+                  shared={false}
+                  formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
+                  labelFormatter={(label) => String(label)}
+                  cursor={{ fill: "var(--color-muted)" }}
+                />
+                <Legend content={<OrderedLegend items={expenseLegendItems} />} />
+                <Bar dataKey="income" name="Income" radius={[6, 6, 0, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell key={`income-${entry.month}`} fill="var(--color-chart-2)" />
+                  ))}
+                </Bar>
+                <Bar dataKey="expense" name="Expense" radius={[6, 6, 0, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell
+                      key={`expense-${entry.month}`}
+                      fill={entry.isOverspent ? "var(--color-destructive)" : "var(--color-chart-1)"}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </div>
           </div>
@@ -480,50 +425,40 @@ function ExpenseActivityChart({
 function BudgetVsActualChart({
   budgets,
   expenses,
-  categories,
-  members,
-}: Pick<ActivityDashboardDataDto, "budgets" | "expenses" | "categories" | "members">) {
+  monthStart,
+  monthEnd,
+}: {
+  budgets: ActivityDashboardDataDto["budgets"];
+  expenses: ActivityDashboardDataDto["expenses"];
+  monthStart: string;
+  monthEnd: string;
+}) {
   const budgetMonths = useMemo(() => {
-    const months = budgets.map((budget) => budget.month);
+    const months = budgets
+      .filter((budget) => budget.month >= monthStart && budget.month <= monthEnd)
+      .map((budget) => budget.month);
     return months.length ? Array.from(new Set(months)).sort() : [];
-  }, [budgets]);
-
-  const defaultMonth = budgetMonths[budgetMonths.length - 1] ?? getMonthKey(new Date().toISOString());
-  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("all");
-  const [selectedMemberId, setSelectedMemberId] = useState("all");
-
-  const categoryOptions = useMemo(
-    () => categories.map((category) => ({ value: String(category.id), label: category.name })),
-    [categories]
-  );
-  const memberOptions = useMemo(
-    () => members.map((member) => ({ value: member.id, label: member.name })),
-    [members]
-  );
+  }, [budgets, monthStart, monthEnd]);
 
   const chartData = useMemo(() => {
-    const selectedBudgets = budgets.filter((budget) => {
-      if (budget.month !== selectedMonth) return false;
-      if (selectedCategoryId !== "all" && String(budget.categoryId) !== selectedCategoryId) return false;
-      if (selectedMemberId !== "all" && budget.userId !== selectedMemberId && budget.userId !== null) return false;
-      return true;
-    });
-
+    const selectedBudgets = budgets.filter(
+      (budget) => budget.month >= monthStart && budget.month <= monthEnd
+    );
     const selectedExpenses = expenses.filter((expense) => {
-      if (getMonthKey(expense.occurredAt) !== selectedMonth) return false;
-      if (selectedCategoryId !== "all" && String(expense.categoryId) !== selectedCategoryId) return false;
-      if (selectedMemberId !== "all" && expense.userId !== selectedMemberId) return false;
-      return true;
+      const expenseMonth = getMonthKey(expense.occurredAt);
+      return expense.type === "expense" && expenseMonth >= monthStart && expenseMonth <= monthEnd;
     });
 
-    const categoryMap = new Map<number, {
-      categoryId: number;
-      categoryName: string;
-      budget: number;
-      actual: number;
-      color: string;
-    }>();
+    const categoryMap = new Map<
+      number,
+      {
+        categoryId: number;
+        categoryName: string;
+        budget: number;
+        actual: number;
+        color: string;
+      }
+    >();
 
     const getCategoryColor = (categoryId: number) =>
       chartPalette[(categoryId - 1) % chartPalette.length] ?? "var(--color-chart-4)";
@@ -560,7 +495,7 @@ function BudgetVsActualChart({
         overBudget: Math.max(item.actual - item.budget, 0),
         isOverBudget: item.actual > item.budget,
       }));
-  }, [budgets, expenses, selectedMonth, selectedCategoryId, selectedMemberId]);
+  }, [budgets, expenses, monthStart, monthEnd]);
 
   const totals = useMemo(() => {
     const budget = chartData.reduce((sum, item) => sum + item.budget, 0);
@@ -576,31 +511,11 @@ function BudgetVsActualChart({
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
           title="Budget vs Actual Spending"
-          description="Compare budgeted amounts with real spending by category, then identify remaining amounts and overspend quickly."
+          description="Compare budgeted amounts with real spending across the selected range, then identify remaining amounts and overspend quickly."
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-          <div className="space-y-3">
-            <Label>Month</Label>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            />
-          </div>
-          <SingleChipFilter
-            label="User"
-            value={selectedMemberId}
-            onChange={setSelectedMemberId}
-            options={memberOptions}
-          />
-          <SingleChipFilter
-            label="Category"
-            value={selectedCategoryId}
-            onChange={setSelectedCategoryId}
-            options={categoryOptions}
-          />
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">Range {getMonthLabel(monthStart)} → {getMonthLabel(monthEnd)}</Badge>
         </div>
       </CardHeader>
 
@@ -614,7 +529,7 @@ function BudgetVsActualChart({
 
         {!budgetMonths.length ? (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No budgets are available yet. Create a budget to compare planned vs actual spending.
+            No budgets are available yet for the selected range.
           </div>
         ) : chartData.length ? (
           <div className="rounded-2xl border bg-muted/10 p-4">
@@ -625,34 +540,35 @@ function BudgetVsActualChart({
                 margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
                 style={{ width: "100%", height: "100%" }}
               >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="categoryName" tickMargin={10} interval={0} tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
-                  <Tooltip
-                    formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
-                    labelFormatter={(label) => String(label)}
-                    cursor={{ fill: "var(--color-muted)" }}
-                  />
-                  <Legend />
-                  <Bar dataKey="budget" name="Budget" radius={[6, 6, 0, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell key={`budget-${entry.categoryId}`} fill="var(--color-chart-4)" />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="actual" name="Actual" radius={[6, 6, 0, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell
-                        key={`actual-${entry.categoryId}`}
-                        fill={entry.isOverBudget ? "var(--color-destructive)" : entry.color}
-                      />
-                    ))}
-                  </Bar>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="categoryName" tickMargin={10} interval={0} tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
+                <Tooltip
+                  shared={false}
+                  formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
+                  labelFormatter={(label) => String(label)}
+                  cursor={{ fill: "var(--color-muted)" }}
+                />
+                <Legend content={<OrderedLegend items={budgetLegendItems} />} />
+                <Bar dataKey="budget" name="Budget" radius={[6, 6, 0, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell key={`budget-${entry.categoryId}`} fill="var(--color-chart-4)" />
+                  ))}
+                </Bar>
+                <Bar dataKey="actual" name="Actual" radius={[6, 6, 0, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell
+                      key={`actual-${entry.categoryId}`}
+                      fill={entry.isOverBudget ? "var(--color-destructive)" : entry.color}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </div>
           </div>
         ) : (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No budget or expense data matches the selected filters.
+            No budget or expense data matches the selected range.
           </div>
         )}
 
@@ -673,7 +589,7 @@ function BudgetVsActualChart({
           </div>
         ) : (
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
-            All visible categories are within budget for the selected month.
+            All visible categories are within budget for the selected range.
           </div>
         )}
       </CardContent>
@@ -683,61 +599,39 @@ function BudgetVsActualChart({
 
 function CategorySpendChart({
   expenses,
-  categories,
-  members,
-}: Pick<ActivityDashboardDataDto, "expenses" | "categories" | "members">) {
-  const monthOptions = useMemo(() => {
-    return Array.from(new Set(expenses.map((expense) => getMonthKey(expense.occurredAt)))).sort();
-  }, [expenses]);
-
-  const [selectedMonth, setSelectedMonth] = useState("all");
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-  const [transactionTypeFilter, setTransactionTypeFilter] = useState<TransactionTypeFilter>("expense");
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
-
-  const categoryOptions = useMemo(
-    () => categories.map((category) => ({ value: String(category.id), label: category.name })),
-    [categories]
-  );
-  const memberOptions = useMemo(
-    () => members.map((member) => ({ value: member.id, label: member.name })),
-    [members]
-  );
-
+  monthStart,
+  monthEnd,
+}: {
+  expenses: ActivityDashboardDataDto["expenses"];
+  monthStart: string;
+  monthEnd: string;
+}) {
   const chartData = useMemo(() => {
-    const selectedCategories = new Set(selectedCategoryIds);
-    const selectedMembers = new Set(selectedMemberIds);
-
     const filtered = expenses.filter((expense) => {
-      if (selectedMonth !== "all" && getMonthKey(expense.occurredAt) !== selectedMonth) return false;
-      if (selectedCategories.size > 0 && !selectedCategories.has(String(expense.categoryId))) return false;
-      if (selectedMembers.size > 0 && !selectedMembers.has(expense.userId)) return false;
-      if (transactionTypeFilter !== "all" && expense.type !== transactionTypeFilter) return false;
-      if (scopeFilter !== "all" && expense.scope !== scopeFilter) return false;
-      return true;
+      const expenseMonth = getMonthKey(expense.occurredAt);
+      return expense.type === "expense" && expenseMonth >= monthStart && expenseMonth <= monthEnd;
     });
 
-    const totalsByCategory = new Map<number, {
-      categoryId: number;
-      categoryName: string;
-      amount: number;
-      color: string;
-    }>();
+    const totalsByCategory = new Map<
+      number,
+      {
+        categoryId: number;
+        categoryName: string;
+        amount: number;
+        color: string;
+      }
+    >();
 
-    const colorByIndex = (index: number) => chartPalette[index % chartPalette.length] ?? "var(--color-chart-1)";
+    const getCategoryColor = (categoryId: number) =>
+      chartPalette[(categoryId - 1) % chartPalette.length] ?? "var(--color-chart-1)";
 
     for (const expense of filtered) {
       const existing = totalsByCategory.get(expense.categoryId);
-      const categoryColor =
-        existing?.color ??
-        colorByIndex(categories.findIndex((category) => category.id === expense.categoryId));
-
       totalsByCategory.set(expense.categoryId, {
         categoryId: expense.categoryId,
         categoryName: expense.categoryName,
         amount: (existing?.amount ?? 0) + Number(expense.amount),
-        color: categoryColor,
+        color: existing?.color ?? getCategoryColor(expense.categoryId),
       });
     }
 
@@ -750,7 +644,7 @@ function CategorySpendChart({
       percentage: totalAmount > 0 ? (item.amount / totalAmount) * 100 : 0,
       isTopThree: index < 3,
     }));
-  }, [expenses, categories, selectedMonth, selectedCategoryIds, selectedMemberIds, transactionTypeFilter, scopeFilter]);
+  }, [expenses, monthStart, monthEnd]);
 
   const totals = useMemo(() => {
     const totalAmount = chartData.reduce((sum, item) => sum + item.amount, 0);
@@ -767,82 +661,12 @@ function CategorySpendChart({
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
           title="Spending by Category"
-          description="See which categories consume the most spending, with longer names kept readable through a horizontal layout."
+          description="See which categories consume the most spending across the selected month range."
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="space-y-3">
-            <Label>Month</Label>
-            <select
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="all">All months</option>
-              {monthOptions.map((month) => (
-                <option key={month} value={month}>
-                  {getMonthLabel(month)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <SingleChipFilter
-            label="Transaction type"
-            value={transactionTypeFilter}
-            onChange={(nextValue) => setTransactionTypeFilter(nextValue as TransactionTypeFilter)}
-            options={[
-              { value: "expense", label: "Expense" },
-              { value: "income", label: "Income" },
-            ]}
-          />
-
-          <SingleChipFilter
-            label="Scope"
-            value={scopeFilter}
-            onChange={(nextValue) => setScopeFilter(nextValue as ScopeFilter)}
-            options={[
-              { value: "personal", label: "Personal" },
-              { value: "family", label: "Family" },
-            ]}
-          />
-
-          <div className="space-y-3">
-            <Label>Category</Label>
-            <div className="max-h-28 overflow-auto rounded-md border bg-background p-2">
-              <div className="flex flex-wrap gap-2">
-                <FilterChip
-                  active={selectedCategoryIds.length === 0}
-                  onClick={() => setSelectedCategoryIds([])}
-                >
-                  All
-                </FilterChip>
-                {categoryOptions.map((option) => (
-                  <FilterChip
-                    key={option.value}
-                    active={selectedCategoryIds.includes(option.value)}
-                    onClick={() =>
-                      setSelectedCategoryIds((current) =>
-                        current.includes(option.value)
-                          ? current.filter((value) => value !== option.value)
-                          : [...current, option.value]
-                      )
-                    }
-                  >
-                    {option.label}
-                  </FilterChip>
-                ))}
-              </div>
-            </div>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">Range {getMonthLabel(monthStart)} → {getMonthLabel(monthEnd)}</Badge>
         </div>
-
-        <MultiChipFilter
-          label="Users"
-          options={memberOptions}
-          selectedValues={selectedMemberIds}
-          onChange={setSelectedMemberIds}
-        />
       </CardHeader>
 
       <CardContent className="space-y-6 px-4 pb-6 sm:px-8 sm:pb-8">
@@ -870,85 +694,85 @@ function CategorySpendChart({
 
         {!hasData ? (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No matching spending found for the selected filters.
+            No spending found for the selected range.
           </div>
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
             <div className="h-[360px] w-full min-w-0 min-h-0 sm:h-[420px]">
               <BarChart
                 responsive
-                  data={chartData}
-                  layout="vertical"
+                data={chartData}
+                layout="vertical"
                 margin={{ top: 16, right: 12, left: 0, bottom: 0 }}
-                  style={{ width: "100%", height: "100%" }}
+                style={{ width: "100%", height: "100%" }}
               >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(value) => formatCompactMoney(Number(value))} tick={{ fontSize: 12 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="categoryName"
-                    width={96}
-                    tickMargin={6}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip
-                    formatter={(value, name, payload) => {
-                      const row = payload?.payload as (typeof chartData)[number] | undefined;
-                      const amount = Number(value ?? 0);
-                      const percent = row ? row.percentage.toFixed(1) : "0.0";
-                      return [`${formatMoney(amount)} (${percent}%)`, String(name)];
-                    }}
-                    labelFormatter={(label) => String(label)}
-                    cursor={{ fill: "var(--color-muted)" }}
-                  />
-                  <Legend />
-                  <Bar dataKey="amount" name="Total amount" radius={[0, 8, 8, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell
-                        key={entry.categoryId}
-                        fill={entry.isTopThree ? entry.color : "var(--color-chart-5)"}
-                        fillOpacity={entry.isTopThree ? 1 : 0.45}
-                      />
-                    ))}
-                    <LabelList
-                      dataKey="amount"
-                      position="right"
-                      content={(props) => {
-                        const labelProps = props as
-                          | {
-                              payload?: (typeof chartData)[number];
-                              x?: number;
-                              y?: number;
-                              width?: number;
-                              height?: number;
-                              value?: number | string;
-                            }
-                          | undefined;
-                        const row = labelProps?.payload;
-                        if (
-                          !labelProps ||
-                          typeof labelProps.x !== "number" ||
-                          typeof labelProps.y !== "number" ||
-                          typeof labelProps.width !== "number" ||
-                          typeof labelProps.height !== "number" ||
-                          row == null
-                        ) {
-                          return null;
-                        }
-
-                        return (
-                          <text
-                            x={labelProps.x + labelProps.width + 8}
-                            y={labelProps.y + labelProps.height / 2 + 4}
-                            fill="currentColor"
-                            className="fill-foreground text-xs font-medium"
-                          >
-                            {formatMoney(Number(labelProps.value ?? 0))} • {row.percentage.toFixed(0)}%
-                          </text>
-                        );
-                      }}
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tickFormatter={(value) => formatCompactMoney(Number(value))} tick={{ fontSize: 12 }} />
+                <YAxis
+                  type="category"
+                  dataKey="categoryName"
+                  width={96}
+                  tickMargin={6}
+                  tick={{ fontSize: 12 }}
+                />
+                <Tooltip
+                  formatter={(value, name, payload) => {
+                    const row = payload?.payload as (typeof chartData)[number] | undefined;
+                    const amount = Number(value ?? 0);
+                    const percent = row ? row.percentage.toFixed(1) : "0.0";
+                    return [`${formatMoney(amount)} (${percent}%)`, String(name)];
+                  }}
+                  labelFormatter={(label) => String(label)}
+                  cursor={{ fill: "var(--color-muted)" }}
+                />
+                <Legend />
+                <Bar dataKey="amount" name="Total amount" radius={[0, 8, 8, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell
+                      key={entry.categoryId}
+                      fill={entry.isTopThree ? entry.color : "var(--color-chart-5)"}
+                      fillOpacity={entry.isTopThree ? 1 : 0.45}
                     />
-                  </Bar>
+                  ))}
+                  <LabelList
+                    dataKey="amount"
+                    position="right"
+                    content={(props) => {
+                      const labelProps = props as
+                        | {
+                            payload?: (typeof chartData)[number];
+                            x?: number;
+                            y?: number;
+                            width?: number;
+                            height?: number;
+                            value?: number | string;
+                          }
+                        | undefined;
+                      const row = labelProps?.payload;
+                      if (
+                        !labelProps ||
+                        typeof labelProps.x !== "number" ||
+                        typeof labelProps.y !== "number" ||
+                        typeof labelProps.width !== "number" ||
+                        typeof labelProps.height !== "number" ||
+                        row == null
+                      ) {
+                        return null;
+                      }
+
+                      return (
+                        <text
+                          x={labelProps.x + labelProps.width + 8}
+                          y={labelProps.y + labelProps.height / 2 + 4}
+                          fill="currentColor"
+                          className="fill-foreground text-xs font-medium"
+                        >
+                          {formatMoney(Number(labelProps.value ?? 0))} • {row.percentage.toFixed(0)}%
+                        </text>
+                      );
+                    }}
+                  />
+                </Bar>
               </BarChart>
             </div>
           </div>
@@ -979,42 +803,20 @@ function CategorySpendChart({
 
 function NecessitySpendChart({
   expenses,
-  categories,
-  members,
-}: Pick<ActivityDashboardDataDto, "expenses" | "categories" | "members">) {
-  const monthOptions = useMemo(
-    () => Array.from(new Set(expenses.map((expense) => getMonthKey(expense.occurredAt)))).sort(),
-    [expenses]
-  );
-  const [selectedMonth, setSelectedMonth] = useState("all");
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-
-  const categoryOptions = useMemo(
-    () => categories.map((category) => ({ value: String(category.id), label: category.name })),
-    [categories]
-  );
-  const memberOptions = useMemo(
-    () => members.map((member) => ({ value: member.id, label: member.name })),
-    [members]
-  );
-
+  monthStart,
+  monthEnd,
+}: {
+  expenses: ActivityDashboardDataDto["expenses"];
+  monthStart: string;
+  monthEnd: string;
+}) {
   const chartData = useMemo(() => {
-    const selectedCategories = new Set(selectedCategoryIds);
-    const selectedMembers = new Set(selectedMemberIds);
-
     const filtered = expenses.filter((expense) => {
-      if (expense.type !== "expense") return false;
-      if (selectedMonth !== "all" && getMonthKey(expense.occurredAt) !== selectedMonth) return false;
-      if (selectedCategories.size > 0 && !selectedCategories.has(String(expense.categoryId))) return false;
-      if (selectedMembers.size > 0 && !selectedMembers.has(expense.userId)) return false;
-      return true;
+      const expenseMonth = getMonthKey(expense.occurredAt);
+      return expense.type === "expense" && expenseMonth >= monthStart && expenseMonth <= monthEnd;
     });
 
-    const groupedByMonth = new Map<
-      string,
-      Record<NecessityScore, number>
-    >();
+    const groupedByMonth = new Map<string, Record<NecessityScore, number>>();
 
     for (const expense of filtered) {
       const monthKey = getMonthKey(expense.occurredAt);
@@ -1029,10 +831,7 @@ function NecessitySpendChart({
       groupedByMonth.set(monthKey, existing);
     }
 
-    const monthKeys =
-      selectedMonth === "all"
-        ? Array.from(groupedByMonth.keys()).sort()
-        : [selectedMonth];
+    const monthKeys = buildMonthRange(monthStart, monthEnd);
 
     return monthKeys.map((monthKey) => {
       const levels = groupedByMonth.get(monthKey) ?? {
@@ -1054,7 +853,7 @@ function NecessitySpendChart({
         total: necessityOrder.reduce((sum, score) => sum + levels[score], 0),
       };
     });
-  }, [expenses, selectedMonth, selectedCategoryIds, selectedMemberIds]);
+  }, [expenses, monthStart, monthEnd]);
 
   const totals = useMemo(() => {
     const totalExpense = chartData.reduce((sum, item) => sum + item.total, 0);
@@ -1075,39 +874,11 @@ function NecessitySpendChart({
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
           title="Spending by Necessity Level"
-          description="Break spending down by necessity level each month to see how essential and optional expenses stack up over time."
+          description="Break spending down by necessity level across the selected month range."
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-          <div className="space-y-3">
-            <Label>Month</Label>
-            <select
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="all">All months</option>
-              {monthOptions.map((month) => (
-                <option key={month} value={month}>
-                  {getMonthLabel(month)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <MultiChipFilter
-            label="Users"
-            options={memberOptions}
-            selectedValues={selectedMemberIds}
-            onChange={setSelectedMemberIds}
-          />
-
-          <MultiChipFilter
-            label="Categories"
-            options={categoryOptions}
-            selectedValues={selectedCategoryIds}
-            onChange={setSelectedCategoryIds}
-          />
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">Range {getMonthLabel(monthStart)} → {getMonthLabel(monthEnd)}</Badge>
         </div>
       </CardHeader>
 
@@ -1123,7 +894,7 @@ function NecessitySpendChart({
 
         {!hasData ? (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No spending found for the selected necessity filters.
+            No spending found for the selected range.
           </div>
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
@@ -1138,6 +909,7 @@ function NecessitySpendChart({
                 <XAxis dataKey="label" tickMargin={10} tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
                 <Tooltip
+                  shared={false}
                   formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
                   labelFormatter={(label) => String(label)}
                   cursor={{ fill: "var(--color-muted)" }}
@@ -1150,7 +922,7 @@ function NecessitySpendChart({
                   { key: "niceToHave", label: necessityLabels[2], color: "var(--color-chart-4)" },
                   { key: "optional", label: necessityLabels[1], color: "var(--color-chart-5)" },
                 ].map((series) => (
-                  <Bar key={series.key} dataKey={series.key} name={series.label} stackId="necessity" radius={[0, 0, 0, 0]}>
+                  <Bar key={series.key} dataKey={series.key} name={series.label} radius={[0, 0, 0, 0]}>
                     {chartData.map((entry) => (
                       <Cell
                         key={`${series.key}-${entry.month}`}
@@ -1187,39 +959,18 @@ function NecessitySpendChart({
     </Card>
   );
 }
-
 function ExpenseTrendChart({
   expenses,
-  categories,
-  members,
-}: Pick<ActivityDashboardDataDto, "expenses" | "categories" | "members">) {
-  const allMonthKeys = useMemo(
-    () => Array.from(new Set(expenses.map((expense) => getMonthKey(expense.occurredAt)))).sort(),
-    [expenses]
-  );
-
-  const minMonth = allMonthKeys[0] ?? getMonthKey(new Date().toISOString());
-  const maxMonth = allMonthKeys[allMonthKeys.length - 1] ?? minMonth;
-
-  const [startMonth, setStartMonth] = useState(minMonth);
-  const [endMonth, setEndMonth] = useState(maxMonth);
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-
-  const categoryOptions = useMemo(
-    () => categories.map((category) => ({ value: String(category.id), label: category.name })),
-    [categories]
-  );
-  const memberOptions = useMemo(
-    () => members.map((member) => ({ value: member.id, label: member.name })),
-    [members]
-  );
-
+  monthStart,
+  monthEnd,
+}: {
+  expenses: ActivityDashboardDataDto["expenses"];
+  monthStart: string;
+  monthEnd: string;
+}) {
   const chartData = useMemo(() => {
-    const selectedCategories = new Set(selectedCategoryIds);
-    const selectedMembers = new Set(selectedMemberIds);
-    const currentStart = monthKeyToDate(startMonth);
-    const currentEnd = new Date(monthKeyToDate(endMonth));
+    const currentStart = monthKeyToDate(monthStart);
+    const currentEnd = new Date(monthKeyToDate(monthEnd));
     currentEnd.setUTCDate(1);
     currentEnd.setUTCMonth(currentEnd.getUTCMonth() + 1);
     currentEnd.setUTCDate(0);
@@ -1232,16 +983,10 @@ function ExpenseTrendChart({
     const previousEnd = addUtcDays(currentStart, -1);
     const previousStart = addUtcDays(currentStart, -dayCount);
 
-    const filtered = expenses.filter((expense) => {
-      if (selectedCategories.size > 0 && !selectedCategories.has(String(expense.categoryId))) return false;
-      if (selectedMembers.size > 0 && !selectedMembers.has(expense.userId)) return false;
-      return true;
-    });
-
     const currentLookup = new Map<string, number>();
     const previousLookup = new Map<string, number>();
 
-    for (const expense of filtered) {
+    for (const expense of expenses) {
       const expenseDate = new Date(expense.occurredAt);
       const amount = Number(expense.amount);
 
@@ -1271,7 +1016,7 @@ function ExpenseTrendChart({
         previous: previousAmount,
       };
     });
-  }, [expenses, startMonth, endMonth, selectedCategoryIds, selectedMemberIds]);
+  }, [expenses, monthStart, monthEnd]);
 
   const totals = useMemo(() => {
     const currentTotal = chartData.reduce((sum, item) => sum + item.current, 0);
@@ -1282,62 +1027,19 @@ function ExpenseTrendChart({
     return { currentTotal, previousTotal, delta, percentageChange };
   }, [chartData]);
 
-  const trendLabel =
-    totals.delta > 0 ? "up" : totals.delta < 0 ? "down" : "flat";
+  const trendLabel = totals.delta > 0 ? "up" : totals.delta < 0 ? "down" : "flat";
 
   return (
     <Card className="py-2">
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
           title="Expense Trends Over Time"
-          description="Compare the current period against the previous period to understand whether spend is accelerating or slowing down."
+          description="Compare the selected period against the previous period to understand whether spend is accelerating or slowing down."
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <Label>Month range</Label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                type="month"
-                value={startMonth}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setStartMonth(nextValue);
-                  if (nextValue > endMonth) {
-                    setEndMonth(nextValue);
-                  }
-                }}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              />
-              <input
-                type="month"
-                value={endMonth}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setEndMonth(nextValue);
-                  if (nextValue < startMonth) {
-                    setStartMonth(nextValue);
-                  }
-                }}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              />
-            </div>
-          </div>
-
-          <MultiChipFilter
-            label="Users"
-            options={memberOptions}
-            selectedValues={selectedMemberIds}
-            onChange={setSelectedMemberIds}
-          />
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">Range {getMonthLabel(monthStart)} → {getMonthLabel(monthEnd)}</Badge>
         </div>
-
-        <MultiChipFilter
-          label="Categories"
-          options={categoryOptions}
-          selectedValues={selectedCategoryIds}
-          onChange={setSelectedCategoryIds}
-        />
       </CardHeader>
 
       <CardContent className="space-y-6 px-4 pb-6 sm:px-8 sm:pb-8">
@@ -1423,14 +1125,37 @@ export function ActivityDashboard({
 }: {
   data: ActivityDashboardDataDto;
 }) {
-  const pageMonthRange = useMemo(() => {
-    const monthKeys = Array.from(
-      new Set(data.expenses.map((expense) => getMonthKey(expense.occurredAt)))
-    ).sort();
-    return monthKeys.length
-      ? `${monthKeys[0]} → ${monthKeys[monthKeys.length - 1]}`
-      : "No expense history yet";
-  }, [data.expenses]);
+  const allMonthKeys = useMemo(
+    () => Array.from(new Set(data.expenses.map((expense) => getMonthKey(expense.occurredAt)))).sort(),
+    [data.expenses]
+  );
+  const minMonth = allMonthKeys[0] ?? getMonthKey(new Date().toISOString());
+  const maxMonth = allMonthKeys[allMonthKeys.length - 1] ?? minMonth;
+  const [audience, setAudience] = useState<ActivityAudience>("personal");
+  const [monthStart, setMonthStart] = useState(minMonth);
+  const [monthEnd, setMonthEnd] = useState(maxMonth);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+
+  const scopedData = useMemo(() => getScopedActivityData(data, audience), [data, audience]);
+  const visibleData = useMemo(() => {
+    const selectedCategories = new Set(selectedCategoryIds);
+    const filteredBudgets = scopedData.budgets.filter((budget) => {
+      if (selectedCategories.size === 0) return true;
+      return selectedCategories.has(String(budget.categoryId));
+    });
+    const filteredExpenses = scopedData.expenses.filter((expense) => {
+      if (selectedCategories.size === 0) return true;
+      return selectedCategories.has(String(expense.categoryId));
+    });
+
+    return {
+      ...scopedData,
+      budgets: filteredBudgets,
+      expenses: filteredExpenses,
+    };
+  }, [scopedData, selectedCategoryIds]);
+
+  const rangeLabel = `${getMonthLabel(monthStart)} → ${getMonthLabel(monthEnd)}`;
 
   return (
     <section className="space-y-6">
@@ -1439,50 +1164,102 @@ export function ActivityDashboard({
           <Badge variant="secondary" className="w-fit">
             Activity
           </Badge>
-          <CardTitle className="text-3xl tracking-tight">Organization activity</CardTitle>
+          <CardTitle className="text-3xl tracking-tight">Activity</CardTitle>
           <p className="max-w-4xl text-sm text-muted-foreground">
-            Visualize spending, income, and budget health across the whole organization.
-            {data.organization ? ` Current workspace: ${data.organization.name}.` : ""}
+            Visualize spending, income, and budget health with one shared set of filters.
+            {visibleData.organization ? ` Current workspace: ${visibleData.organization.name}.` : ""}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">Members {data.members.length}</Badge>
-            <Badge variant="outline">Categories {data.categories.length}</Badge>
-            <Badge variant="outline">Budget months {new Set(data.budgets.map((budget) => budget.month)).size}</Badge>
-            <Badge variant="outline">Expense span {pageMonthRange}</Badge>
+            <Badge variant="outline">Members {visibleData.members.length}</Badge>
+            <Badge variant="outline">Categories {visibleData.categories.length}</Badge>
+            <Badge variant="outline">Budget months {new Set(visibleData.budgets.map((budget) => budget.month)).size}</Badge>
+            <Badge variant="outline">Range {rangeLabel}</Badge>
           </div>
         </CardHeader>
       </Card>
 
-      <ExpenseActivityChart
-        expenses={data.expenses}
-        categories={data.categories}
-        members={data.members}
-      />
+      <Card className="py-2">
+        <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
+          <SectionHeader
+            title="Global filters"
+            description="Choose who to view, narrow the month range, and limit charts to specific categories."
+          />
+
+          <div className="grid gap-4 md:grid-cols-3 md:items-end">
+            <div className="space-y-2">
+              <Label htmlFor="activity-audience">Audience</Label>
+              <select
+                id="activity-audience"
+                value={audience}
+                onChange={(event) => setAudience(event.target.value as ActivityAudience)}
+                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="personal">Personal</option>
+                <option value="family">Family</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="activity-month-start">Month start</Label>
+              <input
+                id="activity-month-start"
+                type="month"
+                value={monthStart}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setMonthStart(nextValue);
+                  if (nextValue > monthEnd) {
+                    setMonthEnd(nextValue);
+                  }
+                }}
+                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="activity-month-end">Month end</Label>
+              <input
+                id="activity-month-end"
+                type="month"
+                value={monthEnd}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setMonthEnd(nextValue);
+                  if (nextValue < monthStart) {
+                    setMonthStart(nextValue);
+                  }
+                }}
+                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <MultiChipFilter
+            label="Categories"
+            options={visibleData.categories.map((category) => ({
+              value: String(category.id),
+              label: category.name,
+            }))}
+            selectedValues={selectedCategoryIds}
+            onChange={setSelectedCategoryIds}
+          />
+        </CardHeader>
+      </Card>
+
+      <ExpenseActivityChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
 
       <BudgetVsActualChart
-        budgets={data.budgets}
-        expenses={data.expenses}
-        categories={data.categories}
-        members={data.members}
+        budgets={visibleData.budgets}
+        expenses={visibleData.expenses}
+        monthStart={monthStart}
+        monthEnd={monthEnd}
       />
 
-      <CategorySpendChart
-        expenses={data.expenses}
-        categories={data.categories}
-        members={data.members}
-      />
+      <CategorySpendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
 
-      <NecessitySpendChart
-        expenses={data.expenses}
-        categories={data.categories}
-        members={data.members}
-      />
+      <NecessitySpendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
 
-      <ExpenseTrendChart
-        expenses={data.expenses}
-        categories={data.categories}
-        members={data.members}
-      />
+      <ExpenseTrendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
     </section>
   );
 }

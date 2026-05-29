@@ -354,13 +354,17 @@ function SummaryCard({ summary }: { summary: BudgetAllocationSummaryDto }) {
             </p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Personal Goals</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Personal budgets</p>
             <p className="mt-2 text-lg font-semibold">{formatMoney(summary.personalTotal)}</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Allocated</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Available capacity</p>
             <p className="mt-2 text-lg font-semibold">
-              {summary.allocatedPercent !== null ? `${summary.allocatedPercent}%` : "—"}
+              {summary.availableCapacityAmount !== null
+                ? `${formatMoney(summary.availableCapacityAmount)}${
+                    summary.availableCapacityPercent !== null ? ` (${summary.availableCapacityPercent}%)` : ""
+                  }`
+                : "—"}
             </p>
           </div>
         </div>
@@ -381,7 +385,9 @@ export function BudgetManagement({
   data: OrganizationFinanceDataDto;
   showFamilyBudgetSection?: boolean;
 }) {
-  const personalBudgets = data.budgets.filter((budget) => budget.scope === "personal");
+  const personalBudgets = data.budgets.filter(
+    (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
+  );
   const familyBudgets = data.budgets.filter((budget) => budget.scope === "family");
 
   return (

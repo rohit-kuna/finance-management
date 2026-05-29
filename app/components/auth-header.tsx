@@ -30,6 +30,7 @@ import {
 type AuthHeaderProps = {
   role: AppRole;
   hasOrganization: boolean;
+  organizationName?: string | null;
 };
 
 type HeaderNavItem = {
@@ -61,7 +62,7 @@ const dashboardNavItem: HeaderNavItem = {
   match: "exact",
 };
 
-export function AuthHeader({ role, hasOrganization }: AuthHeaderProps) {
+export function AuthHeader({ role, hasOrganization, organizationName }: AuthHeaderProps) {
   const { openUserProfile } = useClerk();
   const { user, isLoaded } = useUser();
   const pathname = usePathname();
@@ -114,7 +115,7 @@ export function AuthHeader({ role, hasOrganization }: AuthHeaderProps) {
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:justify-between lg:max-w-none lg:px-10 xl:px-14 2xl:px-20">
         <div className="flex items-center justify-between gap-3 md:justify-start md:gap-8">
-          <AppLogo href={logoHref} />
+          <AppLogo href={logoHref} label={organizationName ?? "Workspace"} />
           {navItems.length ? (
             <NavigationMenu viewport={false} className="hidden md:block">
               <NavigationMenuList className="justify-start">

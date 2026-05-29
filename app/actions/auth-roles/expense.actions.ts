@@ -102,11 +102,12 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     getCategoriesByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId),
   ]);
+  const visibleExpenses = expenses.filter((expense) => expense.userId === currentUser.id);
 
   return {
     organization: toOrganizationDto(organization),
     categories,
-    expenses,
+    expenses: visibleExpenses,
     currentUser: {
       id: currentUser.id,
       role: currentUser.role,

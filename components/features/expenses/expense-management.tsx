@@ -151,7 +151,12 @@ function NecessityScoreSlider({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="expense-necessity">Necessity score</Label>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="expense-necessity">Necessity score</Label>
+          <Badge variant="secondary" className="min-w-8 justify-center px-2 py-0.5 text-xs">
+            {value}
+          </Badge>
+        </div>
         <span className="text-sm text-muted-foreground">1 low → 5 high</span>
       </div>
       <input
@@ -165,12 +170,12 @@ function NecessityScoreSlider({
         onChange={(event) => setValue(event.target.value)}
         className="w-full accent-primary"
       />
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>1</span>
-        <Badge variant="secondary" className="min-w-8 justify-center px-2 py-0.5 text-xs">
-          {value}
-        </Badge>
-        <span>5</span>
+      <div className="relative mt-1 h-4 text-xs text-muted-foreground">
+        <span className="absolute left-0">1</span>
+        <span className="absolute left-1/4 -translate-x-1/2">2</span>
+        <span className="absolute left-1/2 -translate-x-1/2">3</span>
+        <span className="absolute left-3/4 -translate-x-1/2">4</span>
+        <span className="absolute right-0">5</span>
       </div>
     </div>
   );
@@ -536,7 +541,7 @@ function ExpenseTable({
           <div>
             <CardTitle className="text-2xl tracking-tight">Expenses</CardTitle>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Filter, sort, edit, and remove expenses across your organization.
+              Filter, sort, edit, and remove your expenses.
             </p>
           </div>
           <Badge variant="secondary">{filteredExpenses.length} records</Badge>
@@ -701,7 +706,7 @@ export function ExpenseManagement({
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
           <CardTitle className="text-3xl tracking-tight">Expenses</CardTitle>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Add an expense quickly, then use filters and sorting to review your org’s spending.
+            Add an expense quickly, then use filters and sorting to review your own spending.
           </p>
         </CardHeader>
       </Card>

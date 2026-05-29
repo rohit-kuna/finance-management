@@ -36,7 +36,8 @@ export type BudgetAllocationSummaryDto = {
   familyBudget: BudgetRecordDto | null;
   personalBudgets: BudgetRecordDto[];
   personalTotal: string;
-  allocatedPercent: number | null;
+  availableCapacityAmount: string | null;
+  availableCapacityPercent: number | null;
   overageAmount: string | null;
 };
 

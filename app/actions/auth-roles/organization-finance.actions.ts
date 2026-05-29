@@ -95,12 +95,16 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
     getCategoriesByOrg(currentUser.orgId),
     getBudgetsByOrg(currentUser.orgId),
   ]);
+  const allocationSummaries = buildBudgetAllocationSummaries(budgets);
+  const visibleBudgets = budgets.filter(
+    (budget) => budget.scope === "family" || (budget.scope === "personal" && budget.userId === currentUser.id)
+  );
 
   return {
     organization: toOrganizationDto(organization),
     categories,
-    budgets,
-    allocationSummaries: buildBudgetAllocationSummaries(budgets),
+    budgets: visibleBudgets,
+    allocationSummaries,
     currentUser: {
       id: currentUser.id,
       role: currentUser.role,

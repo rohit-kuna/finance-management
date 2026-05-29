@@ -3,9 +3,10 @@ import { Box } from "lucide-react";
 
 type AppLogoProps = {
   href?: string;
+  label?: string;
 };
 
-export function AppLogo({ href = "/" }: AppLogoProps) {
+export function AppLogo({ href = "/", label = "Acme" }: AppLogoProps) {
   return (
     <Link
       href={href}
@@ -14,7 +15,7 @@ export function AppLogo({ href = "/" }: AppLogoProps) {
       <div className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
         <Box className="h-4 w-4" />
       </div>
-      <span className="text-lg tracking-tight">Acme</span>
+      <span className="max-w-40 truncate text-lg tracking-tight">{label}</span>
     </Link>
   );
 }
