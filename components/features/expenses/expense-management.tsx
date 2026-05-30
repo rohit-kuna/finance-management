@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { flexRender, getCoreRowModel, getSortedRowModel, type Column, type ColumnDef, type SortingState, useReactTable } from "@tanstack/react-table";
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, PencilLine, Trash2, X } from "lucide-react";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
@@ -71,15 +71,18 @@ function ActionError({ message }: { message: string | null }) {
 
 function CategorySelect({
   categories,
-  defaultValue,
+  value,
+  onChange,
 }: {
   categories: CategoryRecordDto[];
-  defaultValue?: number;
+  value: number;
+  onChange: (value: number) => void;
 }) {
   return (
     <select
       name="categoryId"
-      defaultValue={defaultValue ?? categories[0]?.id}
+      value={String(value)}
+      onChange={(event) => onChange(Number(event.target.value))}
       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
       required
     >
@@ -230,6 +233,18 @@ function ExpenseFormCard({
   const defaultOccurredAt = editingExpense
     ? editingExpense.occurredAt.slice(0, 10)
     : getTodayExpenseDateInputValue();
+  const [selectedCategoryId, setSelectedCategoryId] = useState(
+    editingExpense?.categoryId ?? categories[0]?.id ?? 0
+  );
+
+  useEffect(() => {
+    setSelectedCategoryId(editingExpense?.categoryId ?? categories[0]?.id ?? 0);
+  }, [editingExpense?.categoryId, categories]);
+
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === selectedCategoryId) ?? null,
+    [categories, selectedCategoryId]
+  );
 
   return (
     <Card className="border-primary/20 bg-primary/5 py-2">
@@ -252,7 +267,21 @@ function ExpenseFormCard({
             {editingExpense ? <input type="hidden" name="expenseId" value={editingExpense.id} /> : null}
             <div className="space-y-2">
               <Label>Category</Label>
-              <CategorySelect categories={categories} defaultValue={editingExpense?.categoryId} />
+              <CategorySelect
+                categories={categories}
+                value={selectedCategoryId}
+                onChange={setSelectedCategoryId}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-type">Type</Label>
+              <Input
+                id="expense-type"
+                value={selectedCategory?.type ?? "—"}
+                readOnly
+                tabIndex={-1}
+                className="bg-muted/40 capitalize"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="expense-amount">Amount</Label>
@@ -265,14 +294,6 @@ function ExpenseFormCard({
                 defaultValue={editingExpense?.amount ?? ""}
                 placeholder="250"
                 required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <FormSelect
-                name="type"
-                defaultValue={editingExpense?.type ?? "expense"}
-                options={expenseTypes}
               />
             </div>
             <div className="space-y-2">
@@ -317,7 +338,6 @@ function ExpenseFormCard({
               />
             </div>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
-              <Badge variant="secondary">Default: expense</Badge>
               <Badge variant="secondary">Default: online</Badge>
               <Badge variant="secondary">Default: 1</Badge>
             </div>

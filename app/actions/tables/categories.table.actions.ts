@@ -2,7 +2,7 @@
 
 import { count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { budget, categories, expenses } from "@/db/schema";
+import { budget, categories, expenses, type CategoryType } from "@/db/schema";
 import type { CategoryRecordDto } from "@/app/lib/finance.types";
 
 function toCategoryDto(record: typeof categories.$inferSelect): CategoryRecordDto {
@@ -10,6 +10,7 @@ function toCategoryDto(record: typeof categories.$inferSelect): CategoryRecordDt
     id: record.id,
     orgId: record.orgId,
     name: record.name,
+    type: record.type,
     createdBy: record.createdBy,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
@@ -34,6 +35,7 @@ export async function getCategoryById(id: number) {
 export async function createCategoryRecord(input: {
   orgId: number;
   name: string;
+  type: CategoryType;
   createdBy: string;
 }) {
   const [record] = await db.insert(categories).values(input).returning();
@@ -44,6 +46,7 @@ export async function updateCategoryRecord(
   id: number,
   input: Partial<{
     name: string;
+    type: CategoryType;
     updatedAt: Date;
   }>
 ) {

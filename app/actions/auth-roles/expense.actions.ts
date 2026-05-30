@@ -20,7 +20,6 @@ import { parseExpenseDate } from "@/app/lib/expense-date";
 const expenseSchema = z.object({
   categoryId: z.coerce.number().int().positive(),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
-  type: z.enum(["expense", "income"]),
   transactionMode: z.enum(["online", "cash"]),
   scope: z.enum(["personal", "family"]),
   necessityScore: z.coerce.number().int().min(1, "Necessity score must be between 1 and 5").max(5),
@@ -142,13 +141,14 @@ export async function createExpenseAction(
   if (!category || category.orgId !== orgId) {
     return { error: "Category does not belong to your organization" };
   }
+  const expenseType = category.type;
 
   await createExpenseRecord({
     orgId,
     userId: currentUser.id,
     categoryId: parsed.data.categoryId,
     amount: toMoneyString(parsed.data.amount),
-    type: parsed.data.type,
+    type: expenseType,
     transactionMode: parsed.data.transactionMode,
     scope: parsed.data.scope,
     necessityScore: parsed.data.necessityScore,
@@ -169,7 +169,6 @@ export async function updateExpenseAction(
   const parsed = expenseSchema.safeParse({
     categoryId: formData.get("categoryId"),
     amount: formData.get("amount"),
-    type: normalizeField(formData.get("type")) ?? "expense",
     transactionMode: normalizeField(formData.get("transactionMode")) ?? "online",
     scope: normalizeField(formData.get("scope")) ?? "personal",
     necessityScore: formData.get("necessityScore"),
@@ -197,11 +196,12 @@ export async function updateExpenseAction(
   if (!category || category.orgId !== orgId) {
     return { error: "Category does not belong to your organization" };
   }
+  const expenseType = category.type;
 
   await updateExpenseRecord(expense.id, {
     categoryId: parsed.data.categoryId,
     amount: toMoneyString(parsed.data.amount),
-    type: parsed.data.type,
+    type: expenseType,
     transactionMode: parsed.data.transactionMode,
     scope: parsed.data.scope,
     necessityScore: parsed.data.necessityScore,

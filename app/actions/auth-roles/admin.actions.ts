@@ -2,7 +2,9 @@
 
 import { z } from "zod";
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requireAdmin, requireUser } from "@/app/lib/auth";
+import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
 import { getUserById, updateUserById } from "@/app/actions/tables/users.table.actions";
 import {
@@ -75,6 +77,7 @@ export async function createOrganizationAction(formData: FormData) {
     orgId: organization.id,
     role: ROLES.ADMIN,
   });
+  revalidatePath(ROUTES.DASHBOARD, "layout");
 }
 
 export async function regenerateOrganizationInviteAction() {
@@ -148,6 +151,7 @@ export async function acceptOrganizationInvite(inviteCode: string) {
   }
 
   await updateUserById(currentUser.id, { orgId: organization.id });
+  revalidatePath(ROUTES.DASHBOARD, "layout");
 
   return {
     success: true,

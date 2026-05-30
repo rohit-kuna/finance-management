@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
@@ -53,6 +54,7 @@ export async function joinOrganizationByInviteCodeAction(
 
   if (currentUser.orgId !== organization.id) {
     await updateUserById(currentUser.id, { orgId: organization.id });
+    revalidatePath(ROUTES.DASHBOARD, "layout");
   }
 
   redirect(ROUTES.DASHBOARD);
@@ -95,6 +97,7 @@ export async function createOrganizationFromOnboardingAction(
     orgId: organization.id,
     role: ROLES.ADMIN,
   });
+  revalidatePath(ROUTES.DASHBOARD, "layout");
 
   redirect(ROUTES.DASHBOARD);
 }

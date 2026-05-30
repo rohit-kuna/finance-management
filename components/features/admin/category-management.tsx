@@ -25,6 +25,28 @@ function ActionError({ message }: { message: string | null }) {
   );
 }
 
+function CategoryTypeSelect({
+  id,
+  name,
+  defaultValue = "expense",
+}: {
+  id: string;
+  name: string;
+  defaultValue?: CategoryRecordDto["type"];
+}) {
+  return (
+    <select
+      id={id}
+      name={name}
+      defaultValue={defaultValue}
+      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+    >
+      <option value="expense">Expense</option>
+      <option value="income">Income</option>
+    </select>
+  );
+}
+
 function CategoryRow({ category }: { category: CategoryRecordDto }) {
   const [updateState, updateAction, updatePending] = useActionState(
     updateCategoryAction,
@@ -46,6 +68,14 @@ function CategoryRow({ category }: { category: CategoryRecordDto }) {
             name="name"
             defaultValue={category.name}
             required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`category-type-${category.id}`}>Type</Label>
+          <CategoryTypeSelect
+            id={`category-type-${category.id}`}
+            name="type"
+            defaultValue={category.type}
           />
         </div>
         <ActionError message={updateState.error} />
@@ -93,6 +123,10 @@ export function CategoryManagement({
             <div className="space-y-2">
               <Label htmlFor="categoryName">Category name</Label>
               <Input id="categoryName" name="name" placeholder="Food" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="categoryType">Type</Label>
+              <CategoryTypeSelect id="categoryType" name="type" />
             </div>
             <ActionError message={createState.error} />
             <Button type="submit" disabled={createPending} className="w-full sm:w-auto">

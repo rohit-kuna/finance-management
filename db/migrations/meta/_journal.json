@@ -15,6 +15,13 @@
       "when": 1780054890826,
       "tag": "0001_calm_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780087855464,
+      "tag": "0002_long_triathlon",
+      "breakpoints": true
     }
   ]
 }

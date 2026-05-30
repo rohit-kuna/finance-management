@@ -206,7 +206,7 @@ function PersonalBudgetSection({
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            Ask an admin to create categories before adding budgets.
+            Ask an admin to create expense categories before adding budgets.
           </div>
         </CardContent>
       </Card>
@@ -276,7 +276,7 @@ function FamilyBudgetSection({
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            Create categories before adding family budgets.
+            Create expense categories before adding family budgets.
           </div>
         </CardContent>
       </Card>
@@ -385,6 +385,7 @@ export function BudgetManagement({
   data: OrganizationFinanceDataDto;
   showFamilyBudgetSection?: boolean;
 }) {
+  const expenseCategories = data.categories.filter((category) => category.type === "expense");
   const personalBudgets = data.budgets.filter(
     (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
   );
@@ -416,15 +417,15 @@ export function BudgetManagement({
         </CardContent>
       </Card>
 
-      <PersonalBudgetSection categories={data.categories} budgets={personalBudgets} />
+      <PersonalBudgetSection categories={expenseCategories} budgets={personalBudgets} />
 
       {showFamilyBudgetSection ? (
-        <FamilyBudgetSection categories={data.categories} budgets={familyBudgets} />
+        <FamilyBudgetSection categories={expenseCategories} budgets={familyBudgets} />
       ) : null}
 
-      {!data.categories.length ? (
+      {!expenseCategories.length ? (
         <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-          You need categories before budgets can be created. Ask an admin to add them first.
+          You need expense categories before budgets can be created. Ask an admin to add them first.
         </div>
       ) : null}
     </section>

@@ -19,6 +19,7 @@ import type { AppRole } from "@/app/lib/roles";
 
 export type BudgetScope = "personal" | "family";
 export type ExpenseType = "expense" | "income";
+export type CategoryType = ExpenseType;
 export type ExpenseMode = "online" | "cash";
 export type ExpenseScope = "personal" | "family";
 
@@ -55,6 +56,7 @@ export const categories = pgTable(
     id: serial("id").primaryKey(),
     name: varchar("name", { length: 100 }).notNull(),
     orgId: integer("org_id").notNull().references(() => organizations.id),
+    type: varchar("type", { length: 10 }).notNull().default("expense").$type<CategoryType>(),
     createdBy: uuid("created_by").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

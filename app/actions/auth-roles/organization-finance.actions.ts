@@ -27,6 +27,7 @@ import type { OrganizationFinanceDataDto } from "@/app/lib/finance.types";
 
 const categorySchema = z.object({
   name: z.string().trim().min(2, "Category name is required").max(100),
+  type: z.enum(["expense", "income"]).default("expense"),
 });
 
 const budgetMonthSchema = z.preprocess(
@@ -138,6 +139,7 @@ export async function createCategoryAction(
   const currentUser = await requireAdmin();
   const parsed = categorySchema.safeParse({
     name: formData.get("name"),
+    type: formData.get("type"),
   });
 
   if (!parsed.success) {
@@ -154,6 +156,7 @@ export async function createCategoryAction(
   await createCategoryRecord({
     orgId,
     name: parsed.data.name,
+    type: parsed.data.type,
     createdBy: currentUser.id,
   });
 
@@ -167,6 +170,7 @@ export async function updateCategoryAction(
   const currentUser = await requireAdmin();
   const parsed = categorySchema.safeParse({
     name: formData.get("name"),
+    type: formData.get("type"),
   });
   const categoryIdResult = categoryIdSchema.safeParse({
     categoryId: formData.get("categoryId"),
@@ -185,8 +189,16 @@ export async function updateCategoryAction(
     return { error: "Category does not belong to your organization" };
   }
 
+  if (category.type === "expense" && parsed.data.type === "income") {
+    const usage = await getCategoryUsageCounts(category.id);
+    if (usage.budgetCount > 0) {
+      return { error: "Categories used by budgets must remain expense type" };
+    }
+  }
+
   await updateCategoryRecord(category.id, {
     name: parsed.data.name,
+    type: parsed.data.type,
     updatedAt: new Date(),
   });
 
@@ -258,6 +270,14 @@ export async function createPersonalBudgetAction(
     return { error: parsed.error.issues[0]?.message ?? "Unable to create budget" };
   }
 
+  const category = await getCategoryById(parsed.data.categoryId);
+  if (!category || category.orgId !== orgId) {
+    return { error: "Category does not belong to your organization" };
+  }
+  if (category.type !== "expense") {
+    return { error: "Budgets can only use expense categories" };
+  }
+
   const bounds = getBudgetMonthBounds(parsed.data.month);
 
   await createBudgetRecord({
@@ -288,6 +308,14 @@ export async function createFamilyBudgetAction(
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Unable to create family budget" };
+  }
+
+  const category = await getCategoryById(parsed.data.categoryId);
+  if (!category || category.orgId !== orgId) {
+    return { error: "Category does not belong to your organization" };
+  }
+  if (category.type !== "expense") {
+    return { error: "Budgets can only use expense categories" };
   }
 
   const bounds = getBudgetMonthBounds(parsed.data.month);
@@ -326,6 +354,14 @@ export async function updatePersonalBudgetAction(
 
   if (!budgetIdResult.success) {
     return { error: "Budget is required" };
+  }
+
+  const category = await getCategoryById(parsed.data.categoryId);
+  if (!category || category.orgId !== currentUser.orgId) {
+    return { error: "Category does not belong to your organization" };
+  }
+  if (category.type !== "expense") {
+    return { error: "Budgets can only use expense categories" };
   }
 
   const bounds = getBudgetMonthBounds(parsed.data.month);
@@ -367,6 +403,14 @@ export async function updateFamilyBudgetAction(
 
   if (!budgetIdResult.success) {
     return { error: "Budget is required" };
+  }
+
+  const category = await getCategoryById(parsed.data.categoryId);
+  if (!category || category.orgId !== orgId) {
+    return { error: "Category does not belong to your organization" };
+  }
+  if (category.type !== "expense") {
+    return { error: "Budgets can only use expense categories" };
   }
 
   const bounds = getBudgetMonthBounds(parsed.data.month);

@@ -1,3 +1,5 @@
+import type { CategoryRecordDto } from "@/app/lib/finance.types";
+
 export type ExpenseRecordDto = {
   id: number;
   orgId: number;
@@ -26,14 +28,7 @@ export type ExpensesDashboardDataDto = {
     createdAt: string;
     updatedAt: string;
   } | null;
-  categories: {
-    id: number;
-    orgId: number;
-    name: string;
-    createdBy: string;
-    createdAt: string;
-    updatedAt: string;
-  }[];
+  categories: CategoryRecordDto[];
   expenses: ExpenseRecordDto[];
   currentUser: {
     id: string;

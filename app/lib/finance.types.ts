@@ -1,9 +1,10 @@
-import type { BudgetScope } from "@/db/schema";
+import type { BudgetScope, CategoryType } from "@/db/schema";
 
 export type CategoryRecordDto = {
   id: number;
   orgId: number;
   name: string;
+  type: CategoryType;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

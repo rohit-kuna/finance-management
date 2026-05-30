@@ -69,6 +69,7 @@ const necessityLabels: Record<NecessityScore, string> = {
 };
 
 const necessityOrder: NecessityScore[] = [5, 4, 3, 2, 1];
+type CategoryTransactionType = "expense" | "income";
 
 function formatMoney(amount: number) {
   return moneyFormatter.format(amount);
@@ -284,6 +285,70 @@ function MultiChipFilter({
             {option.label}
           </FilterChip>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function CategoryGroupFilter({
+  categories,
+  selectedValues,
+  onChange,
+}: {
+  categories: ActivityDashboardDataDto["categories"];
+  selectedValues: string[];
+  onChange: (nextValues: string[]) => void;
+}) {
+  const incomeCategories = categories.filter((category) => category.type === "income");
+  const expenseCategories = categories.filter((category) => category.type === "expense");
+  const isAllSelected = selectedValues.length === 0;
+
+  function toggleValue(value: string) {
+    const nextValues = selectedValues.includes(value)
+      ? selectedValues.filter((currentValue) => currentValue !== value)
+      : [...selectedValues, value];
+
+    onChange(nextValues);
+  }
+
+  function renderGroup(
+    title: string,
+    items: ActivityDashboardDataDto["categories"],
+    emptyMessage: string
+  ) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+        {items.length ? (
+          <div className="flex flex-wrap gap-2">
+            {items.map((category) => (
+              <FilterChip
+                key={category.id}
+                active={selectedValues.includes(String(category.id))}
+                onClick={() => toggleValue(String(category.id))}
+              >
+                {category.name}
+              </FilterChip>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <Label>Categories</Label>
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <FilterChip active={isAllSelected} onClick={() => onChange([])}>
+            All
+          </FilterChip>
+        </div>
+        {renderGroup("Income", incomeCategories, "No income categories available.")}
+        {renderGroup("Expense", expenseCategories, "No expense categories available.")}
       </div>
     </div>
   );
@@ -597,19 +662,35 @@ function BudgetVsActualChart({
   );
 }
 
-function CategorySpendChart({
+function CategoryByTypeChart({
   expenses,
   monthStart,
   monthEnd,
+  transactionType,
+  title,
+  description,
+  emptyMessage,
+  totalLabel,
+  topCategoryLabel,
+  topCategoriesLabel,
+  positiveTone,
 }: {
   expenses: ActivityDashboardDataDto["expenses"];
   monthStart: string;
   monthEnd: string;
+  transactionType: CategoryTransactionType;
+  title: string;
+  description: string;
+  emptyMessage: string;
+  totalLabel: string;
+  topCategoryLabel: string;
+  topCategoriesLabel: string;
+  positiveTone: "warning" | "success";
 }) {
   const chartData = useMemo(() => {
     const filtered = expenses.filter((expense) => {
       const expenseMonth = getMonthKey(expense.occurredAt);
-      return expense.type === "expense" && expenseMonth >= monthStart && expenseMonth <= monthEnd;
+      return expense.type === transactionType && expenseMonth >= monthStart && expenseMonth <= monthEnd;
     });
 
     const totalsByCategory = new Map<
@@ -644,7 +725,7 @@ function CategorySpendChart({
       percentage: totalAmount > 0 ? (item.amount / totalAmount) * 100 : 0,
       isTopThree: index < 3,
     }));
-  }, [expenses, monthStart, monthEnd]);
+  }, [expenses, monthStart, monthEnd, transactionType]);
 
   const totals = useMemo(() => {
     const totalAmount = chartData.reduce((sum, item) => sum + item.amount, 0);
@@ -660,8 +741,8 @@ function CategorySpendChart({
     <Card className="py-2">
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
-          title="Spending by Category"
-          description="See which categories consume the most spending across the selected month range."
+          title={title}
+          description={description}
         />
 
         <div className="flex flex-wrap gap-2">
@@ -672,13 +753,13 @@ function CategorySpendChart({
       <CardContent className="space-y-6 px-4 pb-6 sm:px-8 sm:pb-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <MetricCard
-            label="Total spending"
+            label={totalLabel}
             value={formatMoney(totals.totalAmount)}
-            tone={totals.totalAmount > 0 ? "warning" : "default"}
+            tone={totals.totalAmount > 0 ? positiveTone : "default"}
           />
-          <MetricCard label="Top category" value={totals.topCategories[0]?.categoryName ?? "—"} />
+          <MetricCard label={topCategoryLabel} value={totals.topCategories[0]?.categoryName ?? "—"} />
           <MetricCard
-            label="Top 3 share"
+            label={topCategoriesLabel}
             value={
               totals.totalAmount > 0
                 ? `${(
@@ -694,7 +775,7 @@ function CategorySpendChart({
 
         {!hasData ? (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No spending found for the selected range.
+            {emptyMessage}
           </div>
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
@@ -780,7 +861,7 @@ function CategorySpendChart({
 
         {chartData.length ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">Top 3 spending categories:</span>
+            <span className="text-sm text-muted-foreground">{topCategoriesLabel}:</span>
             {chartData.slice(0, 3).map((item, index) => (
               <Badge
                 key={item.categoryId}
@@ -1234,12 +1315,8 @@ export function ActivityDashboard({
             </div>
           </div>
 
-          <MultiChipFilter
-            label="Categories"
-            options={visibleData.categories.map((category) => ({
-              value: String(category.id),
-              label: category.name,
-            }))}
+          <CategoryGroupFilter
+            categories={visibleData.categories}
             selectedValues={selectedCategoryIds}
             onChange={setSelectedCategoryIds}
           />
@@ -1255,7 +1332,33 @@ export function ActivityDashboard({
         monthEnd={monthEnd}
       />
 
-      <CategorySpendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
+      <CategoryByTypeChart
+        expenses={visibleData.expenses}
+        monthStart={monthStart}
+        monthEnd={monthEnd}
+        transactionType="expense"
+        title="Spending by Category"
+        description="See which categories consume the most spending across the selected month range."
+        emptyMessage="No spending found for the selected range."
+        totalLabel="Total spending"
+        topCategoryLabel="Top category"
+        topCategoriesLabel="Top 3 share"
+        positiveTone="warning"
+      />
+
+      <CategoryByTypeChart
+        expenses={visibleData.expenses}
+        monthStart={monthStart}
+        monthEnd={monthEnd}
+        transactionType="income"
+        title="Income by Category"
+        description="See which categories bring in the most income across the selected month range."
+        emptyMessage="No income found for the selected range."
+        totalLabel="Total income"
+        topCategoryLabel="Top income category"
+        topCategoriesLabel="Top 3 share"
+        positiveTone="success"
+      />
 
       <NecessitySpendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
 
