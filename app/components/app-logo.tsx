@@ -6,7 +6,7 @@ type AppLogoProps = {
   label?: string;
 };
 
-export function AppLogo({ href = "/", label = "Antara Finance" }: AppLogoProps) {
+export function AppLogo({ href = "/", label = "Finwise" }: AppLogoProps) {
   return (
     <Link
       href={href}

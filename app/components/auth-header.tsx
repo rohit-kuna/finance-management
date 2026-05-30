@@ -121,7 +121,7 @@ export function AuthHeader({ role, hasOrganization, organizationName }: AuthHead
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:justify-between lg:max-w-none lg:px-10 xl:px-14 2xl:px-20">
         <div className="flex items-center justify-between gap-3 md:justify-start md:gap-8">
-          <AppLogo href={logoHref} label={organizationName ?? "Workspace"} />
+          <AppLogo href={logoHref} label={organizationName ?? "Finwise Workspace"} />
           {navItems.length ? (
             <NavigationMenu viewport={false} className="hidden md:block">
               <NavigationMenuList className="justify-start">
