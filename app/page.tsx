@@ -94,7 +94,7 @@ export default async function HomePage() {
                 Track budgets, expenses, transfers, and payment modes in one shared workspace.
               </h1>
               <p className="max-w-2xl text-base text-muted-foreground sm:text-lg">
-                Rubyana keeps your finance data organized with categories, budgets, transaction modes, and
+                Finwise keeps your finance data organized with categories, budgets, transaction modes, and
                 counterparty-linked expenses built for daily use.
               </p>
             </div>
