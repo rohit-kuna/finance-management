@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "expenses_exact_duplicate_unique" ON "expenses" USING btree ("amt","user_id","category_id",coalesce("note", ''),"occurred_at");

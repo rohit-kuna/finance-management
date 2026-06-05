@@ -37,7 +37,7 @@ function toExpenseDto(
     transferStatus: (record.transferStatus as TransferStatus | null) ?? null,
     necessityScore: Number(record.necessityScore),
     note: record.note,
-    occurredAt: record.occurredAt.toISOString(),
+    occurredAt: record.transactionTimestamp.toISOString(),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
@@ -63,7 +63,7 @@ function expenseSelectShape() {
     transferStatus: expenses.transferStatus,
     necessityScore: expenses.necessityScore,
     note: expenses.note,
-    occurredAt: expenses.occurredAt,
+    transactionTimestamp: expenses.transactionTimestamp,
     createdAt: expenses.createdAt,
     updatedAt: expenses.updatedAt,
   } as const;
@@ -79,7 +79,7 @@ export async function getExpensesByOrg(orgId: number): Promise<ExpenseRecordDto[
     .leftJoin(transactionModes, eq(transactionModes.id, expenses.transactionModeId))
     .leftJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
     .where(eq(expenses.orgId, orgId))
-    .orderBy(desc(expenses.occurredAt), desc(expenses.createdAt));
+    .orderBy(desc(expenses.transactionTimestamp), desc(expenses.createdAt));
 
   return records.map(toExpenseDto);
 }
@@ -99,6 +99,30 @@ export async function getExpenseById(id: number): Promise<ExpenseRecordDto | nul
   return record ? toExpenseDto(record) : null;
 }
 
+export async function formatExpenseRecordSummary(expense: ExpenseRecordDto) {
+  const parts = [
+    `amount ${expense.amount}`,
+    `category ${expense.categoryName}`,
+    `user ${expense.userName}`,
+    `date ${expense.occurredAt.slice(0, 10)}`,
+  ];
+
+  if (expense.note?.trim()) {
+    parts.push(`note ${expense.note.trim()}`);
+  } else {
+    parts.push("note (empty)");
+  }
+
+  if (expense.counterPartyName?.trim()) {
+    parts.push(`counterparty ${expense.counterPartyName.trim()}`);
+  }
+
+  parts.push(`scope ${expense.scope}`);
+  parts.push(`type ${expense.type}`);
+
+  return parts.join(", ");
+}
+
 export async function createExpenseRecord(input: {
   orgId: number;
   userId: string;
@@ -113,7 +137,13 @@ export async function createExpenseRecord(input: {
   note: string | null;
   occurredAt: Date;
 }) {
-  const [record] = await db.insert(expenses).values(input).returning();
+  const [record] = await db
+    .insert(expenses)
+    .values({
+      ...input,
+      transactionTimestamp: input.occurredAt,
+    })
+    .returning();
   return record ?? null;
 }
 
@@ -133,7 +163,15 @@ export async function updateExpenseRecord(
     updatedAt: Date;
   }>
 ) {
-  const [record] = await db.update(expenses).set(input).where(eq(expenses.id, id)).returning();
+  const { occurredAt, ...rest } = input;
+  const [record] = await db
+    .update(expenses)
+    .set({
+      ...rest,
+      ...(occurredAt ? { transactionTimestamp: occurredAt } : {}),
+    })
+    .where(eq(expenses.id, id))
+    .returning();
   return record ?? null;
 }
 

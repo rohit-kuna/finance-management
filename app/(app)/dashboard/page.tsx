@@ -49,6 +49,11 @@ const adminMenuItems: DashboardMenuItem[] = [
     href: ROUTES.EXPENSES,
     description: "Track and manage organization expenses.",
   },
+  {
+    label: "Import / Export",
+    href: ROUTES.MANAGE_IMPORT_EXPORT,
+    description: "Upload Excel expense sheets and export the current organization workbook.",
+  },
 ];
 
 const userMenuItems: DashboardMenuItem[] = [

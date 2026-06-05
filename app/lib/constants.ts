@@ -13,6 +13,7 @@ export const ROUTES = {
   BUDGETS: "/budgets",
   EXPENSES: "/expenses",
   TRANSFERS: "/transfers",
+  MANAGE_IMPORT_EXPORT: "/manage-import-export",
   SERVICE_UNAVAILABLE: "/service-unavailable",
 } as const;
 

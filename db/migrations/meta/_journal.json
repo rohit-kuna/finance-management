@@ -15,6 +15,27 @@
       "when": 1780144042454,
       "tag": "0001_clear_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780229337128,
+      "tag": "0004_yummy_fallen_one",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780680363174,
+      "tag": "0005_cold_stone_men",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780680631033,
+      "tag": "0006_flaky_nextwave",
+      "breakpoints": true
     }
   ]
 }

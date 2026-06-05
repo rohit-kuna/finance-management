@@ -56,6 +56,7 @@ const userNavItems: HeaderNavItem[] = [
   { label: "Transfers", href: ROUTES.TRANSFERS },
   { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
   { label: "Modes", href: ROUTES.TRANSACTION_MODES },
+  { label: "Import / Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
 ];
 
 const dashboardNavItem: HeaderNavItem = {
@@ -161,6 +162,11 @@ export function AuthHeader({
                   <DropdownMenuItem asChild>
                     <Link href={ROUTES.TRANSACTION_MODES}>Transaction modes</Link>
                   </DropdownMenuItem>
+                  {role === ROLES.ADMIN ? (
+                    <DropdownMenuItem asChild>
+                      <Link href={ROUTES.MANAGE_IMPORT_EXPORT}>Import / Export</Link>
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuSeparator />
                 </>
               ) : (
