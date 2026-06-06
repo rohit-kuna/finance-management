@@ -13,7 +13,7 @@ export const ROUTES = {
   BUDGETS: "/budgets",
   EXPENSES: "/expenses",
   TRANSFERS: "/transfers",
-  MANAGE_IMPORT_EXPORT: "/manage-import-export",
+  MANAGE_IMPORT_EXPORT: "/import-export",
   SERVICE_UNAVAILABLE: "/service-unavailable",
 } as const;
 
@@ -25,4 +25,4 @@ export const PUBLIC_ROUTE_PATTERNS = [
   ROUTES.SERVICE_UNAVAILABLE,
 ] as const;
 
-export const POST_AUTH_REDIRECT = ROUTES.DASHBOARD;
+export const POST_AUTH_REDIRECT = ROUTES.EXPENSES;

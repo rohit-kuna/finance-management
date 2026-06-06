@@ -1,7 +1,8 @@
 import { utils, read, write } from "xlsx";
 import {
   IMPORT_WORKBOOK_FIELD_CONFIGS,
-  IMPORT_WORKBOOK_FIELDS,
+  IMPORT_WORKBOOK_FIELDS_BY_SCOPE,
+  type ManageImportExportScope,
   type ImportWorkbookColumnMapping,
   type ImportWorkbookField,
   type ImportWorkbookPreview,
@@ -15,7 +16,17 @@ export const EXPORT_WORKBOOK_HEADERS = [
   "category",
   "note",
   "necessity_score",
-  "user_name",
+  "counter_party_name",
+  "mode",
+  "scope",
+] as const;
+
+export const USER_EXPORT_WORKBOOK_HEADERS = [
+  "transaction_timestamp",
+  "amount",
+  "category",
+  "note",
+  "necessity_score",
   "counter_party_name",
   "mode",
   "scope",
@@ -63,8 +74,11 @@ function getSuggestedHeader(headers: string[], aliases: string[]) {
   return "";
 }
 
-function getSuggestedColumnMappings(headers: string[]): ImportWorkbookColumnMapping {
-  return IMPORT_WORKBOOK_FIELDS.reduce<ImportWorkbookColumnMapping>((accumulator, field) => {
+function getSuggestedColumnMappings(
+  headers: string[],
+  fields: readonly ImportWorkbookField[]
+): ImportWorkbookColumnMapping {
+  return fields.reduce<ImportWorkbookColumnMapping>((accumulator, field) => {
     const suggestion = getSuggestedHeader(headers, FIELD_ALIASES[field]);
     if (suggestion) {
       accumulator[field] = suggestion;
@@ -74,7 +88,11 @@ function getSuggestedColumnMappings(headers: string[]): ImportWorkbookColumnMapp
   }, {});
 }
 
-export function parseWorkbookBuffer(buffer: Buffer, fileName: string): ImportWorkbookPreview {
+export function parseWorkbookBuffer(
+  buffer: Buffer,
+  fileName: string,
+  scope: ManageImportExportScope
+): ImportWorkbookPreview {
   const workbook = read(buffer, { type: "buffer", cellDates: true });
   const sheetName = workbook.SheetNames[0];
 
@@ -116,15 +134,22 @@ export function parseWorkbookBuffer(buffer: Buffer, fileName: string): ImportWor
     });
   });
 
-  const suggestedColumnMappings = getSuggestedColumnMappings(headers);
+  const fields = IMPORT_WORKBOOK_FIELDS_BY_SCOPE[scope];
+  const suggestedColumnMappings = getSuggestedColumnMappings(headers, fields);
+  const fieldSet = new Set<ImportWorkbookField>(fields as readonly ImportWorkbookField[]);
   const warnings = IMPORT_WORKBOOK_FIELD_CONFIGS.filter(
-    (field) => field.required && !suggestedColumnMappings[field.key]
+    (field) => {
+      const fieldKey = field.key as ImportWorkbookField;
+      return fieldSet.has(fieldKey) && field.required && !suggestedColumnMappings[fieldKey];
+    }
   ).map((field) => `Could not auto-detect the ${field.label.toLowerCase()} column. Please map it manually.`);
 
   return {
+    scope,
     fileName,
     totalRows: rows.length,
     headers,
+    fields: [...fields],
     rows,
     previewRows: rows.slice(0, 10),
     suggestedColumnMappings,
@@ -140,14 +165,15 @@ export function buildExpenseExportWorkbook(
     note: string;
     category: string;
     transaction_timestamp: string;
-    user_name: string;
     counter_party_name: string;
     mode: string;
-  }>
+  }>,
+  scope: ManageImportExportScope
 ) {
   const workbook = utils.book_new();
+  const header = scope === "organization" ? EXPORT_WORKBOOK_HEADERS : USER_EXPORT_WORKBOOK_HEADERS;
   const sheet = utils.json_to_sheet(rows, {
-    header: [...EXPORT_WORKBOOK_HEADERS],
+    header: [...header],
     skipHeader: false,
   });
 

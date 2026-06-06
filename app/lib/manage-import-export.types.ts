@@ -17,6 +17,8 @@ export const IMPORT_WORKBOOK_FIELDS = [
 export type ImportWorkbookField = (typeof IMPORT_WORKBOOK_FIELDS)[number];
 export type ImportWorkbookValueMapping = "user" | "category" | "counterparty" | "mode" | null;
 
+export type ManageImportExportScope = "organization" | "user";
+
 export const IMPORT_WORKBOOK_FIELD_CONFIGS = [
   { key: "amount", label: "Amount", required: true, valueMapping: null },
   { key: "type", label: "Type", required: false, valueMapping: null },
@@ -35,6 +37,31 @@ export const IMPORT_WORKBOOK_FIELD_CONFIGS = [
   valueMapping: ImportWorkbookValueMapping;
 }>;
 
+export const IMPORT_WORKBOOK_FIELDS_BY_SCOPE = {
+  organization: [
+    "amount",
+    "type",
+    "scope",
+    "necessity_score",
+    "note",
+    "category",
+    "transactionTimestamp",
+    "counter_party_name",
+    "mode",
+  ],
+  user: [
+    "amount",
+    "type",
+    "scope",
+    "necessity_score",
+    "note",
+    "category",
+    "transactionTimestamp",
+    "counter_party_name",
+    "mode",
+  ],
+} as const satisfies Record<ManageImportExportScope, readonly ImportWorkbookField[]>;
+
 export type ImportWorkbookColumnMapping = Partial<Record<ImportWorkbookField, string>>;
 
 export type ImportWorkbookRow = {
@@ -44,9 +71,11 @@ export type ImportWorkbookRow = {
 };
 
 export type ImportWorkbookPreview = {
+  scope: ManageImportExportScope;
   fileName: string;
   totalRows: number;
   headers: string[];
+  fields: ImportWorkbookField[];
   rows: ImportWorkbookRow[];
   previewRows: ImportWorkbookRow[];
   suggestedColumnMappings: ImportWorkbookColumnMapping;
@@ -66,6 +95,7 @@ export const manageImportExportInitialState: ManageImportExportActionState = {
 };
 
 export type ManageImportExportDataDto = {
+  scope: ManageImportExportScope;
   organization: {
     id: number;
     name: string;
@@ -83,6 +113,8 @@ export type ManageImportExportDataDto = {
   >[];
   currentUser: {
     id: string;
+    name: string;
+    email: string;
     role: "ADMIN" | "USER";
     orgId: number | null;
   };

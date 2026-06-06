@@ -1,14 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AlertCircle, Download, FileUp, RefreshCw, ShieldAlert } from "lucide-react";
 import {
   importExpensesFromWorkbookAction,
   parseImportWorkbookAction,
 } from "@/app/actions/auth-roles/manage-import-export.actions";
 import {
-  IMPORT_WORKBOOK_FIELDS,
   IMPORT_WORKBOOK_FIELD_CONFIGS,
+  IMPORT_WORKBOOK_FIELDS_BY_SCOPE,
   manageImportExportInitialState,
   type ImportWorkbookField,
   type ImportWorkbookPreview,
@@ -37,11 +38,6 @@ import { cn } from "@/lib/utils";
 
 type ColumnSelections = Partial<Record<ImportWorkbookField, string>>;
 type ValueSelectionMap = Record<string, string>;
-type RowContext = {
-  rowNumber: number;
-  userName: string;
-};
-
 function ActionBanner({
   error,
   success,
@@ -121,7 +117,7 @@ function SuggestionBadge({
 function buildPreviewKey(preview: ImportWorkbookPreview | null) {
   if (!preview) return "";
 
-  return `${preview.fileName}|${preview.totalRows}|${preview.headers.join("|")}`;
+  return `${preview.scope}|${preview.fileName}|${preview.totalRows}|${preview.headers.join("|")}`;
 }
 
 function sortByName(left: { name: string }, right: { name: string }) {
@@ -136,22 +132,6 @@ function sortByModeName(
   if (ownerComparison !== 0) return ownerComparison;
 
   return left.name.localeCompare(right.name);
-}
-
-function formatModeLabel(mode: { name: string; userName: string }) {
-  return `${mode.name} (${mode.userName})`;
-}
-
-function formatCreateModeLabel(sheetValue: string, context: RowContext | null) {
-  if (!context) {
-    return `Create new "${sheetValue}" mode`;
-  }
-
-  return `Create new "${sheetValue}" mode for row ${context.rowNumber} (${context.userName})`;
-}
-
-function isCreateModeSelection(value: string) {
-  return value === "__create__" || value.startsWith("create:");
 }
 
 function collectDistinctValues(rows: Array<{ values: Record<ImportWorkbookField, string> }>, field: ImportWorkbookField) {
@@ -174,6 +154,7 @@ function collectDistinctValues(rows: Array<{ values: Record<ImportWorkbookField,
 }
 
 export function ManageImportExport({ data }: { data: ManageImportExportDataDto }) {
+  const isOrganizationScope = data.scope === "organization";
   const [parseState, parseAction, parsePending] = useActionState(
     parseImportWorkbookAction,
     manageImportExportInitialState
@@ -186,12 +167,13 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   const [userSelections, setUserSelections] = useState<ValueSelectionMap>({});
   const [counterpartySelections, setCounterpartySelections] = useState<ValueSelectionMap>({});
   const [categorySelections, setCategorySelections] = useState<ValueSelectionMap>({});
-  const [categoryTypeSelections, setCategoryTypeSelections] = useState<ValueSelectionMap>({});
   const [modeSelections, setModeSelections] = useState<ValueSelectionMap>({});
   const initializedPreviewKey = useRef("");
 
   const preview = importState.preview ?? parseState.preview;
   const payloadJson = preview ? JSON.stringify(preview) : "";
+  const fieldList = preview?.fields ?? IMPORT_WORKBOOK_FIELDS_BY_SCOPE[data.scope];
+  const exportHref = "/import-export/export";
 
   useEffect(() => {
     const nextKey = buildPreviewKey(preview);
@@ -202,7 +184,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     initializedPreviewKey.current = nextKey;
     const timeoutId = window.setTimeout(() => {
       const nextColumnSelections = {} as ColumnSelections;
-      for (const field of IMPORT_WORKBOOK_FIELDS) {
+      for (const field of fieldList) {
         nextColumnSelections[field] = preview.suggestedColumnMappings[field] ?? "";
       }
 
@@ -210,12 +192,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       setUserSelections({});
       setCounterpartySelections({});
       setCategorySelections({});
-      setCategoryTypeSelections({});
       setModeSelections({});
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [preview]);
+  }, [preview, fieldList]);
 
   const headerIndex = useMemo(() => {
     if (!preview) {
@@ -227,21 +208,17 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
 
   const selectedColumns = useMemo(() => {
     const values = {} as Record<ImportWorkbookField, string>;
-    for (const field of IMPORT_WORKBOOK_FIELDS) {
+    for (const field of fieldList) {
       values[field] = columnSelections[field] ?? preview?.suggestedColumnMappings[field] ?? "";
     }
     return values;
-  }, [columnSelections, preview]);
+  }, [columnSelections, preview, fieldList]);
 
   const availableHeaders = useMemo(() => {
     if (!preview) return [];
     return Array.from(new Set(preview.headers.filter((header) => header.trim().length > 0)));
   }, [preview]);
 
-  const memberById = useMemo(
-    () => new Map(data.members.map((member) => [member.id, member] as const)),
-    [data.members]
-  );
   const counterpartyById = useMemo(
     () => new Map(data.counterparties.map((counterparty) => [String(counterparty.id), counterparty] as const)),
     [data.counterparties]
@@ -260,15 +237,12 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       ),
     [data.transactionModes]
   );
-  const onlineModeByUserId = useMemo(() => {
-    return new Map(
-      data.transactionModes
-        .filter((mode) => normalizeWorkbookName(mode.name) === "online")
-        .map((mode) => [mode.userId, mode] as const)
-    );
-  }, [data.transactionModes]);
   const transactionModesSorted = useMemo(
     () => data.transactionModes.slice().sort(sortByModeName),
+    [data.transactionModes]
+  );
+  const defaultTransactionMode = useMemo(
+    () => data.transactionModes.find((mode) => mode.isDefault) ?? data.transactionModes[0] ?? null,
     [data.transactionModes]
   );
   const categoriesSorted = useMemo(
@@ -286,25 +260,19 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
 
     return preview.rows.map((row) => {
       const resolvedValues = {} as Record<ImportWorkbookField, string>;
-      for (const field of IMPORT_WORKBOOK_FIELDS) {
+      for (const field of fieldList) {
         const selectedColumn = selectedColumns[field];
         resolvedValues[field] = selectedColumn
           ? resolveWorkbookRowValue(row.values, headerIndex, selectedColumn)
           : "";
       }
 
-      const normalizedUserName = normalizeWorkbookName(resolvedValues.user_name);
       const normalizedCategoryName = normalizeWorkbookName(resolvedValues.category);
       const normalizedCounterpartyName = normalizeWorkbookName(resolvedValues.counter_party_name);
       const normalizedModeName = normalizeWorkbookName(resolvedValues.mode);
       const hasCategoryValue = resolvedValues.category.trim().length > 0;
       const hasCounterpartyValue = resolvedValues.counter_party_name.trim().length > 0;
       const hasModeValue = resolvedValues.mode.trim().length > 0;
-      const hasUserValue = resolvedValues.user_name.trim().length > 0;
-
-      const userMatch = findUniqueNormalizedMatch(data.members, resolvedValues.user_name);
-      const selectedUserId = userSelections[normalizedUserName] ?? (hasUserValue ? userMatch.match?.id ?? "" : "");
-      const resolvedUser = selectedUserId ? memberById.get(selectedUserId) : null;
 
       const categoryMatch = findUniqueNormalizedMatch(data.categories, resolvedValues.category);
       const selectedCategoryValue =
@@ -312,12 +280,10 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         (hasCategoryValue
           ? categoryMatch.match
             ? String(categoryMatch.match.id)
-            : categoryMatch.isAmbiguous
-              ? ""
-              : "__create__"
+            : ""
           : "");
       const resolvedCategory =
-        selectedCategoryValue && selectedCategoryValue !== "__create__"
+        selectedCategoryValue
           ? categoryById.get(selectedCategoryValue) ?? null
           : null;
 
@@ -327,12 +293,10 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         (hasCounterpartyValue
           ? counterpartyMatch.match
             ? String(counterpartyMatch.match.id)
-            : counterpartyMatch.isAmbiguous
-              ? ""
-              : "__create__"
+            : ""
           : "");
       const resolvedCounterparty =
-        selectedCounterpartyValue && selectedCounterpartyValue !== "__create__"
+        selectedCounterpartyValue
           ? counterpartyById.get(selectedCounterpartyValue) ?? null
           : null;
 
@@ -344,10 +308,10 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
             ? String(modeMatch.match.id)
             : ""
           : "");
-      const resolvedMode = selectedModeValue && !isCreateModeSelection(selectedModeValue)
+      const resolvedMode = selectedModeValue
         ? modeById.get(selectedModeValue) ?? null
         : null;
-      const onlineMode = resolvedUser ? onlineModeByUserId.get(resolvedUser.id) ?? null : null;
+      const resolvedUserName = data.currentUser.name;
 
       const displayValues: Record<ImportWorkbookField, string> = {
         amount: resolvedValues.amount,
@@ -355,21 +319,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         scope: resolvedValues.scope.trim() || "personal",
         necessity_score: resolvedValues.necessity_score.trim() || "1",
         note: resolvedValues.note.trim() || "—",
-        category:
-          selectedCategoryValue === "__create__"
-            ? resolvedValues.category
-            : resolvedCategory?.name ?? resolvedValues.category,
+        category: resolvedCategory?.name ?? resolvedValues.category,
         transactionTimestamp: resolvedValues.transactionTimestamp,
-        user_name: resolvedUser ? resolvedUser.name : resolvedValues.user_name,
-        counter_party_name:
-          selectedCounterpartyValue === "__create__"
-            ? resolvedValues.counter_party_name || "Create new counterparty"
-            : (resolvedCounterparty?.name ?? resolvedValues.counter_party_name) || "—",
-        mode: resolvedValues.mode
-          ? isCreateModeSelection(selectedModeValue)
-            ? resolvedValues.mode
-            : resolvedMode?.name ?? resolvedValues.mode
-          : onlineMode?.name ?? "Online",
+        user_name: resolvedUserName,
+        counter_party_name: (resolvedCounterparty?.name ?? resolvedValues.counter_party_name) || "—",
+        mode: resolvedMode?.name || defaultTransactionMode?.name || resolvedValues.mode || "—",
       };
 
       return {
@@ -387,20 +341,22 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     categorySelections,
     counterpartySelections,
     modeSelections,
-    memberById,
     categoryById,
     counterpartyById,
     modeById,
-    onlineModeByUserId,
     data.categories,
     data.counterparties,
-    data.members,
     data.transactionModes,
+    defaultTransactionMode,
+    data.currentUser.id,
+    data.currentUser.name,
+    fieldList,
+    isOrganizationScope,
   ]);
 
   const distinctUserNames = useMemo(
-    () => collectDistinctValues(resolvedRows, "user_name"),
-    [resolvedRows]
+    () => (isOrganizationScope ? collectDistinctValues(resolvedRows, "user_name") : []),
+    [resolvedRows, isOrganizationScope]
   );
   const distinctCategoryNames = useMemo(
     () => collectDistinctValues(resolvedRows, "category"),
@@ -412,26 +368,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   );
   const distinctModeNames = useMemo(() => collectDistinctValues(resolvedRows, "mode"), [resolvedRows]);
 
-  const modeContextsByName = useMemo(() => {
-    const contexts = new Map<string, RowContext>();
-
-    for (const row of resolvedRows) {
-      const modeValue = row.values.mode.trim();
-      if (!modeValue) continue;
-
-      const normalizedModeName = normalizeWorkbookName(modeValue);
-      if (contexts.has(normalizedModeName)) continue;
-
-      contexts.set(normalizedModeName, {
-        rowNumber: row.rowNumber,
-        userName: row.displayValues.user_name.trim() || row.values.user_name.trim() || "—",
-      });
+  const userMappings = useMemo(() => {
+    if (!isOrganizationScope) {
+      return [];
     }
 
-    return contexts;
-  }, [resolvedRows]);
-
-  const userMappings = useMemo(() => {
     return distinctUserNames.map((sheetValue) => {
       const match = findUniqueNormalizedMatch(data.members, sheetValue);
       return {
@@ -441,14 +382,14 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         hasMatch: Boolean(match.match),
       };
     });
-  }, [data.members, distinctUserNames]);
+  }, [data.members, distinctUserNames, isOrganizationScope]);
 
   const counterpartyMappings = useMemo(() => {
     return distinctCounterpartyNames.map((sheetValue) => {
       const match = findUniqueNormalizedMatch(data.counterparties, sheetValue);
       return {
         sheetValue,
-        defaultValue: match.match ? String(match.match.id) : match.isAmbiguous ? "" : "__create__",
+        defaultValue: match.match ? String(match.match.id) : "",
         isAmbiguous: match.isAmbiguous,
         hasMatch: Boolean(match.match),
       };
@@ -460,8 +401,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       const match = findUniqueNormalizedMatch(data.categories, sheetValue);
       return {
         sheetValue,
-        defaultValue: match.match ? String(match.match.id) : "__create__",
-        defaultType: match.match ? match.match.type : "expense",
+        defaultValue: match.match ? String(match.match.id) : "",
         isAmbiguous: match.isAmbiguous,
         hasMatch: Boolean(match.match),
       };
@@ -473,7 +413,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       const match = findUniqueNormalizedMatch(data.transactionModes, sheetValue);
       return {
         sheetValue,
-        defaultValue: match.match ? String(match.match.id) : "__create__",
+        defaultValue: match.match ? String(match.match.id) : "",
         isAmbiguous: match.isAmbiguous,
         hasMatch: Boolean(match.match),
       };
@@ -502,12 +442,18 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     });
   }, [data.transactionModes, distinctModeNames]);
 
-  const unresolvedUsers = userMappings.filter((mapping) => !mapping.hasMatch).length;
+  const unresolvedUsers = isOrganizationScope ? userMappings.filter((mapping) => !mapping.hasMatch).length : 0;
   const unresolvedCounterparties = counterpartyMappings.filter((mapping) => !mapping.hasMatch).length;
   const unresolvedCategories = categoryChecks.filter((check) => !check.hasMatch).length;
   const unresolvedModes = modeChecks.filter((check) => !check.hasMatch).length;
+  const hasUnresolvedLookups =
+    unresolvedCategories > 0 || unresolvedCounterparties > 0 || unresolvedModes > 0;
 
   const modeColumnMapped = Boolean(selectedColumns.mode);
+  const categoryStepLabel = isOrganizationScope ? "Step 2" : "Step 1";
+  const counterpartyStepLabel = isOrganizationScope ? "Step 3" : "Step 2";
+  const modeStepLabel = isOrganizationScope ? "Step 4" : "Step 3";
+  const previewStepLabel = isOrganizationScope ? "Step 5" : "Step 4";
 
   const resolvedPreviewRows = resolvedRows.slice(0, 10);
 
@@ -517,18 +463,21 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
-              <Badge className="w-fit" variant="secondary">
-                Admin bulk tools
-              </Badge>
-              <CardTitle className="text-3xl tracking-tight">Manage Import Export</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="w-fit" variant="secondary">
+                  Personal tools
+                </Badge>
+              </div>
+              <CardTitle className="text-3xl tracking-tight">Manage import export</CardTitle>
               <p className="max-w-3xl text-sm text-muted-foreground">
-                Upload an Excel expense sheet, map the workbook headers to the app fields you need,
-                and then match users, categories, counterparties, and transaction modes before import.
+                Upload an Excel expense sheet for the signed-in user, map the workbook headers you
+                need, and then match categories, counterparties, and transaction modes that already
+                exist in your account before import.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button asChild variant="outline" className="w-full sm:w-auto">
-                <a href="/manage-import-export/export">
+                <a href={exportHref}>
                   <Download className="mr-2 size-4" />
                   Export workbook
                 </a>
@@ -547,6 +496,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
           </CardHeader>
           <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
             <form action={parseAction} className="space-y-4">
+              <input type="hidden" name="scope" value={data.scope} />
               <div className="space-y-2">
                 <Label htmlFor="workbook">Excel workbook</Label>
                 <Input
@@ -591,10 +541,10 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-6 text-sm text-muted-foreground sm:px-8 sm:pb-8">
             <p>Column names are flexible. Map your workbook headers before reviewing the rows.</p>
-            <p>Categories can be matched to an existing record or created during import.</p>
-            <p>Users must already exist in the database and are mapped explicitly.</p>
-            <p>Counterparties are optional, and any provided values can be matched or created.</p>
-            <p>Modes behave like categories and counterparties: exact matches can be selected, otherwise create a new mode.</p>
+            <p>Categories, counterparties, and modes must already exist in your account before you import.</p>
+            <p>Every imported row is assigned to the signed-in user, so there is no user column or user mapping.</p>
+            <p>If a sheet value does not match an existing category, counterparty, or mode, create it first in the app and then come back to map it.</p>
+            <p>Mode rows are optional. If you do not map a mode column, expenses import without a transaction mode.</p>
             <p>Blank `scope` defaults to personal and blank `necessity_score` defaults to 1.</p>
             <p>Category type comes from the mapped category record, not the spreadsheet `type` column.</p>
             <p>
@@ -652,13 +602,20 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                 <CardTitle className="text-2xl tracking-tight">Coverage check</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <div className="rounded-lg border bg-muted/20 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Users</p>
-                    <p className="mt-2 text-sm font-medium">
-                      {unresolvedUsers === 0 ? "All mapped" : `${unresolvedUsers} need review`}
-                    </p>
-                  </div>
+                <div className={`grid gap-3 ${isOrganizationScope ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+                  {isOrganizationScope ? (
+                    <div className="rounded-lg border bg-muted/20 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Users</p>
+                      <p className="mt-2 text-sm font-medium">
+                        {unresolvedUsers === 0 ? "All mapped" : `${unresolvedUsers} need review`}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/20 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">User</p>
+                      <p className="mt-2 text-sm font-medium">{data.currentUser.name}</p>
+                    </div>
+                  )}
                   <div className="rounded-lg border bg-muted/20 p-4">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Counterparties</p>
                     <p className="mt-2 text-sm font-medium">
@@ -680,7 +637,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                         ? unresolvedModes === 0
                           ? "All mapped"
                           : `${unresolvedModes} need review`
-                        : "Using default modes"}
+                        : "No mode column"}
                     </p>
                   </div>
                 </div>
@@ -717,7 +674,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                           <SuggestionBadge
                             match={check.hasMatch}
                             isAmbiguous={check.isAmbiguous}
-                            fallbackLabel="Create new"
+                            fallbackLabel="Missing"
                           />
                         </div>
                       ))}
@@ -725,8 +682,8 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                   </div>
                 ) : (
                   <div className="rounded-lg border bg-background/70 p-4 text-sm text-muted-foreground">
-                    No mode column has been mapped yet. The import will fall back to each user&apos;s
-                    default transaction mode.
+                      No mode column has been mapped yet. The import will use your default
+                      transaction mode.
                   </div>
                 )}
               </CardContent>
@@ -740,6 +697,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
               </CardHeader>
               <CardContent className="space-y-8 px-4 pb-6 sm:px-8 sm:pb-8">
                 <form action={importAction} className="space-y-8">
+                  <input type="hidden" name="scope" value={data.scope} />
                   <input type="hidden" name="payload" value={payloadJson} />
 
                   <div className="space-y-4">
@@ -750,7 +708,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     />
                     <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
                       <div className="grid gap-3">
-                        {IMPORT_WORKBOOK_FIELDS.map((field) => {
+                        {fieldList.map((field) => {
                           const fieldConfig = IMPORT_WORKBOOK_FIELD_CONFIGS.find((item) => item.key === field);
                           if (!fieldConfig) return null;
 
@@ -809,86 +767,85 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <SectionTitle
-                      eyebrow="Step 1"
-                      title="Map users"
-                      description="Each distinct sheet user name must be linked to one existing DB user before import."
-                    />
+                  {isOrganizationScope ? (
+                    <div className="space-y-4">
+                      <SectionTitle
+                        eyebrow="Step 1"
+                        title="Map users"
+                        description="Each distinct sheet user name must be linked to one existing DB user before import."
+                      />
 
-                    <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
-                      <div className="grid gap-3">
-                        {userMappings.map((mapping, index) => {
-                          const currentValue =
-                            userSelections[normalizeWorkbookName(mapping.sheetValue)] ?? mapping.defaultValue;
+                      <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
+                        <div className="grid gap-3">
+                          {userMappings.map((mapping, index) => {
+                            const currentValue =
+                              userSelections[normalizeWorkbookName(mapping.sheetValue)] ?? mapping.defaultValue;
 
-                          return (
-                            <div
-                              key={mapping.sheetValue}
-                              className="grid gap-3 rounded-lg border bg-background/70 p-3 md:grid-cols-[1fr_1.5fr_auto]"
-                            >
-                              <div className="space-y-1">
-                                <p className="text-sm font-medium">{mapping.sheetValue}</p>
-                                <p className="text-xs text-muted-foreground">sheet user_name value</p>
+                            return (
+                              <div
+                                key={mapping.sheetValue}
+                                className="grid gap-3 rounded-lg border bg-background/70 p-3 md:grid-cols-[1fr_1.5fr_auto]"
+                              >
+                                <div className="space-y-1">
+                                  <p className="text-sm font-medium">{mapping.sheetValue}</p>
+                                  <p className="text-xs text-muted-foreground">sheet user_name value</p>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`user_map_${index}`}>Map to DB user</Label>
+                                  <select
+                                    id={`user_map_${index}`}
+                                    name={`user_map_${index}`}
+                                    value={currentValue}
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      const key = normalizeWorkbookName(mapping.sheetValue);
+                                      setUserSelections((current) => ({
+                                        ...current,
+                                        [key]: value,
+                                      }));
+                                    }}
+                                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                    required
+                                  >
+                                    <option value="">Select a user</option>
+                                    {membersSorted.map((member) => (
+                                      <option key={member.id} value={member.id}>
+                                        {member.name} ({member.email})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="flex items-start">
+                                  <SuggestionBadge
+                                    match={mapping.hasMatch}
+                                    isAmbiguous={mapping.isAmbiguous}
+                                    fallbackLabel="Needs review"
+                                  />
+                                </div>
                               </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`user_map_${index}`}>Map to DB user</Label>
-                                <select
-                                  id={`user_map_${index}`}
-                                  name={`user_map_${index}`}
-                                  value={currentValue}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    const key = normalizeWorkbookName(mapping.sheetValue);
-                                    setUserSelections((current) => ({
-                                      ...current,
-                                      [key]: value,
-                                    }));
-                                  }}
-                                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                  required
-                                >
-                                  <option value="">Select a user</option>
-                                  {membersSorted.map((member) => (
-                                    <option key={member.id} value={member.id}>
-                                      {member.name} ({member.email})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="flex items-start">
-                                <SuggestionBadge
-                                  match={mapping.hasMatch}
-                                  isAmbiguous={mapping.isAmbiguous}
-                                  fallbackLabel="Needs review"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   <div className="space-y-4">
                     <SectionTitle
-                      eyebrow="Step 2"
+                      eyebrow={categoryStepLabel}
                       title="Map categories"
-                      description="Choose an existing DB category or create a new one using the exact sheet value for each distinct sheet category."
+                      description="Choose an existing DB category for each distinct sheet category. If a sheet value is missing, create it in the app first and then return here."
                     />
                     <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
                       <div className="grid gap-3">
                         {categoryMappings.map((mapping, index) => {
                           const currentValue =
                             categorySelections[normalizeWorkbookName(mapping.sheetValue)] ?? mapping.defaultValue;
-                          const currentType =
-                            categoryTypeSelections[normalizeWorkbookName(mapping.sheetValue)] ??
-                            mapping.defaultType;
 
                           return (
                             <div
                               key={mapping.sheetValue}
-                              className="grid gap-3 rounded-lg border bg-background/70 p-3 md:grid-cols-[1fr_1.5fr_1fr_auto]"
+                              className="grid gap-3 rounded-lg border bg-background/70 p-3 md:grid-cols-[1fr_1.5fr_auto]"
                             >
                               <div className="space-y-1">
                                 <p className="text-sm font-medium">{mapping.sheetValue}</p>
@@ -910,9 +867,8 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                                   }}
                                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                                   required
-                                >
+                                  >
                                   <option value="">Select a category</option>
-                                  <option value="__create__">Create new &quot;{mapping.sheetValue}&quot; category</option>
                                   {categoriesSorted.map((category) => (
                                     <option key={category.id} value={String(category.id)}>
                                       {category.name} ({category.type})
@@ -920,31 +876,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                                   ))}
                                 </select>
                               </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`category_type_map_${index}`}>New category type</Label>
-                                <select
-                                  id={`category_type_map_${index}`}
-                                  name={`category_type_map_${index}`}
-                                  value={currentType}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    const key = normalizeWorkbookName(mapping.sheetValue);
-                                    setCategoryTypeSelections((current) => ({
-                                      ...current,
-                                      [key]: value,
-                                    }));
-                                  }}
-                                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                >
-                                  <option value="expense">Expense</option>
-                                  <option value="income">Income</option>
-                                </select>
-                              </div>
                               <div className="flex items-start">
                                 <SuggestionBadge
                                   match={mapping.hasMatch}
                                   isAmbiguous={mapping.isAmbiguous}
-                                  fallbackLabel="Create new"
+                                  fallbackLabel="Missing"
                                 />
                               </div>
                             </div>
@@ -956,9 +892,9 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
 
                   <div className="space-y-4">
                     <SectionTitle
-                      eyebrow="Step 3"
+                      eyebrow={counterpartyStepLabel}
                       title="Map counterparties"
-                      description="Choose an existing DB counterparty or create a new one using the exact sheet value for each distinct sheet value."
+                      description="Choose an existing DB counterparty for each distinct sheet value. If a sheet value is missing, create it in the app first and then return here."
                     />
                     <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
                       <div className="grid gap-3">
@@ -992,9 +928,8 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                                   }}
                                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                                   required
-                                >
+                                  >
                                   <option value="">Select a counterparty</option>
-                                  <option value="__create__">Create new &quot;{mapping.sheetValue}&quot; counterparty</option>
                                   {counterpartiesSorted.map((counterparty) => (
                                     <option key={counterparty.id} value={String(counterparty.id)}>
                                       {counterparty.name}
@@ -1006,7 +941,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                                 <SuggestionBadge
                                   match={mapping.hasMatch}
                                   isAmbiguous={mapping.isAmbiguous}
-                                  fallbackLabel="Will create"
+                                  fallbackLabel="Missing"
                                 />
                               </div>
                             </div>
@@ -1018,11 +953,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
 
                   {modeColumnMapped ? (
                     <div className="space-y-4">
-                      <SectionTitle
-                        eyebrow="Step 4"
-                        title="Map modes"
-                        description="Each distinct sheet mode can match an existing transaction mode or create a new one using the exact sheet value."
-                      />
+                    <SectionTitle
+                      eyebrow={modeStepLabel}
+                      title="Map modes"
+                      description="Each distinct sheet mode must match an existing transaction mode. If a sheet value is missing, create it in the app first and then return here."
+                    />
                       <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
                         <div className="grid gap-3">
                           {modeMappings.map((mapping, index) => {
@@ -1055,19 +990,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                                     required
                                   >
-                                    <option value="">Select a mode</option>
-                                    <optgroup label="Create a new mode">
-                                      <option value="__create__">
-                                        {formatCreateModeLabel(
-                                          mapping.sheetValue,
-                                          modeContextsByName.get(normalizeWorkbookName(mapping.sheetValue)) ?? null
-                                        )}
-                                      </option>
-                                    </optgroup>
+                                  <option value="">Select a mode</option>
                                     <optgroup label="Existing modes">
                                       {transactionModesSorted.map((mode) => (
                                         <option key={mode.id} value={String(mode.id)}>
-                                          {formatModeLabel(mode)}
+                                          {mode.name}
                                         </option>
                                       ))}
                                     </optgroup>
@@ -1077,7 +1004,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                                   <SuggestionBadge
                                     match={mapping.hasMatch}
                                     isAmbiguous={mapping.isAmbiguous}
-                                    fallbackLabel="Create new"
+                                    fallbackLabel="Missing"
                                   />
                                 </div>
                               </div>
@@ -1088,14 +1015,13 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   ) : (
                     <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
-                      No mode column is mapped, so each row will use or create the selected user&apos;s
-                      Online transaction mode.
+                      No mode column is mapped, so each row will use your default transaction mode.
                     </div>
                   )}
 
                   <div className="space-y-4">
                     <SectionTitle
-                      eyebrow="Step 5"
+                      eyebrow={previewStepLabel}
                       title="Preview rows"
                       description="These are the first rows from the workbook after your column mappings and value mappings are applied."
                     />
@@ -1105,7 +1031,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                         <TableHeader>
                           <TableRow>
                             <TableHead>Row</TableHead>
-                            {IMPORT_WORKBOOK_FIELDS.map((field) => (
+                            {fieldList.map((field) => (
                               <TableHead key={field}>
                                 {IMPORT_WORKBOOK_FIELD_CONFIGS.find((item) => item.key === field)?.label ?? field}
                               </TableHead>
@@ -1117,7 +1043,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                           {resolvedPreviewRows.map((row) => (
                             <TableRow key={row.rowNumber}>
                               <TableCell className="font-medium">{row.rowNumber}</TableCell>
-                              {IMPORT_WORKBOOK_FIELDS.map((field) => (
+                              {fieldList.map((field) => (
                                 <TableCell key={field}>{row.displayValues[field] || "—"}</TableCell>
                               ))}
                               <TableCell className="max-w-64">
@@ -1137,14 +1063,21 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                         <p className="font-medium">Ready to import</p>
                         <p className="text-sm text-muted-foreground">
                           The import runs in a single transaction. If any mapping or row fails,
-                          nothing is written to the database.
+                          nothing is written to the database. Missing categories, counterparties,
+                          or modes must be created first.
                         </p>
                       </div>
                     </div>
-                    <Button type="submit" disabled={importPending} className="w-full sm:w-auto">
+                    <Button
+                      type="submit"
+                      disabled={importPending || hasUnresolvedLookups}
+                      className="w-full sm:w-auto"
+                    >
                       {importPending
                         ? "Importing..."
-                        : `Import ${preview.totalRows} row${preview.totalRows === 1 ? "" : "s"}`}
+                        : hasUnresolvedLookups
+                          ? "Resolve lookup values first"
+                          : `Import ${preview.totalRows} row${preview.totalRows === 1 ? "" : "s"}`}
                     </Button>
                   </div>
                 </form>
