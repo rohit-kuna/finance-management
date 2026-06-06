@@ -33,7 +33,6 @@ const expenseSchema = z.object({
   ),
   transactionModeId: z.coerce.number().int().positive(),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
-  scope: z.enum(["personal", "family"]),
   necessityScore: z.coerce.number().int().min(1, "Necessity score must be between 1 and 5").max(5),
   note: z.string().trim().max(500).nullable(),
   occurredAt: z.string().trim().min(1, "Expense date is required"),
@@ -74,7 +73,6 @@ function toOrganizationDto(organization: Awaited<ReturnType<typeof getOrganizati
   return {
     id: organization.id,
     name: organization.name,
-    inviteCode: organization.inviteCode,
     createdBy: organization.createdBy,
     createdAt: organization.createdAt.toISOString(),
     updatedAt: organization.updatedAt.toISOString(),
@@ -124,6 +122,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
       expenses: [],
       currentUser: {
         id: currentUser.id,
+        name: currentUser.name,
         role: currentUser.role,
         orgId: null,
       },
@@ -137,9 +136,9 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     getExpensesByOrg(currentUser.orgId),
   ]);
   const transactionModes = await ensureDefaultTransactionModesForUser(currentUser.id);
-  const visibleExpenses = expenses.filter(
-    (expense) => expense.scope === "family" || (expense.scope === "personal" && expense.userId === currentUser.id)
-  );
+  const visibleExpenses = currentUser.role === "ADMIN"
+    ? expenses
+    : expenses.filter((expense) => expense.userId === currentUser.id);
 
   return {
     organization: toOrganizationDto(organization),
@@ -149,6 +148,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     expenses: visibleExpenses,
     currentUser: {
       id: currentUser.id,
+      name: currentUser.name,
       role: currentUser.role,
       orgId: currentUser.orgId,
     },
@@ -167,6 +167,7 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
       expenses: [],
       currentUser: {
         id: currentUser.id,
+        name: currentUser.name,
         role: currentUser.role,
         orgId: null,
       },
@@ -194,6 +195,7 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
     expenses: visibleTransfers,
     currentUser: {
       id: currentUser.id,
+      name: currentUser.name,
       role: currentUser.role,
       orgId: currentUser.orgId,
     },
@@ -213,7 +215,6 @@ export async function createExpenseAction(
     counterPartyId: formData.get("counterPartyId"),
     transactionModeId: formData.get("transactionModeId"),
     amount: formData.get("amount"),
-    scope: normalizeField(formData.get("scope")) ?? "personal",
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
     occurredAt: formData.get("occurredAt"),
@@ -250,13 +251,12 @@ export async function createExpenseAction(
     transferStatus,
     amount: toMoneyString(parsed.data.amount),
     type: expenseType,
-    scope: parsed.data.scope,
     necessityScore: parsed.data.necessityScore,
     note: parsed.data.note,
     occurredAt: parseExpenseDate(parsed.data.occurredAt),
   });
 
-  redirect(ROUTES.EXPENSES);
+  redirect(ROUTES.TRANSACTIONS);
 }
 
 export async function updateExpenseAction(
@@ -272,7 +272,6 @@ export async function updateExpenseAction(
     counterPartyId: formData.get("counterPartyId"),
     transactionModeId: formData.get("transactionModeId"),
     amount: formData.get("amount"),
-    scope: normalizeField(formData.get("scope")) ?? "personal",
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
     occurredAt: formData.get("occurredAt"),
@@ -319,14 +318,13 @@ export async function updateExpenseAction(
     transferStatus,
     amount: toMoneyString(parsed.data.amount),
     type: expenseType,
-    scope: parsed.data.scope,
     necessityScore: parsed.data.necessityScore,
     note: parsed.data.note,
-    occurredAt: parseExpenseDate(parsed.data.occurredAt),
+    occurredAt: parseExpenseDate(parsed.data.occurredAt, new Date(expense.occurredAt)),
     updatedAt: new Date(),
   });
 
-  redirect(ROUTES.EXPENSES);
+  redirect(ROUTES.TRANSACTIONS);
 }
 
 export async function updateTransferStatusAction(
@@ -382,5 +380,5 @@ export async function deleteExpenseAction(
 
   await deleteExpenseRecord(expense.id);
 
-  redirect(ROUTES.EXPENSES);
+  redirect(ROUTES.TRANSACTIONS);
 }

@@ -9,16 +9,22 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
   NavigationMenu,
+  NavigationMenuContent,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
+  NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -35,37 +41,82 @@ type HeaderNavItem = {
   href: string;
 };
 
-const adminNavItems: HeaderNavItem[] = [
-  { label: "Dashboard", href: ROUTES.DASHBOARD },
+type HeaderNavConfig = {
+  topItems: HeaderNavItem[];
+  settingsItems: HeaderNavItem[];
+};
+
+const adminTopNavItems: HeaderNavItem[] = [
   { label: "Activity", href: ROUTES.ACTIVITY },
+  { label: "Budgets", href: ROUTES.BUDGETS },
+  { label: "Transfers", href: ROUTES.TRANSFERS },
+];
+
+const adminSettingsItems: HeaderNavItem[] = [
   { label: "Organization", href: ROUTES.ORGANIZATION },
   { label: "Users", href: ROUTES.USERS },
   { label: "Categories", href: ROUTES.CATEGORIES },
-  { label: "Budgets", href: ROUTES.BUDGETS },
-  { label: "Expenses", href: ROUTES.EXPENSES },
-  { label: "Transfers", href: ROUTES.TRANSFERS },
   { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
   { label: "Modes", href: ROUTES.TRANSACTION_MODES },
+  { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
 ];
 
-const userNavItems: HeaderNavItem[] = [
-  { label: "Dashboard", href: ROUTES.DASHBOARD },
+const userTopNavItems: HeaderNavItem[] = [
   { label: "Activity", href: ROUTES.ACTIVITY },
   { label: "Budgets", href: ROUTES.BUDGETS },
-  { label: "Expenses", href: ROUTES.EXPENSES },
   { label: "Transfers", href: ROUTES.TRANSFERS },
-  { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
-  { label: "Modes", href: ROUTES.TRANSACTION_MODES },
 ];
 
-const dashboardNavItem: HeaderNavItem = {
-  label: "Dashboard",
-  href: ROUTES.DASHBOARD,
-};
+const userSettingsItems: HeaderNavItem[] = [
+  { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
+  { label: "Modes", href: ROUTES.TRANSACTION_MODES },
+  { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
+];
 
-function getNavItems(role: AppRole, hasOrganization: boolean) {
-  if (!hasOrganization) return [dashboardNavItem];
-  return role === ROLES.ADMIN ? adminNavItems : userNavItems;
+function getNavConfig(role: AppRole, hasOrganization: boolean): HeaderNavConfig {
+  if (!hasOrganization) {
+    return { topItems: [], settingsItems: [] };
+  }
+
+  return role === ROLES.ADMIN
+    ? { topItems: adminTopNavItems, settingsItems: adminSettingsItems }
+    : { topItems: userTopNavItems, settingsItems: userSettingsItems };
+}
+
+function NavLinkItem({ item }: { item: HeaderNavItem }) {
+  return (
+    <NavigationMenuItem>
+      <NavigationMenuLink asChild className={cn(navigationMenuTriggerStyle())}>
+        <Link href={item.href}>{item.label}</Link>
+      </NavigationMenuLink>
+    </NavigationMenuItem>
+  );
+}
+
+function SettingsMenu({ items }: { items: HeaderNavItem[] }) {
+  if (!items.length) return null;
+
+  return (
+    <NavigationMenuItem>
+      <NavigationMenuTrigger>Settings</NavigationMenuTrigger>
+      <NavigationMenuContent>
+        <ul className="grid w-[260px] gap-1 p-2">
+          {items.map((item) => (
+            <li key={item.label}>
+              <NavigationMenuLink asChild>
+                <Link
+                  href={item.href}
+                  className="block rounded-md px-3 py-2 text-sm leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                >
+                  {item.label}
+                </Link>
+              </NavigationMenuLink>
+            </li>
+          ))}
+        </ul>
+      </NavigationMenuContent>
+    </NavigationMenuItem>
+  );
 }
 
 export function AuthHeader({
@@ -75,31 +126,28 @@ export function AuthHeader({
   displayName,
   initials,
 }: AuthHeaderProps) {
-  const navItems = getNavItems(role, hasOrganization);
-  const logoHref = ROUTES.DASHBOARD;
+  const { topItems, settingsItems } = getNavConfig(role, hasOrganization);
+  const logoHref = hasOrganization ? ROUTES.TRANSACTIONS : ROUTES.DASHBOARD;
 
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:justify-between lg:max-w-none lg:px-10 xl:px-14 2xl:px-20">
         <div className="flex items-center justify-between gap-3 md:justify-start md:gap-8">
           <AppLogo href={logoHref} label={organizationName ?? "Finwise Workspace"} />
-          {navItems.length ? (
+          {topItems.length || settingsItems.length ? (
             <NavigationMenu viewport={false} className="hidden md:block">
-              <NavigationMenuList className="justify-start">
-                {navItems.map((item) => (
-                  <NavigationMenuItem key={item.label}>
-                    <NavigationMenuLink asChild className={cn(navigationMenuTriggerStyle())}>
-                      <Link href={item.href}>{item.label}</Link>
-                    </NavigationMenuLink>
-                  </NavigationMenuItem>
+              <NavigationMenuList className="justify-start gap-1">
+                {topItems.map((item) => (
+                  <NavLinkItem key={item.label} item={item} />
                 ))}
+                <SettingsMenu items={settingsItems} />
               </NavigationMenuList>
             </NavigationMenu>
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {navItems.length ? (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+          {topItems.length || settingsItems.length ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 md:hidden">
@@ -107,11 +155,26 @@ export function AuthHeader({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {navItems.map((item) => (
+                {topItems.map((item) => (
                   <DropdownMenuItem key={item.label} asChild>
                     <Link href={item.href}>{item.label}</Link>
                   </DropdownMenuItem>
                 ))}
+                {settingsItems.length ? (
+                  <>
+                    {topItems.length ? <DropdownMenuSeparator /> : null}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>Settings</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-56">
+                        {settingsItems.map((item) => (
+                          <DropdownMenuItem key={item.label} asChild>
+                            <Link href={item.href}>{item.label}</Link>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
@@ -127,40 +190,22 @@ export function AuthHeader({
             <DropdownMenuContent align="end">
               {hasOrganization ? (
                 <>
-                  <DropdownMenuItem asChild>
-                    <Link href={ROUTES.DASHBOARD}>Dashboard</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={ROUTES.ACTIVITY}>Activity</Link>
-                  </DropdownMenuItem>
-                  {role === ROLES.ADMIN ? (
+                  {topItems.map((item) => (
+                    <DropdownMenuItem key={item.label} asChild>
+                      <Link href={item.href}>{item.label}</Link>
+                    </DropdownMenuItem>
+                  ))}
+                  {settingsItems.length ? (
                     <>
-                      <DropdownMenuItem asChild>
-                        <Link href={ROUTES.ORGANIZATION}>Organization</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={ROUTES.USERS}>Users</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={ROUTES.CATEGORIES}>Categories</Link>
-                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel inset>Settings</DropdownMenuLabel>
+                      {settingsItems.map((item) => (
+                        <DropdownMenuItem key={item.label} asChild>
+                          <Link href={item.href}>{item.label}</Link>
+                        </DropdownMenuItem>
+                      ))}
                     </>
                   ) : null}
-                  <DropdownMenuItem asChild>
-                    <Link href={ROUTES.BUDGETS}>Budgets</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={ROUTES.EXPENSES}>Expenses</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={ROUTES.TRANSFERS}>Transfers</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={ROUTES.COUNTERPARTIES}>Counterparties</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={ROUTES.TRANSACTION_MODES}>Transaction modes</Link>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
               ) : (

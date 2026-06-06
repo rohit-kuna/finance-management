@@ -2,7 +2,7 @@
 
 import { count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { budget, categories, expenses, type CategoryType } from "@/db/schema";
+import { budget, categories, financeTransactions, type CategoryType } from "@/db/schema";
 import type { CategoryRecordDto } from "@/app/lib/finance.types";
 
 function toCategoryDto(record: typeof categories.$inferSelect): CategoryRecordDto {
@@ -64,10 +64,10 @@ export async function getCategoryUsageCounts(categoryId: number) {
 
   const [expenseUsage] = await db
     .select({
-      count: count(expenses.id),
+      count: count(financeTransactions.id),
     })
-    .from(expenses)
-    .where(eq(expenses.categoryId, categoryId));
+    .from(financeTransactions)
+    .where(eq(financeTransactions.categoryId, categoryId));
 
   return {
     budgetCount: Number(budgetUsage?.count ?? 0),

@@ -71,7 +71,6 @@ export type OrganizationFinanceDataDto = {
   organization: {
     id: number;
     name: string;
-    inviteCode: string;
     createdBy: string;
     createdAt: string;
     updatedAt: string;

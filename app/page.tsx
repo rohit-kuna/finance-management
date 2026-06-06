@@ -29,8 +29,8 @@ const workflowSteps = [
   },
   {
     step: "3",
-    title: "Record and review spending",
-    description: "Add expenses, review transfers, and keep daily finance activity organized.",
+    title: "Record and review transactions",
+    description: "Add transactions, review transfers, and keep daily finance activity organized.",
   },
 ] as const;
 
@@ -38,7 +38,7 @@ export default async function HomePage() {
   const user = await getCurrentDbUser();
 
   if (user) {
-    redirect(ROUTES.DASHBOARD);
+    redirect(ROUTES.TRANSACTIONS);
   }
 
   return (
@@ -91,11 +91,11 @@ export default async function HomePage() {
 
             <div className="space-y-4">
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-                Track budgets, expenses, transfers, and payment modes in one shared workspace.
+                Track budgets, transactions, transfers, and payment modes in one shared workspace.
               </h1>
               <p className="max-w-2xl text-base text-muted-foreground sm:text-lg">
                 Finwise keeps your finance data organized with categories, budgets, transaction modes, and
-                counterparty-linked expenses built for daily use.
+                counterparty-linked transactions built for daily use.
               </p>
             </div>
 
@@ -114,7 +114,7 @@ export default async function HomePage() {
             <div className="grid gap-3 sm:grid-cols-3">
               {[
                 { label: "Budgets", value: "Plan monthly and family spend" },
-                { label: "Expenses", value: "Log and review every payment" },
+                { label: "Transactions", value: "Log and review every payment" },
                 { label: "Transfers", value: "Track settled and open balances" },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl border bg-background/80 p-4 shadow-sm">
@@ -152,7 +152,7 @@ export default async function HomePage() {
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold">Recent expenses</p>
+                    <p className="text-sm font-semibold">Recent transactions</p>
                     <p className="text-xs text-muted-foreground">Tracked by category and payment mode</p>
                   </div>
                   <Badge variant="secondary">Default mode: Online</Badge>
@@ -195,7 +195,7 @@ export default async function HomePage() {
                     <p className="text-sm font-semibold">Transaction modes</p>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Mark one default so new expenses prefill automatically.
+                    Mark one default so new transactions prefill automatically.
                   </p>
                 </div>
               </div>

@@ -9,12 +9,14 @@ export function toExpenseDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-export function getTodayExpenseDateInputValue() {
-  return toExpenseDateInputValue(new Date());
-}
+export function parseExpenseDate(value: string, timeSource = new Date()) {
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(timeSource);
 
-export function parseExpenseDate(value: string) {
-  return new Date(`${value}T00:00:00Z`);
+  parsed.setFullYear(year, month - 1, day);
+  parsed.setHours(timeSource.getHours(), timeSource.getMinutes(), timeSource.getSeconds(), timeSource.getMilliseconds());
+
+  return parsed;
 }
 
 export function formatExpenseDate(value: string) {

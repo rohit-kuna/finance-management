@@ -36,7 +36,6 @@ function toOrganizationDto(organization: Awaited<ReturnType<typeof getOrganizati
   return {
     id: organization.id,
     name: organization.name,
-    inviteCode: organization.inviteCode,
     createdBy: organization.createdBy,
     createdAt: organization.createdAt.toISOString(),
     updatedAt: organization.updatedAt.toISOString(),

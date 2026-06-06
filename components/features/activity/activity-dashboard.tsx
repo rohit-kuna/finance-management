@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { MonthInput } from "@/components/ui/month-input";
 import { cn } from "@/lib/utils";
 import type { ActivityDashboardDataDto } from "@/app/lib/activity.types";
 
@@ -196,9 +197,7 @@ function getScopedActivityData(data: ActivityDashboardDataDto, audience: Activit
       budgets: data.budgets.filter(
         (budget) => budget.scope === "personal" && budget.userId === memberId
       ),
-      expenses: data.expenses.filter(
-        (expense) => expense.scope === "personal" && expense.userId === memberId
-      ),
+      expenses: data.expenses.filter((expense) => expense.userId === memberId),
     };
   }
 
@@ -207,9 +206,7 @@ function getScopedActivityData(data: ActivityDashboardDataDto, audience: Activit
     budgets: data.budgets.filter(
       (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
     ),
-    expenses: data.expenses.filter(
-      (expense) => expense.scope === "personal" && expense.userId === data.currentUser.id
-    ),
+    expenses: data.expenses.filter((expense) => expense.userId === data.currentUser.id),
   };
 }
 
@@ -424,7 +421,7 @@ function ExpenseActivityChart({
 
         {!hasDataInRange ? (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No expense records match the selected range.
+            No transaction records match the selected range.
           </div>
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
@@ -465,7 +462,7 @@ function ExpenseActivityChart({
 
         {totals.overspentMonths.length ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">Expenses exceed income in:</span>
+            <span className="text-sm text-muted-foreground">Spending exceeds income in:</span>
             {totals.overspentMonths.map((month) => (
               <Badge key={month} variant="outline" className="border-destructive/30 text-destructive">
                 {month}
@@ -474,7 +471,7 @@ function ExpenseActivityChart({
           </div>
         ) : (
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
-            Income stays ahead of expenses for the selected range.
+            Income stays ahead of spending for the selected range.
           </div>
         )}
       </CardContent>
@@ -1318,10 +1315,10 @@ export function ActivityDashboard({
 
             <div className="space-y-2">
               <Label htmlFor="activity-month-start">Month start</Label>
-              <input
+              <MonthInput
                 id="activity-month-start"
-                type="month"
                 value={monthStart}
+                className="h-11"
                 onChange={(event) => {
                   const nextValue = event.target.value;
                   setMonthStart(nextValue);
@@ -1329,16 +1326,15 @@ export function ActivityDashboard({
                     setMonthEnd(nextValue);
                   }
                 }}
-                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="activity-month-end">Month end</Label>
-              <input
+              <MonthInput
                 id="activity-month-end"
-                type="month"
                 value={monthEnd}
+                className="h-11"
                 onChange={(event) => {
                   const nextValue = event.target.value;
                   setMonthEnd(nextValue);
@@ -1346,7 +1342,6 @@ export function ActivityDashboard({
                     setMonthStart(nextValue);
                   }
                 }}
-                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
               />
             </div>
           </div>

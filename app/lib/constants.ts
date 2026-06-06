@@ -11,8 +11,9 @@ export const ROUTES = {
   COUNTERPARTIES: "/counterparties",
   TRANSACTION_MODES: "/transaction-modes",
   BUDGETS: "/budgets",
-  EXPENSES: "/expenses",
+  TRANSACTIONS: "/transactions",
   TRANSFERS: "/transfers",
+  MANAGE_IMPORT_EXPORT: "/import-export",
   SERVICE_UNAVAILABLE: "/service-unavailable",
 } as const;
 
@@ -24,4 +25,4 @@ export const PUBLIC_ROUTE_PATTERNS = [
   ROUTES.SERVICE_UNAVAILABLE,
 ] as const;
 
-export const POST_AUTH_REDIRECT = ROUTES.DASHBOARD;
+export const POST_AUTH_REDIRECT = ROUTES.TRANSACTIONS;

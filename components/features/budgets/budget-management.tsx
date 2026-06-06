@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { MonthInput } from "@/components/ui/month-input";
 import type {
   BudgetAllocationSummaryDto,
   BudgetRecordDto,
@@ -117,7 +118,7 @@ function BudgetEditor({
           </div>
           <div className="space-y-2">
             <Label htmlFor={`month-${budget.id}`}>Budget month</Label>
-            <Input id={`month-${budget.id}`} name="month" type="month" defaultValue={budget.month} required />
+            <MonthInput id={`month-${budget.id}`} name="month" defaultValue={budget.month} required />
           </div>
         </div>
         <p className="text-sm text-muted-foreground">{budget.monthLabel}</p>
@@ -320,7 +321,7 @@ function PersonalBudgetSection({
           </div>
           <div className="space-y-2">
             <Label htmlFor="personal-month">Budget month</Label>
-            <Input id="personal-month" name="month" type="month" required />
+            <MonthInput id="personal-month" name="month" required />
           </div>
           <div className="sm:col-span-2">
             <ActionError message={createState.error} />
@@ -390,7 +391,7 @@ function FamilyBudgetSection({
           </div>
           <div className="space-y-2">
             <Label htmlFor="family-month">Budget month</Label>
-            <Input id="family-month" name="month" type="month" required />
+            <MonthInput id="family-month" name="month" required />
           </div>
           <div className="sm:col-span-2">
             <ActionError message={createState.error} />

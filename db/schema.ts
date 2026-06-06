@@ -22,7 +22,6 @@ import type { AppRole } from "@/app/lib/roles";
 export type BudgetScope = "personal" | "family";
 export type ExpenseType = "expense" | "income";
 export type CategoryType = ExpenseType;
-export type ExpenseScope = "personal" | "family";
 export type TransferStatus = "open" | "settled" | "closed";
 
 // organizations declared first; createdBy refs users via lazy arrow fn
@@ -102,8 +101,8 @@ export const transactionModes = pgTable(
   })
 );
 
-export const expenses = pgTable(
-  "expenses",
+export const financeTransactions = pgTable(
+  "finance_transactions",
   {
     id: serial("id").primaryKey(),
     orgId: integer("org_id").notNull().references(() => organizations.id),
@@ -116,27 +115,33 @@ export const expenses = pgTable(
       onDelete: "set null",
     }),
     transferStatus: varchar("transfer_status", { length: 10 }).$type<TransferStatus>(),
-    amount: numeric("amt", { precision: 12, scale: 2 }).notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     type: varchar("type", { length: 10 }).notNull().default("expense").$type<ExpenseType>(),
-    scope: varchar("scope", { length: 10 }).notNull().default("personal").$type<ExpenseScope>(),
     necessityScore: smallint("necessity_score").notNull().default(1),
     note: text("note"),
-    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    transactionTimestamp: timestamp("transaction_timestamp", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
     necessityScoreCheck: check(
-      "expenses_necessity_score_check",
+      "finance_transactions_necessity_score_check",
       sql`${table.necessityScore} >= 1 AND ${table.necessityScore} <= 5`
     ),
-    orgIdx: index("expenses_org_id_idx").on(table.orgId),
-    userIdx: index("expenses_user_id_idx").on(table.userId),
-    categoryIdx: index("expenses_category_id_idx").on(table.categoryId),
-    counterPartyIdx: index("expenses_counter_party_id_idx").on(table.counterPartyId),
-    transactionModeIdx: index("expenses_transaction_mode_id_idx").on(table.transactionModeId),
-    transferStatusIdx: index("expenses_transfer_status_idx").on(table.transferStatus),
-    occurredAtIdx: index("expenses_occurred_at_idx").on(table.occurredAt),
+    exactDuplicateIdx: uniqueIndex("finance_transactions_exact_duplicate_unique").on(
+      table.amount,
+      table.userId,
+      table.categoryId,
+      sql`coalesce(${table.note}, '')`,
+      table.transactionTimestamp
+    ),
+    orgIdx: index("finance_transactions_org_id_idx").on(table.orgId),
+    userIdx: index("finance_transactions_user_id_idx").on(table.userId),
+    categoryIdx: index("finance_transactions_category_id_idx").on(table.categoryId),
+    counterPartyIdx: index("finance_transactions_counter_party_id_idx").on(table.counterPartyId),
+    transactionModeIdx: index("finance_transactions_transaction_mode_id_idx").on(table.transactionModeId),
+    transferStatusIdx: index("finance_transactions_transfer_status_idx").on(table.transferStatus),
+    occurredAtIdx: index("finance_transactions_occurred_at_idx").on(table.transactionTimestamp),
   })
 );
 
