@@ -1198,7 +1198,7 @@ export async function importExpensesFromWorkbookAction(
     };
   }
 
-  revalidatePath(ROUTES.EXPENSES);
+  revalidatePath(ROUTES.TRANSACTIONS);
   revalidatePath(ROUTES.ACTIVITY);
   revalidatePath(ROUTES.TRANSFERS);
   revalidatePath(ROUTES.COUNTERPARTIES);
@@ -1747,7 +1747,7 @@ async function importUserScopedExpensesFromWorkbookAction(
     };
   }
 
-  revalidatePath(ROUTES.EXPENSES);
+  revalidatePath(ROUTES.TRANSACTIONS);
   revalidatePath(ROUTES.ACTIVITY);
   revalidatePath(ROUTES.TRANSFERS);
   revalidatePath(ROUTES.COUNTERPARTIES);

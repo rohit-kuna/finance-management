@@ -25,7 +25,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
 
   if (currentUser) {
     await acceptOrganizationInvite(inviteCode);
-    redirect(ROUTES.EXPENSES);
+    redirect(ROUTES.TRANSACTIONS);
   }
 
   const redirectUrl = `${ROUTES.JOIN}/${inviteCode}`;

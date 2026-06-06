@@ -46,7 +46,7 @@ const adminMenuItems: DashboardMenuItem[] = [
   },
   {
     label: "Transactions",
-    href: ROUTES.EXPENSES,
+    href: ROUTES.TRANSACTIONS,
     description: "Track and manage organization transactions.",
   },
   {
@@ -69,7 +69,7 @@ const userMenuItems: DashboardMenuItem[] = [
   },
   {
     label: "Transactions",
-    href: ROUTES.EXPENSES,
+    href: ROUTES.TRANSACTIONS,
     description: "Track and manage your transactions.",
   },
 ];

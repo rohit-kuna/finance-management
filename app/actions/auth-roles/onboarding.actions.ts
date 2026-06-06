@@ -57,7 +57,7 @@ export async function joinOrganizationByInviteCodeAction(
     revalidatePath(ROUTES.DASHBOARD, "layout");
   }
 
-  redirect(ROUTES.EXPENSES);
+  redirect(ROUTES.TRANSACTIONS);
 }
 
 export async function createOrganizationFromOnboardingAction(
@@ -99,5 +99,5 @@ export async function createOrganizationFromOnboardingAction(
   });
   revalidatePath(ROUTES.DASHBOARD, "layout");
 
-  redirect(ROUTES.EXPENSES);
+  redirect(ROUTES.TRANSACTIONS);
 }

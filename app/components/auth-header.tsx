@@ -127,7 +127,7 @@ export function AuthHeader({
   initials,
 }: AuthHeaderProps) {
   const { topItems, settingsItems } = getNavConfig(role, hasOrganization);
-  const logoHref = hasOrganization ? ROUTES.EXPENSES : ROUTES.DASHBOARD;
+  const logoHref = hasOrganization ? ROUTES.TRANSACTIONS : ROUTES.DASHBOARD;
 
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
