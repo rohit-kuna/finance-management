@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { SignOutButton } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
 import { Menu } from "lucide-react";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES, type AppRole } from "@/app/lib/roles";
@@ -20,7 +22,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
@@ -127,6 +128,7 @@ export function AuthHeader({
   displayName,
   initials,
 }: AuthHeaderProps) {
+  const { signOut } = useClerk();
   const { topItems, settingsItems } = getNavConfig(role, hasOrganization);
   const logoHref = hasOrganization ? ROUTES.TRANSACTIONS : ROUTES.DASHBOARD;
 
@@ -194,32 +196,9 @@ export function AuthHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {hasOrganization ? (
-                <>
-                  {topItems.map((item) => (
-                    <DropdownMenuItem key={item.label} asChild>
-                      <Link href={item.href}>{item.label}</Link>
-                    </DropdownMenuItem>
-                  ))}
-                  {settingsItems.length ? (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel inset>Settings</DropdownMenuLabel>
-                      {settingsItems.map((item) => (
-                        <DropdownMenuItem key={item.label} asChild>
-                          <Link href={item.href}>{item.label}</Link>
-                        </DropdownMenuItem>
-                      ))}
-                    </>
-                  ) : null}
-                  <DropdownMenuSeparator />
-                </>
-              ) : (
-                <DropdownMenuSeparator />
-              )}
-              <SignOutButton redirectUrl={ROUTES.HOME}>
-                <DropdownMenuItem>Logout</DropdownMenuItem>
-              </SignOutButton>
+              <DropdownMenuItem onClick={() => signOut({ redirectUrl: ROUTES.HOME })}>
+                Logout
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
