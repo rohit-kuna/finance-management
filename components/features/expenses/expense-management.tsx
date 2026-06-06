@@ -192,36 +192,65 @@ function FilterSelect({
 }
 
 function NecessityScoreSlider({ defaultValue }: { defaultValue: number }) {
-  const [value, setValue] = useState(String(defaultValue));
+  const [value, setValue] = useState(defaultValue);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const scores = [1, 2, 3, 4, 5] as const;
+
+  function valueFromClientX(clientX: number) {
+    if (!containerRef.current) return value;
+    const { left, width } = containerRef.current.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - left) / width));
+    return Math.max(1, Math.min(5, Math.round(ratio * 4) + 1)) as 1 | 2 | 3 | 4 | 5;
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    dragging.current = true;
+    containerRef.current?.setPointerCapture(e.pointerId);
+    setValue(valueFromClientX(e.clientX));
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging.current) return;
+    setValue(valueFromClientX(e.clientX));
+  }
+
+  function handlePointerUp() {
+    dragging.current = false;
+  }
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="expense-necessity">Necessity score</Label>
-          <Badge variant="secondary" className="min-w-8 justify-center px-2 py-0.5 text-xs">
-            {value}
-          </Badge>
-        </div>
+        <Label htmlFor="expense-necessity">Necessity score <span className="text-destructive">*</span></Label>
         <span className="text-sm text-muted-foreground">1 low → 5 high</span>
       </div>
-      <input
-        id="expense-necessity"
-        name="necessityScore"
-        type="range"
-        min="1"
-        max="5"
-        step="1"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        className="w-full accent-primary"
-      />
-      <div className="relative mt-1 h-4 text-xs text-muted-foreground">
-        <span className="absolute left-0">1</span>
-        <span className="absolute left-1/4 -translate-x-1/2">2</span>
-        <span className="absolute left-1/2 -translate-x-1/2">3</span>
-        <span className="absolute left-3/4 -translate-x-1/2">4</span>
-        <span className="absolute right-0">5</span>
+      <input type="hidden" id="expense-necessity" name="necessityScore" value={value} />
+      <div
+        ref={containerRef}
+        className="relative flex h-9 cursor-pointer select-none items-center justify-between rounded-full border border-border bg-background px-1"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary/20 transition-all duration-150"
+          style={{ width: `calc(${(value - 1) / 4} * (100% - 2.25rem) + 2rem)` }}
+        />
+        {scores.map((score) => (
+          <div key={score} className="relative z-10 flex items-center justify-center">
+            {score === value ? (
+              <span className="flex h-7 w-7 cursor-grab items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow active:cursor-grabbing">
+                {score}
+              </span>
+            ) : (
+              <span className="flex h-7 w-7 items-center justify-center text-sm text-muted-foreground transition-colors hover:text-foreground">
+                {score}
+              </span>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -347,7 +376,7 @@ function ExpenseFormCard({
             {editingExpense ? <input type="hidden" name="expenseId" value={editingExpense.id} /> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="expense-amount">Amount</Label>
+                <Label htmlFor="expense-amount">Amount <span className="text-destructive">*</span></Label>
                 <Input
                   id="expense-amount"
                   name="amount"
@@ -356,12 +385,12 @@ function ExpenseFormCard({
                   step="0.01"
                   defaultValue={editingExpense?.amount ?? ""}
                   placeholder="250"
-                  className="bg-background"
+                  className="h-10 bg-background"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>Category <span className="text-destructive">*</span></Label>
                 <CategorySelect
                   categories={categories}
                   value={resolvedSelectedCategoryId}
@@ -372,7 +401,7 @@ function ExpenseFormCard({
             <div className={cn(!isAdvanced && "hidden")}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="expense-date">Date</Label>
+                  <Label htmlFor="expense-date">Date <span className="text-destructive">*</span></Label>
                   <div className="relative">
                     <Input
                       ref={dateInputRef}
@@ -380,7 +409,7 @@ function ExpenseFormCard({
                       name="occurredAt"
                       type="date"
                       defaultValue={defaultOccurredAt}
-                      className="bg-background pr-11"
+                      className="h-10 bg-background pr-11"
                       required
                     />
                     <button
@@ -395,7 +424,7 @@ function ExpenseFormCard({
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Transaction mode</Label>
+                  <Label>Transaction mode <span className="text-destructive">*</span></Label>
                   <FormSelect
                     name="transactionModeId"
                     defaultValue={defaultTransactionModeId}

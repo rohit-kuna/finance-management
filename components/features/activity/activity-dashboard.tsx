@@ -10,6 +10,7 @@ import {
   LabelList,
   Line,
   LineChart,
+  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -426,36 +427,35 @@ function ExpenseActivityChart({
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
             <div className="h-[300px] w-full min-w-0 min-h-0 sm:h-[360px]">
-              <BarChart
-                responsive
-                data={chartData}
-                margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
-                style={{ width: "100%", height: "100%" }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" tickMargin={10} tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  shared={false}
-                  formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
-                  labelFormatter={(label) => String(label)}
-                  cursor={{ fill: "var(--color-muted)" }}
-                />
-                <Legend content={<OrderedLegend items={expenseLegendItems} />} />
-                <Bar dataKey="income" name="Income" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry) => (
-                    <Cell key={`income-${entry.month}`} fill="var(--color-chart-2)" />
-                  ))}
-                </Bar>
-                <Bar dataKey="expense" name="Expense" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry) => (
-                    <Cell
-                      key={`expense-${entry.month}`}
-                      fill={entry.isOverspent ? "var(--color-destructive)" : "var(--color-chart-1)"}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tickMargin={10} tick={{ fontSize: 12 }} />
+                  <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
+                    labelFormatter={(label) => String(label)}
+                    cursor={{ fill: "var(--color-muted)" }}
+                  />
+                  <Legend content={<OrderedLegend items={expenseLegendItems} />} />
+                  <Bar dataKey="income" name="Income" radius={[6, 6, 0, 0]} minPointSize={4}>
+                    {chartData.map((entry) => (
+                      <Cell key={`income-${entry.month}`} fill="var(--color-chart-2)" />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="expense" name="Expense" radius={[6, 6, 0, 0]} minPointSize={4}>
+                    {chartData.map((entry) => (
+                      <Cell
+                        key={`expense-${entry.month}`}
+                        fill={entry.isOverspent ? "var(--color-destructive)" : "var(--color-chart-1)"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
@@ -593,17 +593,17 @@ function BudgetVsActualChart({
         ) : chartData.length ? (
           <div className="rounded-2xl border bg-muted/10 p-4">
             <div className="h-[300px] w-full min-w-0 min-h-0 sm:h-[360px]">
-              <BarChart
-                responsive
-                data={chartData}
-                margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
-                style={{ width: "100%", height: "100%" }}
-              >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  barSize={32}
+                  barCategoryGap="30%"
+                  margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
+                >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="categoryName" tickMargin={10} interval={0} tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
                 <Tooltip
-                  shared={false}
                   cursor={{ fill: "var(--color-muted)" }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
@@ -638,12 +638,12 @@ function BudgetVsActualChart({
                     />
                   }
                 />
-                <Bar dataKey="budget" name="Budget" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="budget" name="Budget" radius={[6, 6, 0, 0]} minPointSize={4}>
                   {chartData.map((entry) => (
                     <Cell key={`budget-${entry.categoryId}`} fill="var(--color-chart-4)" />
                   ))}
                 </Bar>
-                <Bar dataKey="actual" name="Actual" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="actual" name="Actual" radius={[6, 6, 0, 0]} minPointSize={4}>
                   {chartData.map((entry) => (
                     <Cell
                       key={`actual-${entry.categoryId}`}
@@ -652,6 +652,7 @@ function BudgetVsActualChart({
                   ))}
                 </Bar>
               </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         ) : (
@@ -803,13 +804,12 @@ function CategoryByTypeChart({
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
             <div className="h-[360px] w-full min-w-0 min-h-0 sm:h-[420px]">
-              <BarChart
-                responsive
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 16, right: 12, left: 0, bottom: 0 }}
-                style={{ width: "100%", height: "100%" }}
-              >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ top: 16, right: 12, left: 0, bottom: 0 }}
+                >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" tickFormatter={(value) => formatCompactMoney(Number(value))} tick={{ fontSize: 12 }} />
                 <YAxis
@@ -878,6 +878,7 @@ function CategoryByTypeChart({
                   />
                 </Bar>
               </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
@@ -1003,17 +1004,15 @@ function NecessitySpendChart({
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
             <div className="h-[320px] w-full min-w-0 min-h-0 sm:h-[380px]">
-              <BarChart
-                responsive
-                data={chartData}
-                margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
-                style={{ width: "100%", height: "100%" }}
-              >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
+                >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" tickMargin={10} tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
                 <Tooltip
-                  shared={false}
                   formatter={(value, name) => [formatMoney(Number(value ?? 0)), String(name)]}
                   labelFormatter={(label) => String(label)}
                   cursor={{ fill: "var(--color-muted)" }}
@@ -1037,6 +1036,7 @@ function NecessitySpendChart({
                   </Bar>
                 ))}
               </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
@@ -1182,12 +1182,11 @@ function ExpenseTrendChart({
 
         <div className="rounded-2xl border bg-muted/10 p-4">
           <div className="h-[320px] w-full min-w-0 min-h-0 sm:h-[380px]">
-            <LineChart
-              responsive
-              data={chartData}
-              margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
-              style={{ width: "100%", height: "100%" }}
-            >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
+              >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="label" tickMargin={10} minTickGap={24} tick={{ fontSize: 12 }} />
               <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
@@ -1217,6 +1216,7 @@ function ExpenseTrendChart({
                 activeDot={{ r: 4 }}
               />
             </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </CardContent>
