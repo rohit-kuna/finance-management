@@ -196,9 +196,7 @@ function getScopedActivityData(data: ActivityDashboardDataDto, audience: Activit
       budgets: data.budgets.filter(
         (budget) => budget.scope === "personal" && budget.userId === memberId
       ),
-      expenses: data.expenses.filter(
-        (expense) => expense.scope === "personal" && expense.userId === memberId
-      ),
+      expenses: data.expenses.filter((expense) => expense.userId === memberId),
     };
   }
 
@@ -207,9 +205,7 @@ function getScopedActivityData(data: ActivityDashboardDataDto, audience: Activit
     budgets: data.budgets.filter(
       (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
     ),
-    expenses: data.expenses.filter(
-      (expense) => expense.scope === "personal" && expense.userId === data.currentUser.id
-    ),
+    expenses: data.expenses.filter((expense) => expense.userId === data.currentUser.id),
   };
 }
 
@@ -424,7 +420,7 @@ function ExpenseActivityChart({
 
         {!hasDataInRange ? (
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No expense records match the selected range.
+            No transaction records match the selected range.
           </div>
         ) : (
           <div className="rounded-2xl border bg-muted/10 p-4">
@@ -465,7 +461,7 @@ function ExpenseActivityChart({
 
         {totals.overspentMonths.length ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">Expenses exceed income in:</span>
+            <span className="text-sm text-muted-foreground">Spending exceeds income in:</span>
             {totals.overspentMonths.map((month) => (
               <Badge key={month} variant="outline" className="border-destructive/30 text-destructive">
                 {month}
@@ -474,7 +470,7 @@ function ExpenseActivityChart({
           </div>
         ) : (
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
-            Income stays ahead of expenses for the selected range.
+            Income stays ahead of spending for the selected range.
           </div>
         )}
       </CardContent>

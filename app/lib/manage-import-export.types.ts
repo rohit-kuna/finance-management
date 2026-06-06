@@ -4,7 +4,6 @@ import type { OrganizationMemberRecord } from "@/app/lib/admin-dashboard.types";
 export const IMPORT_WORKBOOK_FIELDS = [
   "amount",
   "type",
-  "scope",
   "necessity_score",
   "note",
   "category",
@@ -22,7 +21,6 @@ export type ManageImportExportScope = "organization" | "user";
 export const IMPORT_WORKBOOK_FIELD_CONFIGS = [
   { key: "amount", label: "Amount", required: true, valueMapping: null },
   { key: "type", label: "Type", required: false, valueMapping: null },
-  { key: "scope", label: "Scope", required: true, valueMapping: null },
   { key: "necessity_score", label: "Necessity score", required: false, valueMapping: null },
   { key: "note", label: "Note", required: false, valueMapping: null },
   { key: "category", label: "Category", required: true, valueMapping: "category" },
@@ -41,7 +39,6 @@ export const IMPORT_WORKBOOK_FIELDS_BY_SCOPE = {
   organization: [
     "amount",
     "type",
-    "scope",
     "necessity_score",
     "note",
     "category",
@@ -52,7 +49,6 @@ export const IMPORT_WORKBOOK_FIELDS_BY_SCOPE = {
   user: [
     "amount",
     "type",
-    "scope",
     "necessity_score",
     "note",
     "category",

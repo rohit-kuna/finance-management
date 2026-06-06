@@ -236,8 +236,8 @@ export function TransferManagement({
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
           <CardTitle className="text-3xl tracking-tight">Manage transfers</CardTitle>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Track payments to be sent to counterparties and payments to be received from counterparties, then move
-            them through open, settled, and closed states.
+            Track transaction-based payments to and from counterparties, then move them through open, settled, and
+            closed states.
           </p>
         </CardHeader>
       </Card>
@@ -317,7 +317,8 @@ export function TransferManagement({
             <div>
               <CardTitle className="text-2xl tracking-tight">Transfers</CardTitle>
               <p className="max-w-3xl text-sm text-muted-foreground">
-                These are expense rows tagged with a counterparty. Use type and status to understand how each record is progressing.
+                These are transaction rows tagged with a counterparty. Use type and status to understand how each
+                record is progressing.
               </p>
             </div>
             <Badge variant="secondary">{filteredTransfers.length} records</Badge>

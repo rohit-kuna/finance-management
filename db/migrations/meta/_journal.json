@@ -36,6 +36,13 @@
       "when": 1780680631033,
       "tag": "0006_flaky_nextwave",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780741316208,
+      "tag": "0007_crazy_scream",
+      "breakpoints": true
     }
   ]
 }

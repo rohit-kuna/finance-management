@@ -22,7 +22,6 @@ import type { AppRole } from "@/app/lib/roles";
 export type BudgetScope = "personal" | "family";
 export type ExpenseType = "expense" | "income";
 export type CategoryType = ExpenseType;
-export type ExpenseScope = "personal" | "family";
 export type TransferStatus = "open" | "settled" | "closed";
 
 // organizations declared first; createdBy refs users via lazy arrow fn
@@ -118,7 +117,6 @@ export const expenses = pgTable(
     transferStatus: varchar("transfer_status", { length: 10 }).$type<TransferStatus>(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     type: varchar("type", { length: 10 }).notNull().default("expense").$type<ExpenseType>(),
-    scope: varchar("scope", { length: 10 }).notNull().default("personal").$type<ExpenseScope>(),
     necessityScore: smallint("necessity_score").notNull().default(1),
     note: text("note"),
     transactionTimestamp: timestamp("transaction_timestamp", { withTimezone: true }).notNull(),

@@ -45,6 +45,9 @@ export async function getActivityDashboardData(): Promise<ActivityDashboardDataD
     getBudgetsByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId),
   ]);
+  const visibleExpenses = currentUser.role === "ADMIN"
+    ? expenses
+    : expenses.filter((expense) => expense.userId === currentUser.id);
 
   return {
     organization: toOrganizationDto(organization),
@@ -56,7 +59,7 @@ export async function getActivityDashboardData(): Promise<ActivityDashboardDataD
       role: member.role,
     })),
     budgets,
-    expenses,
+    expenses: visibleExpenses,
     currentUser: {
       id: currentUser.id,
       role: currentUser.role,

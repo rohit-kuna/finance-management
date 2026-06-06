@@ -19,7 +19,6 @@ export type ExpenseRecordDto = {
   transactionModeOwnerName: string | null;
   amount: string;
   type: "expense" | "income";
-  scope: "personal" | "family";
   transferStatus: "open" | "settled" | "closed" | null;
   necessityScore: number;
   note: string | null;

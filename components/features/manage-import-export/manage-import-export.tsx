@@ -316,7 +316,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       const displayValues: Record<ImportWorkbookField, string> = {
         amount: resolvedValues.amount,
         type: resolvedValues.type,
-        scope: resolvedValues.scope.trim() || "personal",
         necessity_score: resolvedValues.necessity_score.trim() || "1",
         note: resolvedValues.note.trim() || "—",
         category: resolvedCategory?.name ?? resolvedValues.category,
@@ -545,7 +544,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
             <p>Every imported row is assigned to the signed-in user, so there is no user column or user mapping.</p>
             <p>If a sheet value does not match an existing category, counterparty, or mode, create it first in the app and then come back to map it.</p>
             <p>Mode rows are optional. If you do not map a mode column, expenses import without a transaction mode.</p>
-            <p>Blank `scope` defaults to personal and blank `necessity_score` defaults to 1.</p>
+            <p>Blank `necessity_score` defaults to 1.</p>
             <p>Category type comes from the mapped category record, not the spreadsheet `type` column.</p>
             <p>
               Duplicate rows are rejected when `amount`, `user_id`, `category_id`, `note`, and

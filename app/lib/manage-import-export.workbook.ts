@@ -18,7 +18,6 @@ export const EXPORT_WORKBOOK_HEADERS = [
   "necessity_score",
   "counter_party_name",
   "mode",
-  "scope",
 ] as const;
 
 export const USER_EXPORT_WORKBOOK_HEADERS = [
@@ -29,13 +28,11 @@ export const USER_EXPORT_WORKBOOK_HEADERS = [
   "necessity_score",
   "counter_party_name",
   "mode",
-  "scope",
 ] as const;
 
 const FIELD_ALIASES: Record<ImportWorkbookField, string[]> = {
   amount: ["amount", "amt", "total amount", "total"],
   type: ["type", "expense type", "transaction type"],
-  scope: ["scope", "expense scope"],
   necessity_score: ["necessity_score", "necessity score", "necessity", "priority score"],
   note: ["note", "memo", "description", "remarks"],
   category: ["category", "expense category"],
@@ -160,7 +157,6 @@ export function parseWorkbookBuffer(
 export function buildExpenseExportWorkbook(
   rows: Array<{
     amount: string;
-    scope: string;
     necessity_score: number | string;
     note: string;
     category: string;

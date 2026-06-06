@@ -21,7 +21,6 @@ export async function GET(request: Request) {
       necessity_score: expense.necessityScore,
       counter_party_name: expense.counterPartyName ?? "",
       mode: expense.transactionModeName ?? "",
-      scope: expense.scope,
     })),
     "user"
   );

@@ -50,11 +50,6 @@ const expenseTypes = [
   { value: "income", label: "Income" },
 ] as const;
 
-const expenseScopes = [
-  { value: "personal", label: "Personal" },
-  { value: "family", label: "Family" },
-] as const;
-
 const necessityScores = [1, 2, 3, 4, 5] as const;
 
 function formatMoney(amount: string) {
@@ -262,16 +257,18 @@ function ExpenseFormCard({
   return (
     <Card className="border-primary/20 bg-primary/5 py-2">
       <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-        <CardTitle className="text-2xl tracking-tight">{isEditing ? "Edit expense" : "Add expense"}</CardTitle>
+        <CardTitle className="text-2xl tracking-tight">
+          {isEditing ? "Edit Transaction" : "Add Transaction"}
+        </CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
         {!categories.length ? (
           <div className="rounded-lg border border-dashed bg-background/80 p-4 text-sm text-muted-foreground">
-            Create categories first, then you can add expenses.
+            Create categories first, then you can add transactions.
           </div>
         ) : !transactionModes.length ? (
           <div className="rounded-lg border border-dashed bg-background/80 p-4 text-sm text-muted-foreground">
-            Create your transaction modes first, then you can add expenses.
+            Create your transaction modes first, then you can add transactions.
           </div>
         ) : (
           <form
@@ -319,10 +316,6 @@ function ExpenseFormCard({
               />
             </div>
             <div className="space-y-2">
-              <Label>Scope</Label>
-              <FormSelect name="scope" defaultValue={editingExpense?.scope ?? "personal"} options={expenseScopes} />
-            </div>
-            <div className="space-y-2">
               <NecessityScoreSlider defaultValue={editingExpense?.necessityScore ?? 1} />
             </div>
             <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
@@ -366,7 +359,13 @@ function ExpenseFormCard({
               <ActionError message={activeError} />
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button type="submit" disabled={activePending} className="w-full sm:w-auto">
-                  {activePending ? (isEditing ? "Saving..." : "Adding...") : isEditing ? "Save expense" : "Add expense"}
+                  {activePending
+                    ? isEditing
+                      ? "Saving..."
+                      : "Adding..."
+                    : isEditing
+                      ? "Save Transaction"
+                      : "Add Transaction"}
                 </Button>
                 {isEditing ? (
                   <Button type="button" variant="outline" onClick={onCancelEdit} className="w-full sm:w-auto">
@@ -406,8 +405,8 @@ function ExpenseRowActions({
           variant="outline"
           size="icon-sm"
           onClick={() => onEdit(expense)}
-          aria-label="Edit expense"
-          title="Edit expense"
+          aria-label="Edit Transaction"
+          title="Edit Transaction"
         >
           <PencilLine className="size-4" />
         </Button>
@@ -418,8 +417,8 @@ function ExpenseRowActions({
             variant="destructive"
             size="icon-sm"
             disabled={deletePending}
-            aria-label="Delete expense"
-            title="Delete expense"
+            aria-label="Delete Transaction"
+            title="Delete Transaction"
           >
             <Trash2 className="size-4" />
           </Button>
@@ -447,7 +446,6 @@ function ExpenseTable({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [transactionModeFilter, setTransactionModeFilter] = useState("all");
-  const [scopeFilter, setScopeFilter] = useState("all");
   const [necessityFilter, setNecessityFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "occurredAt", desc: true }]);
@@ -483,7 +481,6 @@ function ExpenseTable({
       if (categoryFilter !== "all" && String(expense.categoryId) !== categoryFilter) return false;
       if (typeFilter !== "all" && expense.type !== typeFilter) return false;
       if (transactionModeFilter !== "all" && String(expense.transactionModeId) !== transactionModeFilter) return false;
-      if (scopeFilter !== "all" && expense.scope !== scopeFilter) return false;
       if (necessityFilter !== "all" && String(expense.necessityScore) !== necessityFilter) return false;
       if (monthFilter !== "all" && expense.occurredAt.slice(0, 7) !== monthFilter) return false;
 
@@ -496,7 +493,6 @@ function ExpenseTable({
         expense.note ?? "",
         expense.amount,
         expense.type,
-        expense.scope,
         expense.transferStatus ?? "",
         String(expense.necessityScore),
       ].some((value) => value.toLowerCase().includes(loweredQuery));
@@ -506,7 +502,6 @@ function ExpenseTable({
     categoryFilter,
     typeFilter,
     transactionModeFilter,
-    scopeFilter,
     necessityFilter,
     monthFilter,
     query,
@@ -539,11 +534,6 @@ function ExpenseTable({
         accessorKey: "transactionModeName",
         header: ({ column }) => <SortableHeader column={column} title="Transaction mode" />,
         cell: ({ row }) => <Badge variant="outline">{row.original.transactionModeName ?? "—"}</Badge>,
-      },
-      {
-        accessorKey: "scope",
-        header: ({ column }) => <SortableHeader column={column} title="Scope" />,
-        cell: ({ row }) => <Badge variant="outline">{row.original.scope}</Badge>,
       },
       {
         accessorKey: "transferStatus",
@@ -605,9 +595,9 @@ function ExpenseTable({
       <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-2xl tracking-tight">Expenses</CardTitle>
+            <CardTitle className="text-2xl tracking-tight">Transactions</CardTitle>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Filter, sort, edit, and remove your expenses, including optional counterparty links.
+              Filter, sort, edit, and remove your transactions, including optional counterparty links.
             </p>
           </div>
           <Badge variant="secondary">{filteredExpenses.length} records</Badge>
@@ -645,14 +635,6 @@ function ExpenseTable({
             />
           </div>
           <div className="space-y-2">
-            <Label>Scope</Label>
-            <FilterSelect
-              value={scopeFilter}
-              onChange={setScopeFilter}
-              options={[{ value: "all", label: "All scopes" }, ...expenseScopes]}
-            />
-          </div>
-          <div className="space-y-2">
             <Label>Necessity</Label>
             <FilterSelect
               value={necessityFilter}
@@ -686,7 +668,6 @@ function ExpenseTable({
                 setCategoryFilter("all");
                 setTypeFilter("all");
                 setTransactionModeFilter("all");
-                setScopeFilter("all");
                 setNecessityFilter("all");
                 setMonthFilter("all");
                 setQuery("");
@@ -727,7 +708,7 @@ function ExpenseTable({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="py-10 text-center text-muted-foreground">
-                    No expenses match the current filters.
+                    No transactions match the current filters.
                   </TableCell>
                 </TableRow>
               )}
@@ -747,9 +728,9 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
     <section className="space-y-6">
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-3xl tracking-tight">Income and Expenses</CardTitle>
+          <CardTitle className="text-3xl tracking-tight">Transactions</CardTitle>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Add an income or expense quickly, then use filters and sorting to review your own spending.
+            Add a transaction quickly, then use filters and sorting to review your own spending.
           </p>
         </CardHeader>
       </Card>

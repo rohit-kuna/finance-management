@@ -128,19 +128,6 @@ function parseNecessityScore(value: string) {
   return parsed;
 }
 
-function parseExpenseScope(value: string) {
-  if (!value.trim()) {
-    return "personal";
-  }
-
-  const trimmed = value.trim();
-  if (trimmed !== "personal" && trimmed !== "family") {
-    throw new Error(`Invalid scope: ${value}`);
-  }
-
-  return trimmed;
-}
-
 function parseCategoryType(value: string) {
   const trimmed = value.trim();
   if (trimmed !== "expense" && trimmed !== "income") {
@@ -187,7 +174,6 @@ function formatImportRowSummary(input: {
   note: string | null;
   counterpartyName: string | null;
   modeName: string | null;
-  scope: string;
   type: string | null;
 }) {
   const parts = [
@@ -210,8 +196,6 @@ function formatImportRowSummary(input: {
   if (input.modeName?.trim()) {
     parts.push(`mode ${input.modeName.trim()}`);
   }
-
-  parts.push(`scope ${input.scope}`);
 
   if (input.type?.trim()) {
     parts.push(`type ${input.type.trim()}`);
@@ -699,7 +683,6 @@ export async function importExpensesFromWorkbookAction(
     const issues = [...row.issues];
 
     const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
-    const scopeValue = resolveWorkbookValue(row, headerIndex, "scope", payload, formData);
     const necessityScoreValue = resolveWorkbookValue(row, headerIndex, "necessity_score", payload, formData);
     const noteValue = resolveWorkbookValue(row, headerIndex, "note", payload, formData);
     const categoryValue = resolveWorkbookValue(row, headerIndex, "category", payload, formData);
@@ -797,14 +780,6 @@ export async function importExpensesFromWorkbookAction(
       issues.push(`Invalid necessity_score: ${necessityScoreValue}`);
     }
 
-    let scope = "";
-    try {
-      scope = parseExpenseScope(scopeValue);
-    } catch (error) {
-      void error;
-      issues.push(`Invalid scope: ${scopeValue}`);
-    }
-
     const note = parseNote(noteValue);
     const modeName = parseModeName(modeValue);
 
@@ -883,7 +858,6 @@ export async function importExpensesFromWorkbookAction(
             note,
             counterpartyName: counterpartySelectionValue || null,
             modeName,
-            scope,
             type: null,
           })
         );
@@ -914,7 +888,6 @@ export async function importExpensesFromWorkbookAction(
         }
 
         const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
-        const scopeValue = resolveWorkbookValue(row, headerIndex, "scope", payload, formData);
         const necessityScoreValue = resolveWorkbookValue(
           row,
           headerIndex,
@@ -1140,7 +1113,6 @@ export async function importExpensesFromWorkbookAction(
         const note = parseNote(noteValue);
         const transactionTimestamp = parseTransactionTimestamp(timestampValue);
         const type = categorySelection.categoryType;
-        const scope = parseExpenseScope(scopeValue);
         const duplicateKey = toDuplicateKey({
           amount,
           userId: userSelection.userId,
@@ -1472,7 +1444,6 @@ async function importUserScopedExpensesFromWorkbookAction(
     const issues = [...row.issues];
 
     const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
-    const scopeValue = resolveWorkbookValue(row, headerIndex, "scope", payload, formData);
     const necessityScoreValue = resolveWorkbookValue(row, headerIndex, "necessity_score", payload, formData);
     const noteValue = resolveWorkbookValue(row, headerIndex, "note", payload, formData);
     const categoryValue = resolveWorkbookValue(row, headerIndex, "category", payload, formData);
@@ -1550,14 +1521,6 @@ async function importUserScopedExpensesFromWorkbookAction(
       issues.push(`Invalid necessity_score: ${necessityScoreValue}`);
     }
 
-    let scope = "";
-    try {
-      scope = parseExpenseScope(scopeValue);
-    } catch (error) {
-      void error;
-      issues.push(`Invalid scope: ${scopeValue}`);
-    }
-
     const note = parseNote(noteValue);
     let transactionTimestamp = new Date(0);
     try {
@@ -1617,7 +1580,6 @@ async function importUserScopedExpensesFromWorkbookAction(
           note,
           counterpartyName: counterpartySelectionValue || null,
           modeName: modeSelectionValue || defaultTransactionMode?.name || null,
-          scope,
           type: categorySelection!.categoryType,
         })
       );
@@ -1647,7 +1609,6 @@ async function importUserScopedExpensesFromWorkbookAction(
         }
 
         const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
-        const scopeValue = resolveWorkbookValue(row, headerIndex, "scope", payload, formData);
         const necessityScoreValue = resolveWorkbookValue(
           row,
           headerIndex,
@@ -1704,7 +1665,6 @@ async function importUserScopedExpensesFromWorkbookAction(
         const note = parseNote(noteValue);
         const transactionTimestamp = parseTransactionTimestamp(timestampValue);
         const type = categorySelection!.categoryType;
-        const scope = parseExpenseScope(scopeValue);
         const duplicateKey = toDuplicateKey({
           amount,
           userId: currentUser.id,
@@ -1735,7 +1695,6 @@ async function importUserScopedExpensesFromWorkbookAction(
             note,
             counterpartyName: counterpartySelection || null,
             modeName: modeSelectionValue || defaultTransactionMode?.name || null,
-            scope,
             type,
           })
         );
@@ -1750,7 +1709,6 @@ async function importUserScopedExpensesFromWorkbookAction(
             transferStatus: counterpartyId ? "open" : null,
             amount,
             type,
-            scope,
             necessityScore,
             note,
             transactionTimestamp,
@@ -1769,7 +1727,6 @@ async function importUserScopedExpensesFromWorkbookAction(
                     note,
                     counterpartyName: counterpartySelection || null,
                     modeName: modeSelectionValue || null,
-                    scope,
                     type,
                   }));
 

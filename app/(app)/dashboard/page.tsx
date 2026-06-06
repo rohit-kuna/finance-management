@@ -27,7 +27,7 @@ const adminMenuItems: DashboardMenuItem[] = [
   {
     label: "Activity",
     href: ROUTES.ACTIVITY,
-    description: "Review charts for income, expenses, and budget health.",
+    description: "Review charts for income, spending, and budget health.",
   },
   {
     label: "Users",
@@ -45,14 +45,14 @@ const adminMenuItems: DashboardMenuItem[] = [
     description: "Monitor allocation and manage personal or family budgets.",
   },
   {
-    label: "Expenses",
+    label: "Transactions",
     href: ROUTES.EXPENSES,
-    description: "Track and manage organization expenses.",
+    description: "Track and manage organization transactions.",
   },
   {
     label: "Import / Export",
     href: ROUTES.MANAGE_IMPORT_EXPORT,
-    description: "Upload Excel expense sheets and export the current organization workbook.",
+    description: "Upload Excel transaction sheets and export the current organization workbook.",
   },
 ];
 
@@ -68,9 +68,9 @@ const userMenuItems: DashboardMenuItem[] = [
     description: "Manage personal budgets and view allocation summaries.",
   },
   {
-    label: "Expenses",
+    label: "Transactions",
     href: ROUTES.EXPENSES,
-    description: "Track and manage your expenses.",
+    description: "Track and manage your transactions.",
   },
 ];
 

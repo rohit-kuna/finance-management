@@ -4,7 +4,7 @@ import { aliasedTable, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { categories, counterParty, expenses, transactionModes, users } from "@/db/schema";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
-import type { ExpenseScope, ExpenseType, TransferStatus } from "@/db/schema";
+import type { ExpenseType, TransferStatus } from "@/db/schema";
 
 const transactionModeOwner = aliasedTable(users, "transactionModeOwner");
 
@@ -33,7 +33,6 @@ function toExpenseDto(
     transactionModeOwnerName: record.transactionModeOwnerName,
     amount: record.amount.toString(),
     type: record.type as ExpenseType,
-    scope: record.scope as ExpenseScope,
     transferStatus: (record.transferStatus as TransferStatus | null) ?? null,
     necessityScore: Number(record.necessityScore),
     note: record.note,
@@ -59,7 +58,6 @@ function expenseSelectShape() {
     transactionModeOwnerName: transactionModeOwner.name,
     amount: expenses.amount,
     type: expenses.type,
-    scope: expenses.scope,
     transferStatus: expenses.transferStatus,
     necessityScore: expenses.necessityScore,
     note: expenses.note,
@@ -117,7 +115,6 @@ export async function formatExpenseRecordSummary(expense: ExpenseRecordDto) {
     parts.push(`counterparty ${expense.counterPartyName.trim()}`);
   }
 
-  parts.push(`scope ${expense.scope}`);
   parts.push(`type ${expense.type}`);
 
   return parts.join(", ");
@@ -132,7 +129,6 @@ export async function createExpenseRecord(input: {
   transferStatus: TransferStatus | null;
   amount: string;
   type: ExpenseType;
-  scope: ExpenseScope;
   necessityScore: number;
   note: string | null;
   occurredAt: Date;
@@ -156,7 +152,6 @@ export async function updateExpenseRecord(
     transferStatus: TransferStatus | null;
     amount: string;
     type: ExpenseType;
-    scope: ExpenseScope;
     necessityScore: number;
     note: string | null;
     occurredAt: Date;
