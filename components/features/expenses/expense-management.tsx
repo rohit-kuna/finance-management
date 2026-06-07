@@ -20,9 +20,11 @@ import {
 import type {
   CategoryRecordDto,
   CounterpartyRecordDto,
+  TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
 import type { ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expense.types";
+import { TagMultiSelect } from "@/components/features/expenses/tag-multi-select";
 import {
   formatExpenseDate,
   toExpenseDateInputValue,
@@ -284,6 +286,7 @@ function ExpenseFormCard({
   categories,
   counterparties,
   transactionModes,
+  tags,
   editingExpense,
   recentCategoryId,
   onCancelEdit,
@@ -291,6 +294,7 @@ function ExpenseFormCard({
   categories: CategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
+  tags: TagRecordDto[];
   editingExpense: ExpenseRecordDto | null;
   recentCategoryId: number | null;
   onCancelEdit: () => void;
@@ -406,13 +410,11 @@ function ExpenseFormCard({
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="expense-note">Note</Label>
-              <textarea
-                id="expense-note"
-                name="note"
-                defaultValue={editingExpense?.note ?? ""}
-                placeholder="Lunch with the team"
-                className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              <Label>Tags</Label>
+              <TagMultiSelect
+                tags={tags}
+                name="tagIds"
+                defaultSelectedIds={editingExpense?.tagIds ?? []}
               />
             </div>
             <div className={cn(!isAdvanced && "hidden")}>
@@ -466,6 +468,16 @@ function ExpenseFormCard({
                     }))}
                     required={false}
                     includeEmptyOption="No counterparty"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="expense-note">Note</Label>
+                  <textarea
+                    id="expense-note"
+                    name="note"
+                    defaultValue={editingExpense?.note ?? ""}
+                    placeholder="Lunch with the team"
+                    className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   />
                 </div>
               </div>
@@ -564,6 +576,7 @@ function ExpenseTable({
   const [typeFilter, setTypeFilter] = useState("all");
   const [transactionModeFilter, setTransactionModeFilter] = useState("all");
   const [necessityFilter, setNecessityFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "occurredAt", desc: true }]);
 
@@ -579,6 +592,25 @@ function ExpenseTable({
     ],
     [expenses]
   );
+
+  const tagOptions = useMemo(() => {
+    const tagsById = new Map<number, string>();
+    for (const expense of expenses) {
+      expense.tagIds.forEach((id, index) => {
+        if (!tagsById.has(id)) {
+          tagsById.set(id, expense.tagNames[index] ?? "");
+        }
+      });
+    }
+
+    return [
+      { value: "all", label: "All tags" },
+      ...Array.from(tagsById.entries()).map(([id, name]) => ({
+        value: String(id),
+        label: name,
+      })),
+    ];
+  }, [expenses]);
 
   const transactionModeOptions = useMemo(
     () => [
@@ -599,6 +631,7 @@ function ExpenseTable({
       if (typeFilter !== "all" && expense.type !== typeFilter) return false;
       if (transactionModeFilter !== "all" && String(expense.transactionModeId) !== transactionModeFilter) return false;
       if (necessityFilter !== "all" && String(expense.necessityScore) !== necessityFilter) return false;
+      if (tagFilter !== "all" && !expense.tagIds.some((id) => String(id) === tagFilter)) return false;
       if (monthFilter !== "all" && expense.occurredAt.slice(0, 7) !== monthFilter) return false;
 
       if (!loweredQuery) return true;
@@ -612,6 +645,7 @@ function ExpenseTable({
         expense.type,
         expense.transferStatus ?? "",
         String(expense.necessityScore),
+        ...expense.tagNames,
       ].some((value) => value.toLowerCase().includes(loweredQuery));
     });
   }, [
@@ -620,6 +654,7 @@ function ExpenseTable({
     typeFilter,
     transactionModeFilter,
     necessityFilter,
+    tagFilter,
     monthFilter,
     query,
   ]);
@@ -680,6 +715,22 @@ function ExpenseTable({
         cell: ({ row }) => (
           <span className="block max-w-[280px] truncate text-muted-foreground">{row.original.note ?? "—"}</span>
         ),
+      },
+      {
+        id: "tags",
+        header: "Tags",
+        cell: ({ row }) =>
+          row.original.tagNames.length ? (
+            <div className="flex max-w-[220px] flex-wrap gap-1">
+              {row.original.tagNames.map((tagName) => (
+                <Badge key={tagName} variant="secondary">
+                  {tagName}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            "—"
+          ),
       },
       {
         id: "actions",
@@ -766,6 +817,10 @@ function ExpenseTable({
             />
           </div>
           <div className="space-y-2">
+            <Label>Tags</Label>
+            <FilterSelect value={tagFilter} onChange={setTagFilter} options={tagOptions} />
+          </div>
+          <div className="space-y-2">
             <Label>Month</Label>
             <MonthInput value={monthFilter === "all" ? "" : monthFilter} onChange={(event) => setMonthFilter(event.target.value || "all")} />
           </div>
@@ -782,6 +837,7 @@ function ExpenseTable({
                 setTypeFilter("all");
                 setTransactionModeFilter("all");
                 setNecessityFilter("all");
+                setTagFilter("all");
                 setMonthFilter("all");
                 setQuery("");
               }}
@@ -870,6 +926,7 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
         categories={data.categories}
         counterparties={data.counterparties}
         transactionModes={data.transactionModes}
+        tags={data.tags}
         editingExpense={editingExpense}
         recentCategoryId={recentCategoryId}
         onCancelEdit={() => setEditingExpense(null)}

@@ -59,6 +59,7 @@ const adminSettingsItems: HeaderNavItem[] = [
   { label: "Users", href: ROUTES.USERS },
   { label: "Categories", href: ROUTES.CATEGORIES },
   { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
+  { label: "Tags", href: ROUTES.TAGS },
   { label: "Modes", href: ROUTES.TRANSACTION_MODES },
   { label: "Transfers", href: ROUTES.TRANSFERS },
   { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
@@ -72,6 +73,7 @@ const userTopNavItems: HeaderNavItem[] = [
 const userSettingsItems: HeaderNavItem[] = [
   { label: "Switch organization", href: ROUTES.SWITCH_ORGANIZATION },
   { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
+  { label: "Tags", href: ROUTES.TAGS },
   { label: "Modes", href: ROUTES.TRANSACTION_MODES },
   { label: "Transfers", href: ROUTES.TRANSFERS },
   { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },

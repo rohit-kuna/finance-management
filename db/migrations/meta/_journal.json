@@ -64,6 +64,13 @@
       "when": 1780820849543,
       "tag": "0010_fantastic_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780846795228,
+      "tag": "0011_adorable_mojo",
+      "breakpoints": true
     }
   ]
 }

@@ -101,6 +101,22 @@ export const counterParty = pgTable(
   })
 );
 
+export const tags = pgTable(
+  "tags",
+  {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 100 }).notNull(),
+    orgId: integer("org_id").notNull().references(() => organizations.id),
+    createdBy: uuid("created_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tagsOrgNameUnique: unique("tags_org_name_unique").on(table.orgId, table.name),
+    tagsOrgIdx: index("tags_org_id_idx").on(table.orgId),
+  })
+);
+
 export const transactionModes = pgTable(
   "transaction_modes",
   {
@@ -162,6 +178,22 @@ export const financeTransactions = pgTable(
     transactionModeIdx: index("finance_transactions_transaction_mode_id_idx").on(table.transactionModeId),
     transferStatusIdx: index("finance_transactions_transfer_status_idx").on(table.transferStatus),
     occurredAtIdx: index("finance_transactions_occurred_at_idx").on(table.transactionTimestamp),
+  })
+);
+
+export const transactionTags = pgTable(
+  "transaction_tags",
+  {
+    transactionId: integer("transaction_id")
+      .notNull()
+      .references(() => financeTransactions.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.transactionId, table.tagId] }),
+    tagIdx: index("transaction_tags_tag_id_idx").on(table.tagId),
   })
 );
 

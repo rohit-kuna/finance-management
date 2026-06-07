@@ -51,6 +51,14 @@ export type CounterpartyRecordDto = {
   updatedAt: string;
 };
 
+export type TagRecordDto = {
+  id: number;
+  orgId: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TransactionModeRecordDto = {
   id: number;
   name: string;

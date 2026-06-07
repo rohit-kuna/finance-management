@@ -11,12 +11,14 @@ import {
   deleteExpenseRecord,
   getExpenseById,
   getExpensesByOrg,
+  setTransactionTags,
   updateExpenseRecord,
 } from "@/app/actions/tables/expenses.table.actions";
 import {
   getCounterpartiesByOrg,
   getCounterpartyById,
 } from "@/app/actions/tables/counterparties.table.actions";
+import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
 import {
   ensureDefaultTransactionModesForUser,
   getTransactionModeById,
@@ -35,6 +37,7 @@ const expenseSchema = z.object({
   amount: z.coerce.number().positive("Amount must be greater than zero"),
   necessityScore: z.coerce.number().int().min(1, "Necessity score must be between 1 and 5").max(5),
   note: z.string().trim().max(500).nullable(),
+  tagIds: z.array(z.coerce.number().int().positive()).optional().default([]),
   occurredAt: z.string().trim().min(1, "Expense date is required"),
 });
 
@@ -110,6 +113,21 @@ async function resolveCounterpartyId(orgId: number, counterPartyId: number | nul
   return counterparty.id;
 }
 
+async function resolveTagIds(orgId: number, tagIds: number[]) {
+  if (!tagIds.length) {
+    return [];
+  }
+
+  const orgTags = await getTagsByOrg(orgId);
+  const orgTagIds = new Set(orgTags.map((tag) => tag.id));
+
+  if (!tagIds.every((tagId) => orgTagIds.has(tagId))) {
+    return null;
+  }
+
+  return tagIds;
+}
+
 export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataDto> {
   const currentUser = await requireUser();
 
@@ -119,6 +137,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
       categories: [],
       counterparties: [],
       transactionModes: [],
+      tags: [],
       expenses: [],
       currentUser: {
         id: currentUser.id,
@@ -129,10 +148,11 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     };
   }
 
-  const [organization, categories, counterparties, expenses] = await Promise.all([
+  const [organization, categories, counterparties, tags, expenses] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
+    getTagsByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId),
   ]);
   const transactionModes = await ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id);
@@ -145,6 +165,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     categories,
     counterparties,
     transactionModes,
+    tags,
     expenses: visibleExpenses,
     currentUser: {
       id: currentUser.id,
@@ -217,6 +238,7 @@ export async function createExpenseAction(
     amount: formData.get("amount"),
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
+    tagIds: formData.getAll("tagIds"),
     occurredAt: formData.get("occurredAt"),
   });
 
@@ -239,10 +261,15 @@ export async function createExpenseAction(
     return { error: "Transaction mode does not exist" };
   }
 
+  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
+  if (!tagIds) {
+    return { error: "One or more tags do not belong to your organization" };
+  }
+
   const expenseType = category.type;
   const transferStatus = counterPartyId ? "open" : null;
 
-  await createExpenseRecord({
+  const record = await createExpenseRecord({
     orgId,
     userId: currentUser.id,
     categoryId: parsed.data.categoryId,
@@ -255,6 +282,10 @@ export async function createExpenseAction(
     note: parsed.data.note,
     occurredAt: parseExpenseDate(parsed.data.occurredAt),
   });
+
+  if (record) {
+    await setTransactionTags(record.id, tagIds);
+  }
 
   redirect(ROUTES.TRANSACTIONS);
 }
@@ -274,6 +305,7 @@ export async function updateExpenseAction(
     amount: formData.get("amount"),
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
+    tagIds: formData.getAll("tagIds"),
     occurredAt: formData.get("occurredAt"),
   });
   const expenseIdResult = expenseIdSchema.safeParse({
@@ -308,6 +340,11 @@ export async function updateExpenseAction(
     return { error: "Transaction mode does not exist" };
   }
 
+  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
+  if (!tagIds) {
+    return { error: "One or more tags do not belong to your organization" };
+  }
+
   const expenseType = category.type;
   const transferStatus = counterPartyId ? expense.transferStatus ?? "open" : null;
 
@@ -323,6 +360,8 @@ export async function updateExpenseAction(
     occurredAt: parseExpenseDate(parsed.data.occurredAt, new Date(expense.occurredAt)),
     updatedAt: new Date(),
   });
+
+  await setTransactionTags(expense.id, tagIds);
 
   redirect(ROUTES.TRANSACTIONS);
 }

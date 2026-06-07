@@ -1,6 +1,7 @@
 import type {
   CategoryRecordDto,
   CounterpartyRecordDto,
+  TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
 import type { AppRole } from "@/app/lib/roles";
@@ -23,6 +24,8 @@ export type ExpenseRecordDto = {
   transferStatus: "open" | "settled" | "closed" | null;
   necessityScore: number;
   note: string | null;
+  tagIds: number[];
+  tagNames: string[];
   occurredAt: string;
   createdAt: string;
   updatedAt: string;
@@ -59,6 +62,7 @@ export type ExpensesDashboardDataDto = {
   categories: CategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
+  tags: TagRecordDto[];
   expenses: ExpenseRecordDto[];
   currentUser: {
     id: string;

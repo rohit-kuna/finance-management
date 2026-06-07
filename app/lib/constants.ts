@@ -10,6 +10,7 @@ export const ROUTES = {
   USERS: "/users",
   CATEGORIES: "/categories",
   COUNTERPARTIES: "/counterparties",
+  TAGS: "/tags",
   TRANSACTION_MODES: "/transaction-modes",
   BUDGETS: "/budgets",
   TRANSACTIONS: "/transactions",

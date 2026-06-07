@@ -1,8 +1,16 @@
 "use server";
 
-import { aliasedTable, desc, eq } from "drizzle-orm";
+import { aliasedTable, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { categories, counterParty, financeTransactions, transactionModes, users } from "@/db/schema";
+import {
+  categories,
+  counterParty,
+  financeTransactions,
+  tags,
+  transactionModes,
+  transactionTags,
+  users,
+} from "@/db/schema";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
 import type { ExpenseType, TransferStatus } from "@/db/schema";
 
@@ -16,7 +24,8 @@ function toExpenseDto(
     counterPartyName: string | null;
     transactionModeName: string | null;
     transactionModeOwnerName: string | null;
-  }
+  },
+  tagAssociations: { id: number; name: string }[] = []
 ): ExpenseRecordDto {
   return {
     id: record.id,
@@ -36,10 +45,44 @@ function toExpenseDto(
     transferStatus: (record.transferStatus as TransferStatus | null) ?? null,
     necessityScore: Number(record.necessityScore),
     note: record.note,
+    tagIds: tagAssociations.map((tag) => tag.id),
+    tagNames: tagAssociations.map((tag) => tag.name),
     occurredAt: record.transactionTimestamp.toISOString(),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
+}
+
+async function getTagAssociationsByTransactionIds(
+  transactionIds: number[]
+): Promise<Map<number, { id: number; name: string }[]>> {
+  const associations = new Map<number, { id: number; name: string }[]>();
+
+  if (!transactionIds.length) {
+    return associations;
+  }
+
+  const rows = await db
+    .select({
+      transactionId: transactionTags.transactionId,
+      id: tags.id,
+      name: tags.name,
+    })
+    .from(transactionTags)
+    .innerJoin(tags, eq(tags.id, transactionTags.tagId))
+    .where(inArray(transactionTags.transactionId, transactionIds));
+
+  for (const row of rows) {
+    const existing = associations.get(row.transactionId);
+    const tag = { id: row.id, name: row.name };
+    if (existing) {
+      existing.push(tag);
+    } else {
+      associations.set(row.transactionId, [tag]);
+    }
+  }
+
+  return associations;
 }
 
 function expenseSelectShape() {
@@ -67,8 +110,10 @@ function expenseSelectShape() {
   } as const;
 }
 
+type ExpenseJoinRow = Parameters<typeof toExpenseDto>[0];
+
 export async function getExpensesByOrg(orgId: number): Promise<ExpenseRecordDto[]> {
-  const records = await db
+  const records: ExpenseJoinRow[] = await db
     .select(expenseSelectShape())
     .from(financeTransactions)
     .innerJoin(categories, eq(categories.id, financeTransactions.categoryId))
@@ -79,11 +124,13 @@ export async function getExpensesByOrg(orgId: number): Promise<ExpenseRecordDto[
     .where(eq(financeTransactions.orgId, orgId))
     .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt));
 
-  return records.map(toExpenseDto);
+  const tagAssociations = await getTagAssociationsByTransactionIds(records.map((record) => record.id));
+
+  return records.map((record) => toExpenseDto(record, tagAssociations.get(record.id) ?? []));
 }
 
 export async function getExpenseById(id: number): Promise<ExpenseRecordDto | null> {
-  const [record] = await db
+  const [record]: ExpenseJoinRow[] = await db
     .select(expenseSelectShape())
     .from(financeTransactions)
     .innerJoin(categories, eq(categories.id, financeTransactions.categoryId))
@@ -94,7 +141,11 @@ export async function getExpenseById(id: number): Promise<ExpenseRecordDto | nul
     .where(eq(financeTransactions.id, id))
     .limit(1);
 
-  return record ? toExpenseDto(record) : null;
+  if (!record) return null;
+
+  const tagAssociations = await getTagAssociationsByTransactionIds([record.id]);
+
+  return toExpenseDto(record, tagAssociations.get(record.id) ?? []);
 }
 
 export async function formatExpenseRecordSummary(expense: ExpenseRecordDto) {
@@ -173,4 +224,12 @@ export async function updateExpenseRecord(
 export async function deleteExpenseRecord(id: number) {
   const [record] = await db.delete(financeTransactions).where(eq(financeTransactions.id, id)).returning();
   return record ?? null;
+}
+
+export async function setTransactionTags(transactionId: number, tagIds: number[]) {
+  await db.delete(transactionTags).where(eq(transactionTags.transactionId, transactionId));
+
+  if (tagIds.length) {
+    await db.insert(transactionTags).values(tagIds.map((tagId) => ({ transactionId, tagId })));
+  }
 }
