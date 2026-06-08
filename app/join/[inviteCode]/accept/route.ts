@@ -10,5 +10,5 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const { inviteCode } = await params;
 
   await acceptOrganizationInvite(inviteCode);
-  redirect(ROUTES.TRANSACTIONS);
+  redirect(ROUTES.DASHBOARD);
 }

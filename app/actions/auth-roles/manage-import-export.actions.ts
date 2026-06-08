@@ -972,7 +972,7 @@ async function importUserScopedExpensesFromWorkbookAction(
   }
 
   revalidatePath(ROUTES.TRANSACTIONS);
-  revalidatePath(ROUTES.ACTIVITY);
+  revalidatePath(ROUTES.ANALYTICS);
   revalidatePath(ROUTES.TRANSFERS);
   revalidatePath(ROUTES.COUNTERPARTIES);
   revalidatePath(ROUTES.CATEGORIES);
