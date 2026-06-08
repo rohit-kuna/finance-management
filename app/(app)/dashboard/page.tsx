@@ -54,7 +54,10 @@ export default async function DashboardPage() {
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
           <CardTitle className="max-w-3xl text-3xl leading-tight tracking-tight">
-            <span className="block">Hi {greetingName}, Welcome to {organizationName} Dashboard</span>
+            <span className="block">
+              Hi {greetingName}, Welcome
+              <span className="hidden sm:inline"> to {organizationName} Dashboard</span>
+            </span>
           </CardTitle>
           <p className="max-w-3xl text-sm text-muted-foreground">
             Add a transaction quickly, then track how your income and spending compare this month.

@@ -485,8 +485,8 @@ export function ExpenseFormCard({
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">Default mode: {transactionModes.find((mode) => mode.isDefault)?.name ?? "none"}</Badge>
-              <Badge variant="secondary">Default score: 1</Badge>
+              <Badge variant="secondary">Default Date: Now</Badge>
+              <Badge variant="secondary">Default Mode: {transactionModes.find((mode) => mode.isDefault)?.name ?? "none"}</Badge>
             </div>
             <ActionError message={activeError} />
             <div className="flex flex-col gap-2 sm:flex-row">
