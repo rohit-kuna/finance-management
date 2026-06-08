@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { categories, counterParty, financeTransactions, tags, transactionModes, transactionTags } from "@/db/schema";
-import { requireUser } from "@/app/lib/auth";
+import { requireAdmin, requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getCategoriesByOrg } from "@/app/actions/tables/categories.table.actions";
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
@@ -12,6 +12,7 @@ import { formatExpenseRecordSummary, getExpensesByOrg } from "@/app/actions/tabl
 import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
 import { getTransactionModesByUser } from "@/app/actions/tables/transaction-modes.table.actions";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
+import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import type {
   ImportWorkbookField,
   ImportWorkbookPreview,
@@ -951,6 +952,748 @@ async function importUserScopedExpensesFromWorkbookAction(
                     note,
                     counterpartyName: counterpartySelection || null,
                     modeName: modeSelectionValue || null,
+                    type,
+                  }));
+
+            throw new Error(
+              `Row ${row.rowNumber}: duplicate expense already exists (${duplicateDetails})`
+            );
+          }
+
+          throw error;
+        }
+      }
+    });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to import workbook",
+      success: null,
+      preview: null,
+    };
+  }
+
+  revalidatePath(ROUTES.TRANSACTIONS);
+  revalidatePath(ROUTES.ANALYTICS);
+  revalidatePath(ROUTES.TRANSFERS);
+  revalidatePath(ROUTES.COUNTERPARTIES);
+  revalidatePath(ROUTES.CATEGORIES);
+  revalidatePath(ROUTES.TAGS);
+  revalidatePath(ROUTES.DASHBOARD, "layout");
+
+  const importedRowCount = payload.rows.length - skippedDuplicateRows.size;
+
+  return {
+    error: null,
+    success:
+      importedRowCount > 0
+        ? `Imported ${importedRowCount} expense row${importedRowCount === 1 ? "" : "s"} successfully${skippedDuplicateRows.size ? `, skipped ${skippedDuplicateRows.size} duplicate row${skippedDuplicateRows.size === 1 ? "" : "s"}` : ""}.`
+        : "No new expense rows were imported.",
+    preview: null,
+  };
+}
+
+export async function getManageImportExportOrgData(): Promise<ManageImportExportDataDto> {
+  const currentAdmin = await requireAdmin();
+
+  if (!currentAdmin.orgId) {
+    return {
+      scope: "organization",
+      organization: null,
+      categories: [],
+      counterparties: [],
+      tags: [],
+      transactionModes: [],
+      members: [],
+      currentUser: toManageImportExportCurrentUserDto(currentAdmin),
+    };
+  }
+
+  const orgId = currentAdmin.orgId;
+
+  const [organization, categoriesResult, counterparties, orgTags, members] = await Promise.all([
+    getOrganizationById(orgId),
+    getCategoriesByOrg(orgId),
+    getCounterpartiesByOrg(orgId),
+    getTagsByOrg(orgId),
+    getOrganizationMembers(orgId),
+  ]);
+
+  const memberTransactionModes = await Promise.all(
+    members.map((member) => getTransactionModesByUser(orgId, member.id))
+  );
+  const transactionModes = memberTransactionModes.flat();
+
+  return {
+    scope: "organization",
+    organization: toManageImportExportOrganizationDto(organization),
+    categories: categoriesResult,
+    counterparties,
+    tags: orgTags,
+    transactionModes,
+    members,
+    currentUser: toManageImportExportCurrentUserDto(currentAdmin),
+  };
+}
+
+export async function parseImportWorkbookOrgAction(
+  _previousState: ManageImportExportActionState,
+  formData: FormData
+): Promise<ManageImportExportActionState> {
+  const currentAdmin = await requireAdmin();
+
+  if (!currentAdmin.orgId) {
+    return {
+      error: "Create or join an organization first",
+      success: null,
+      preview: null,
+    };
+  }
+
+  const file = formData.get("workbook");
+  if (!(file instanceof File) || file.size === 0) {
+    return {
+      error: "Upload an Excel workbook first",
+      success: null,
+      preview: null,
+    };
+  }
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const preview = parseWorkbookBuffer(buffer, file.name, "organization");
+
+    return {
+      error: null,
+      success: null,
+      preview,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to read the workbook",
+      success: null,
+      preview: null,
+    };
+  }
+}
+
+export async function importExpensesFromWorkbookOrgAction(
+  _previousState: ManageImportExportActionState,
+  formData: FormData
+): Promise<ManageImportExportActionState> {
+  const currentAdmin = await requireAdmin();
+
+  if (!currentAdmin.orgId) {
+    return {
+      error: "Create an organization first",
+      success: null,
+      preview: null,
+    };
+  }
+
+  const payloadJson = formData.get("payload");
+  if (typeof payloadJson !== "string" || !payloadJson.trim()) {
+    return {
+      error: "Upload a workbook and review the preview first",
+      success: null,
+      preview: null,
+    };
+  }
+
+  let payload: ImportPayload;
+  try {
+    payload = toImportPayload(payloadJson);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Invalid workbook preview payload",
+      success: null,
+      preview: null,
+    };
+  }
+
+  return importOrganizationScopedExpensesFromWorkbookAction(currentAdmin, payload, formData);
+}
+
+async function importOrganizationScopedExpensesFromWorkbookAction(
+  currentAdmin: Awaited<ReturnType<typeof requireAdmin>>,
+  payload: ImportPayload,
+  formData: FormData
+): Promise<ManageImportExportActionState> {
+  if (!currentAdmin.orgId) {
+    return {
+      error: "Create or join an organization first",
+      success: null,
+      preview: null,
+    };
+  }
+
+  const orgId = currentAdmin.orgId;
+
+  const [orgCategories, orgCounterparties, orgTags, existingExpenses, members] = await Promise.all([
+    getCategoriesByOrg(orgId),
+    getCounterpartiesByOrg(orgId),
+    getTagsByOrg(orgId),
+    getExpensesByOrg(orgId),
+    getOrganizationMembers(orgId),
+  ]);
+
+  const memberTransactionModes = await Promise.all(
+    members.map((member) => getTransactionModesByUser(orgId, member.id))
+  );
+  const orgTransactionModes = memberTransactionModes.flat();
+
+  const headerIndex = buildWorkbookHeaderIndex(payload.headers);
+  const memberById = new Map(members.map((member) => [member.id, member]));
+
+  const transactionModeById = new Map<number, { id: number; name: string; userId: string }>(
+    orgTransactionModes.map((mode) => [mode.id, { id: mode.id, name: mode.name, userId: mode.userId }])
+  );
+  const defaultTransactionModeByUserId = new Map<string, { id: number; name: string; userId: string } | null>(
+    members.map((member, index) => {
+      const memberModes = memberTransactionModes[index] ?? [];
+      const defaultMode = memberModes.find((mode) => mode.isDefault) ?? memberModes[0] ?? null;
+      return [member.id, defaultMode ? { id: defaultMode.id, name: defaultMode.name, userId: defaultMode.userId } : null];
+    })
+  );
+
+  const existingExpenseKeys = new Set(
+    existingExpenses.map((expense) =>
+      toDuplicateKey({
+        amount: expense.amount,
+        userId: expense.userId,
+        categoryId: expense.categoryId,
+        note: expense.note,
+        transactionTimestamp: new Date(expense.occurredAt),
+      })
+    )
+  );
+  const existingExpenseByKey = new Map(
+    existingExpenses.map((expense) => [
+      toDuplicateKey({
+        amount: expense.amount,
+        userId: expense.userId,
+        categoryId: expense.categoryId,
+        note: expense.note,
+        transactionTimestamp: new Date(expense.occurredAt),
+      }),
+      expense,
+    ] as const)
+  );
+
+  const distinctUserNames = getDistinctWorkbookValues(payload, headerIndex, "user_name", formData);
+  const distinctCategoryNames = getDistinctWorkbookValues(payload, headerIndex, "category", formData);
+  const distinctCounterpartyNames = getDistinctWorkbookValues(
+    payload,
+    headerIndex,
+    "counter_party_name",
+    formData
+  );
+  const distinctModeNames = getDistinctWorkbookValues(payload, headerIndex, "mode", formData);
+  const distinctTagNames = getDistinctTagNames(payload, headerIndex, formData);
+
+  const userSelections = new Map<string, { userId: string; userName: string } | null>();
+  const userSelectionErrors = new Map<string, string>();
+  distinctUserNames.forEach((sheetUserName, index) => {
+    const selected = formData.get(`user_map_${index}`);
+    const normalizedSheetUserName = normalizeWorkbookName(sheetUserName);
+
+    if (typeof selected !== "string" || !selected.trim()) {
+      userSelectionErrors.set(
+        normalizedSheetUserName,
+        `Map the user "${sheetUserName}" to an organization member before importing.`
+      );
+      userSelections.set(normalizedSheetUserName, null);
+      return;
+    }
+
+    const member = memberById.get(selected.trim());
+    if (!member) {
+      userSelectionErrors.set(
+        normalizedSheetUserName,
+        `User "${sheetUserName}" is mapped to a member who is no longer in your organization. Refresh and remap.`
+      );
+      userSelections.set(normalizedSheetUserName, null);
+      return;
+    }
+
+    userSelections.set(normalizedSheetUserName, { userId: member.id, userName: member.name });
+  });
+
+  const categorySelections = new Map<
+    string,
+    { categoryId: number; categoryName: string; categoryType: "expense" | "income" } | null
+  >();
+  const categorySelectionErrors = new Map<string, string>();
+  distinctCategoryNames.forEach((sheetCategoryName, index) => {
+    const selected = formData.get(`category_map_${index}`);
+    const normalizedSheetCategoryName = normalizeWorkbookName(sheetCategoryName);
+
+    if (typeof selected !== "string" || !selected.trim()) {
+      categorySelectionErrors.set(
+        normalizedSheetCategoryName,
+        `Create the category "${sheetCategoryName}" first, then map it here.`
+      );
+      categorySelections.set(normalizedSheetCategoryName, null);
+      return;
+    }
+
+    const parsedCategoryId = Number.parseInt(selected.trim(), 10);
+    if (!Number.isInteger(parsedCategoryId)) {
+      categorySelectionErrors.set(
+        normalizedSheetCategoryName,
+        `Invalid category mapping for "${sheetCategoryName}"`
+      );
+      categorySelections.set(normalizedSheetCategoryName, null);
+      return;
+    }
+
+    const existingCategory = orgCategories.find((category) => category.id === parsedCategoryId);
+    if (!existingCategory) {
+      categorySelectionErrors.set(
+        normalizedSheetCategoryName,
+        `Category "${sheetCategoryName}" no longer exists in your organization. Create it first, then refresh this page.`
+      );
+      categorySelections.set(normalizedSheetCategoryName, null);
+      return;
+    }
+
+    categorySelections.set(normalizedSheetCategoryName, {
+      categoryId: existingCategory.id,
+      categoryName: existingCategory.name,
+      categoryType: existingCategory.type as "expense" | "income",
+    });
+  });
+
+  const counterpartySelections = new Map<string, { counterpartyId: number | null; error: string | null }>();
+  distinctCounterpartyNames.forEach((sheetCounterpartyName, index) => {
+    const selected = formData.get(`counterparty_map_${index}`);
+    const normalizedSheetCounterpartyName = normalizeWorkbookName(sheetCounterpartyName);
+
+    if (typeof selected !== "string" || !selected.trim()) {
+      counterpartySelections.set(normalizedSheetCounterpartyName, {
+        counterpartyId: null,
+        error: `Create the counterparty "${sheetCounterpartyName}" first, then map it here.`,
+      });
+      return;
+    }
+
+    const parsedCounterpartyId = Number.parseInt(selected.trim(), 10);
+    if (!Number.isInteger(parsedCounterpartyId)) {
+      counterpartySelections.set(normalizedSheetCounterpartyName, {
+        counterpartyId: null,
+        error: `Invalid counterparty mapping for "${sheetCounterpartyName}"`,
+      });
+      return;
+    }
+
+    const existingCounterparty = orgCounterparties.find((counterparty) => counterparty.id === parsedCounterpartyId);
+    if (!existingCounterparty) {
+      counterpartySelections.set(normalizedSheetCounterpartyName, {
+        counterpartyId: null,
+        error: `Counterparty "${sheetCounterpartyName}" no longer exists in your organization. Create it first, then refresh this page.`,
+      });
+      return;
+    }
+
+    counterpartySelections.set(normalizedSheetCounterpartyName, {
+      counterpartyId: existingCounterparty.id,
+      error: null,
+    });
+  });
+
+  const modeSelections = new Map<string, { modeId: number | null; error: string | null }>();
+  distinctModeNames.forEach((sheetModeName, index) => {
+    const selected = formData.get(`mode_map_${index}`);
+    const normalizedSheetModeName = normalizeWorkbookName(sheetModeName);
+
+    if (typeof selected !== "string" || !selected.trim()) {
+      modeSelections.set(normalizedSheetModeName, {
+        modeId: null,
+        error: `Create the transaction mode "${sheetModeName}" first, then map it here.`,
+      });
+      return;
+    }
+
+    const parsedModeId = Number.parseInt(selected.trim(), 10);
+    if (!Number.isInteger(parsedModeId)) {
+      modeSelections.set(normalizedSheetModeName, {
+        modeId: null,
+        error: `Invalid mode mapping for "${sheetModeName}"`,
+      });
+      return;
+    }
+
+    const existingMode = transactionModeById.get(parsedModeId);
+    if (!existingMode) {
+      modeSelections.set(normalizedSheetModeName, {
+        modeId: null,
+        error: `Mode "${sheetModeName}" no longer exists in your organization. Create it first, then refresh this page.`,
+      });
+      return;
+    }
+
+    modeSelections.set(normalizedSheetModeName, {
+      modeId: existingMode.id,
+      error: null,
+    });
+  });
+
+  const importedExpenseSummaries = new Map<string, string>();
+  const duplicateWarnings: string[] = [];
+  const skippedDuplicateRows = new Set<number>();
+  const validatedRows: ImportWorkbookRow[] = [];
+  const seenDuplicateKeys = new Map<string, string>();
+
+  for (const row of payload.rows) {
+    const issues = [...row.issues];
+
+    const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
+    const necessityScoreValue = resolveWorkbookValue(row, headerIndex, "necessity_score", payload, formData);
+    const noteValue = resolveWorkbookValue(row, headerIndex, "note", payload, formData);
+    const categoryValue = resolveWorkbookValue(row, headerIndex, "category", payload, formData);
+    const timestampValue = resolveWorkbookValue(row, headerIndex, "transactionTimestamp", payload, formData);
+    const userNameValue = resolveWorkbookValue(row, headerIndex, "user_name", payload, formData);
+    const counterpartyValue = resolveWorkbookValue(
+      row,
+      headerIndex,
+      "counter_party_name",
+      payload,
+      formData
+    );
+    const modeValue = resolveWorkbookValue(row, headerIndex, "mode", payload, formData);
+
+    if (!amountValue.trim()) {
+      issues.push("Missing amount");
+    }
+    if (!categoryValue.trim()) {
+      issues.push("Missing category");
+    }
+    if (!timestampValue.trim()) {
+      issues.push("Missing transactionTimestamp");
+    }
+    if (!userNameValue.trim()) {
+      issues.push("Missing user_name");
+    }
+
+    const normalizedUserName = normalizeWorkbookName(userNameValue);
+    const userSelection = userSelections.get(normalizedUserName);
+    if (userNameValue.trim() && !userSelection) {
+      issues.push(`Map the user "${userNameValue}" to an organization member, then refresh and try again.`);
+    } else if (userSelection === null) {
+      const selectionError = userSelectionErrors.get(normalizedUserName);
+      if (selectionError) {
+        issues.push(selectionError);
+      }
+    }
+
+    const normalizedCategoryName = normalizeWorkbookName(categoryValue);
+    const categorySelection = categorySelections.get(normalizedCategoryName);
+    if (!categorySelection) {
+      issues.push(`Create the category "${categoryValue || "—"}" first, then refresh and map it.`);
+    } else if (categorySelection === null) {
+      const selectionError = categorySelectionErrors.get(normalizedCategoryName);
+      if (selectionError) {
+        issues.push(selectionError as string);
+      }
+    }
+
+    const counterpartySelectionValue = counterpartyValue.trim();
+    if (counterpartySelectionValue) {
+      const normalizedCounterpartyName = normalizeWorkbookName(counterpartySelectionValue);
+      const counterpartySelection = counterpartySelections.get(normalizedCounterpartyName);
+      if (!counterpartySelection) {
+        issues.push(`Create the counterparty "${counterpartySelectionValue}" first, then refresh and map it.`);
+      } else {
+        const selectionError = counterpartySelection!.error;
+        if (selectionError !== null) {
+          issues.push(selectionError as string);
+        }
+      }
+    }
+
+    const modeSelectionValue = modeValue.trim();
+    let resolvedModeForRow: { id: number; name: string; userId: string } | null = null;
+    if (modeSelectionValue) {
+      const normalizedModeName = normalizeWorkbookName(modeSelectionValue);
+      const modeSelection = modeSelections.get(normalizedModeName);
+      if (!modeSelection) {
+        issues.push(`Create the transaction mode "${modeSelectionValue}" first, then refresh and map it.`);
+      } else if (modeSelection.error !== null) {
+        issues.push(modeSelection.error as string);
+      } else if (modeSelection.modeId !== null) {
+        resolvedModeForRow = transactionModeById.get(modeSelection.modeId) ?? null;
+        if (resolvedModeForRow && userSelection && resolvedModeForRow.userId !== userSelection.userId) {
+          issues.push(
+            `Mode "${modeSelectionValue}" belongs to a different user than "${userNameValue}". Map it to a mode owned by that user.`
+          );
+        }
+      }
+    }
+
+    let amount = "";
+    try {
+      amount = parseAmount(amountValue);
+    } catch (error) {
+      void error;
+      issues.push(`Invalid amount: ${amountValue}`);
+    }
+
+    try {
+      parseNecessityScore(necessityScoreValue);
+    } catch (error) {
+      void error;
+      issues.push(`Invalid necessity_score: ${necessityScoreValue}`);
+    }
+
+    const note = parseNote(noteValue);
+    let transactionTimestamp = new Date(0);
+    try {
+      transactionTimestamp = parseTransactionTimestamp(timestampValue);
+    } catch (error) {
+      void error;
+      issues.push(`Invalid transactionTimestamp: ${timestampValue}`);
+    }
+
+    const userId = userSelection?.userId ?? null;
+    const categoryId = categorySelection?.categoryId ?? null;
+    const duplicateKey =
+      issues.length === 0 && categoryId !== null && userId !== null
+        ? toDuplicateKey({
+            amount,
+            userId,
+            categoryId,
+            note,
+            transactionTimestamp,
+          })
+        : null;
+
+    if (issues.length === 0 && categoryId !== null && userId !== null && duplicateKey) {
+      const defaultModeForUser = defaultTransactionModeByUserId.get(userId) ?? null;
+      const existingExpense = existingExpenseByKey.get(duplicateKey) ?? null;
+      if (existingExpense) {
+        skippedDuplicateRows.add(row.rowNumber);
+        duplicateWarnings.push(
+          `Row ${row.rowNumber} skipped because it duplicates an existing expense (${await formatExpenseRecordSummary(existingExpense)})`
+        );
+        validatedRows.push({
+          ...row,
+          issues,
+        });
+        continue;
+      }
+
+      if (seenDuplicateKeys.has(duplicateKey)) {
+        const previousSummary = seenDuplicateKeys.get(duplicateKey);
+        skippedDuplicateRows.add(row.rowNumber);
+        duplicateWarnings.push(
+          `Row ${row.rowNumber} skipped because it duplicates another uploaded row (${previousSummary ?? "same amount, user, category, note, and date"})`
+        );
+        validatedRows.push({
+          ...row,
+          issues,
+        });
+        continue;
+      }
+
+      seenDuplicateKeys.set(
+        duplicateKey,
+        formatImportRowSummary({
+          amount,
+          category: categoryValue.trim(),
+          userName: userSelection!.userName,
+          transactionTimestamp,
+          note,
+          counterpartyName: counterpartySelectionValue || null,
+          modeName: resolvedModeForRow?.name ?? defaultModeForUser?.name ?? null,
+          type: categorySelection!.categoryType,
+        })
+      );
+    }
+
+    validatedRows.push({
+      ...row,
+      issues,
+    });
+  }
+
+  const annotatedPreview = buildAnnotatedPreview(payload, validatedRows, duplicateWarnings);
+  const hasValidationIssues = validatedRows.some((row) => row.issues.length > 0);
+  if (hasValidationIssues) {
+    return {
+      error: "Map every user, category, counterparty, and mode first, then try again",
+      success: null,
+      preview: annotatedPreview,
+    };
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const tagIdByNormalizedName = new Map<string, number>(
+        orgTags.map((tag) => [normalizeWorkbookName(tag.name), tag.id])
+      );
+
+      for (const tagName of distinctTagNames) {
+        const normalized = normalizeWorkbookName(tagName);
+        if (tagIdByNormalizedName.has(normalized)) continue;
+
+        const [createdTag] = await tx
+          .insert(tags)
+          .values({ orgId, name: tagName, createdBy: currentAdmin.id })
+          .returning();
+
+        if (createdTag) {
+          tagIdByNormalizedName.set(normalized, createdTag.id);
+        }
+      }
+
+      for (const row of payload.rows) {
+        if (skippedDuplicateRows.has(row.rowNumber)) {
+          continue;
+        }
+
+        const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
+        const necessityScoreValue = resolveWorkbookValue(
+          row,
+          headerIndex,
+          "necessity_score",
+          payload,
+          formData
+        );
+        const noteValue = resolveWorkbookValue(row, headerIndex, "note", payload, formData);
+        const categoryValue = resolveWorkbookValue(row, headerIndex, "category", payload, formData);
+        const timestampValue = resolveWorkbookValue(row, headerIndex, "transactionTimestamp", payload, formData);
+        const userNameValue = resolveWorkbookValue(row, headerIndex, "user_name", payload, formData);
+        const counterpartyValue = resolveWorkbookValue(
+          row,
+          headerIndex,
+          "counter_party_name",
+          payload,
+          formData
+        );
+        const modeValue = resolveWorkbookValue(row, headerIndex, "mode", payload, formData);
+        const tagsValue = resolveWorkbookValue(row, headerIndex, "tags", payload, formData);
+
+        const userSelection = userSelections.get(normalizeWorkbookName(userNameValue.trim()));
+        if (!userSelection) {
+          throw new Error(`Map the user "${userNameValue || "—"}" first, then refresh and map it.`);
+        }
+        const targetUserId = userSelection.userId;
+
+        const normalizedCategoryName = normalizeWorkbookName(categoryValue.trim());
+        const categorySelection = categorySelections.get(normalizedCategoryName);
+        if (!categorySelection) {
+          throw new Error(`Create the category "${categoryValue || "—"}" first, then refresh and map it.`);
+        }
+
+        const categoryId = categorySelection.categoryId;
+
+        const counterpartySelection = counterpartyValue.trim();
+        let counterpartyId: number | null = null;
+        if (counterpartySelection) {
+          const selectedValue = counterpartySelections.get(normalizeWorkbookName(counterpartySelection));
+          if (!selectedValue || selectedValue.error || selectedValue.counterpartyId === null) {
+            throw new Error(`Create the counterparty "${counterpartySelection}" first, then refresh and map it.`);
+          }
+
+          counterpartyId = selectedValue.counterpartyId;
+        }
+
+        const defaultModeForUser = defaultTransactionModeByUserId.get(targetUserId) ?? null;
+        const modeSelectionValue = modeValue.trim();
+        let transactionModeId: number | null = null;
+        let resolvedModeName: string | null = null;
+        if (modeSelectionValue) {
+          const selectedMode = modeSelections.get(normalizeWorkbookName(modeSelectionValue));
+          if (!selectedMode || selectedMode.error || selectedMode.modeId === null) {
+            throw new Error(`Create the transaction mode "${modeSelectionValue}" first, then refresh and map it.`);
+          }
+
+          transactionModeId = selectedMode.modeId;
+          resolvedModeName = transactionModeById.get(selectedMode.modeId)?.name ?? null;
+        } else if (defaultModeForUser) {
+          transactionModeId = defaultModeForUser.id;
+          resolvedModeName = defaultModeForUser.name;
+        }
+
+        const amount = parseAmount(amountValue);
+        const necessityScore = parseNecessityScore(necessityScoreValue);
+        const note = parseNote(noteValue);
+        const transactionTimestamp = parseTransactionTimestamp(timestampValue);
+        const type = categorySelection!.categoryType;
+        const duplicateKey = toDuplicateKey({
+          amount,
+          userId: targetUserId,
+          categoryId,
+          note,
+          transactionTimestamp,
+        });
+
+        if (existingExpenseKeys.has(duplicateKey)) {
+          const existingExpense = existingExpenseByKey.get(duplicateKey);
+          const duplicateDetails = existingExpense
+            ? await formatExpenseRecordSummary(existingExpense)
+            : importedExpenseSummaries.get(duplicateKey);
+
+          throw new Error(
+            `Row ${row.rowNumber}: duplicate expense already exists${duplicateDetails ? ` (${duplicateDetails})` : ""}`
+          );
+        }
+
+        existingExpenseKeys.add(duplicateKey);
+        importedExpenseSummaries.set(
+          duplicateKey,
+          formatImportRowSummary({
+            amount,
+            category: categoryValue.trim(),
+            userName: userSelection.userName,
+            transactionTimestamp,
+            note,
+            counterpartyName: counterpartySelection || null,
+            modeName: resolvedModeName,
+            type,
+          })
+        );
+
+        try {
+          const [insertedExpense] = await tx
+            .insert(financeTransactions)
+            .values({
+              orgId,
+              userId: targetUserId,
+              categoryId,
+              counterPartyId: counterpartyId,
+              transactionModeId,
+              transferStatus: counterpartyId ? "open" : null,
+              amount,
+              type,
+              necessityScore,
+              note,
+              transactionTimestamp,
+            })
+            .returning();
+
+          const tagIds = parseTagNames(tagsValue)
+            .map((tagName) => tagIdByNormalizedName.get(normalizeWorkbookName(tagName)))
+            .filter((tagId): tagId is number => tagId !== undefined);
+
+          if (insertedExpense && tagIds.length) {
+            await tx.insert(transactionTags).values(
+              tagIds.map((tagId) => ({ transactionId: insertedExpense.id, tagId }))
+            );
+          }
+        } catch (error) {
+          if (isDuplicateExpenseConstraintError(error)) {
+            const duplicateDetails =
+              importedExpenseSummaries.get(duplicateKey) ??
+              (existingExpenseByKey.get(duplicateKey)
+                ? await formatExpenseRecordSummary(existingExpenseByKey.get(duplicateKey)!)
+                : formatImportRowSummary({
+                    amount,
+                    category: categoryValue.trim(),
+                    userName: userSelection.userName,
+                    transactionTimestamp,
+                    note,
+                    counterpartyName: counterpartySelection || null,
+                    modeName: resolvedModeName,
                     type,
                   }));
 

@@ -64,6 +64,7 @@ const adminSettingsItems: HeaderNavItem[] = [
   { label: "Modes", href: ROUTES.TRANSACTION_MODES },
   { label: "Transfers", href: ROUTES.TRANSFERS },
   { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
+  { label: "Import Export (Org)", href: ROUTES.MANAGE_IMPORT_EXPORT_ORG },
 ];
 
 const userTopNavItems: HeaderNavItem[] = [

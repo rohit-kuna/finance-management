@@ -16,6 +16,7 @@ export const EXPORT_WORKBOOK_HEADERS = [
   "category",
   "note",
   "necessity_score",
+  "user_name",
   "counter_party_name",
   "mode",
   "tags",
@@ -164,6 +165,7 @@ export function buildExpenseExportWorkbook(
     note: string;
     category: string;
     transaction_timestamp: string;
+    user_name?: string;
     counter_party_name: string;
     mode: string;
     tags: string;

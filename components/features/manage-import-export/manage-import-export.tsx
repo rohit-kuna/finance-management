@@ -5,7 +5,9 @@ import Link from "next/link";
 import { AlertCircle, Download, FileUp, RefreshCw, ShieldAlert } from "lucide-react";
 import {
   importExpensesFromWorkbookAction,
+  importExpensesFromWorkbookOrgAction,
   parseImportWorkbookAction,
+  parseImportWorkbookOrgAction,
 } from "@/app/actions/auth-roles/manage-import-export.actions";
 import {
   IMPORT_WORKBOOK_FIELD_CONFIGS,
@@ -177,11 +179,11 @@ function collectDistinctTagNames(rows: Array<{ values: Record<ImportWorkbookFiel
 export function ManageImportExport({ data }: { data: ManageImportExportDataDto }) {
   const isOrganizationScope = data.scope === "organization";
   const [parseState, parseAction, parsePending] = useActionState(
-    parseImportWorkbookAction,
+    isOrganizationScope ? parseImportWorkbookOrgAction : parseImportWorkbookAction,
     manageImportExportInitialState
   );
   const [importState, importAction, importPending] = useActionState(
-    importExpensesFromWorkbookAction,
+    isOrganizationScope ? importExpensesFromWorkbookOrgAction : importExpensesFromWorkbookAction,
     manageImportExportInitialState
   );
   const [columnSelections, setColumnSelections] = useState<ColumnSelections>({});
@@ -194,7 +196,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   const preview = importState.preview ?? parseState.preview;
   const payloadJson = preview ? JSON.stringify(preview) : "";
   const fieldList = preview?.fields ?? IMPORT_WORKBOOK_FIELDS_BY_SCOPE[data.scope];
-  const exportHref = "/import-export/export";
+  const exportHref = isOrganizationScope ? "/import-export-org/export" : "/import-export/export";
 
   useEffect(() => {
     const nextKey = buildPreviewKey(preview);
@@ -275,6 +277,10 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     [data.counterparties]
   );
   const membersSorted = useMemo(() => data.members.slice().sort(sortByName), [data.members]);
+  const memberById = useMemo(
+    () => new Map(data.members.map((member) => [member.id, member] as const)),
+    [data.members]
+  );
 
   const resolvedRows = useMemo(() => {
     if (!preview) return [];
@@ -332,7 +338,20 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       const resolvedMode = selectedModeValue
         ? modeById.get(selectedModeValue) ?? null
         : null;
-      const resolvedUserName = data.currentUser.name;
+      const normalizedUserName = normalizeWorkbookName(resolvedValues.user_name);
+      const hasUserValue = resolvedValues.user_name.trim().length > 0;
+      const userMatch = findUniqueNormalizedMatch(data.members, resolvedValues.user_name);
+      const selectedUserValue =
+        userSelections[normalizedUserName] ??
+        (hasUserValue
+          ? userMatch.match
+            ? userMatch.match.id
+            : ""
+          : "");
+      const resolvedUser = selectedUserValue ? memberById.get(selectedUserValue) ?? null : null;
+      const resolvedUserName = isOrganizationScope
+        ? resolvedUser?.name ?? (resolvedValues.user_name.trim() || "—")
+        : data.currentUser.name;
 
       const displayValues: Record<ImportWorkbookField, string> = {
         amount: resolvedValues.amount,
@@ -368,6 +387,8 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     data.categories,
     data.counterparties,
     data.transactionModes,
+    data.members,
+    memberById,
     defaultTransactionMode,
     data.currentUser.id,
     data.currentUser.name,

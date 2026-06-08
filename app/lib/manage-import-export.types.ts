@@ -46,6 +46,7 @@ export const IMPORT_WORKBOOK_FIELDS_BY_SCOPE = {
     "note",
     "category",
     "transactionTimestamp",
+    "user_name",
     "counter_party_name",
     "mode",
     "tags",
