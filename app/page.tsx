@@ -38,7 +38,7 @@ export default async function HomePage() {
   const user = await getCurrentDbUser();
 
   if (user) {
-    redirect(ROUTES.TRANSACTIONS);
+    redirect(ROUTES.DASHBOARD);
   }
 
   return (

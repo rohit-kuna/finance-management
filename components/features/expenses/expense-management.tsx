@@ -282,7 +282,7 @@ function SortableHeader({
   );
 }
 
-function ExpenseFormCard({
+export function ExpenseFormCard({
   categories,
   counterparties,
   transactionModes,
@@ -297,7 +297,7 @@ function ExpenseFormCard({
   tags: TagRecordDto[];
   editingExpense: ExpenseRecordDto | null;
   recentCategoryId: number | null;
-  onCancelEdit: () => void;
+  onCancelEdit?: () => void;
 }) {
   const [createState, createAction, createPending] = useActionState(createExpenseAction, financeInitialState);
   const [updateState, updateAction, updatePending] = useActionState(updateExpenseAction, financeInitialState);
@@ -409,13 +409,18 @@ function ExpenseFormCard({
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Tags</Label>
-              <TagMultiSelect
-                tags={tags}
-                name="tagIds"
-                defaultSelectedIds={editingExpense?.tagIds ?? []}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <TagMultiSelect
+                  tags={tags}
+                  name="tagIds"
+                  defaultSelectedIds={editingExpense?.tagIds ?? []}
+                />
+              </div>
+              <div>
+                <NecessityScoreSlider defaultValue={editingExpense?.necessityScore ?? 1} />
+              </div>
             </div>
             <div className={cn(!isAdvanced && "hidden")}>
               <div className="grid gap-4 md:grid-cols-2">
@@ -453,10 +458,7 @@ function ExpenseFormCard({
                     }))}
                   />
                 </div>
-                <div>
-                  <NecessityScoreSlider defaultValue={editingExpense?.necessityScore ?? 1} />
-                </div>
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="expense-counterparty">Counterparty</Label>
                   <FormSelect
                     id="expense-counterparty"
@@ -483,8 +485,8 @@ function ExpenseFormCard({
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">Default mode: {transactionModes.find((mode) => mode.isDefault)?.name ?? "none"}</Badge>
-              <Badge variant="secondary">Default score: 1</Badge>
+              <Badge variant="secondary">Default Date: Now</Badge>
+              <Badge variant="secondary">Default Mode: {transactionModes.find((mode) => mode.isDefault)?.name ?? "none"}</Badge>
             </div>
             <ActionError message={activeError} />
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -910,9 +912,6 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
           <CardTitle className="max-w-3xl text-3xl leading-tight tracking-tight">
-            <span className="block text-base font-medium text-muted-foreground sm:text-lg">
-              Hi {greetingName}, welcome to {organizationName}
-            </span>
             <span className="block">Manage Your Transactions</span>
           </CardTitle>
           <p className="max-w-3xl text-sm text-muted-foreground">

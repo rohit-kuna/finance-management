@@ -23,6 +23,17 @@ const tagIdSchema = z.object({
   tagId: z.coerce.number().int().positive(),
 });
 
+function normalizeTagName(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function findDuplicateTag(existingTags: TagRecordDto[], name: string, excludeTagId?: number) {
+  const normalizedName = normalizeTagName(name);
+  return existingTags.find(
+    (tag) => tag.id !== excludeTagId && normalizeTagName(tag.name) === normalizedName
+  );
+}
+
 function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
   if (!currentUser.orgId) {
     throw new Error("Create or join an organization first");
@@ -90,7 +101,7 @@ export async function createTagAction(
   const orgId = assertOrgId(currentUser);
   const existingTags = await getTagsByOrg(orgId);
 
-  if (existingTags.some((tag) => tag.name.toLowerCase() === parsed.data.name.toLowerCase())) {
+  if (findDuplicateTag(existingTags, parsed.data.name)) {
     return { error: "Tag already exists" };
   }
 
@@ -115,9 +126,7 @@ export async function createTagInline(
 
   const orgId = assertOrgId(currentUser);
   const existingTags = await getTagsByOrg(orgId);
-  const existingTag = existingTags.find(
-    (tag) => tag.name.toLowerCase() === parsed.data.name.toLowerCase()
-  );
+  const existingTag = findDuplicateTag(existingTags, parsed.data.name);
 
   if (existingTag) {
     return { tag: existingTag };
@@ -172,11 +181,7 @@ export async function updateTagAction(
   }
 
   const existingTags = await getTagsByOrg(orgId);
-  if (
-    existingTags.some(
-      (existing) => existing.id !== tag.id && existing.name.toLowerCase() === parsed.data.name.toLowerCase()
-    )
-  ) {
+  if (findDuplicateTag(existingTags, parsed.data.name, tag.id)) {
     return { error: "Tag already exists" };
   }
 

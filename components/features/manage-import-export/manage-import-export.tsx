@@ -5,7 +5,9 @@ import Link from "next/link";
 import { AlertCircle, Download, FileUp, RefreshCw, ShieldAlert } from "lucide-react";
 import {
   importExpensesFromWorkbookAction,
+  importExpensesFromWorkbookOrgAction,
   parseImportWorkbookAction,
+  parseImportWorkbookOrgAction,
 } from "@/app/actions/auth-roles/manage-import-export.actions";
 import {
   IMPORT_WORKBOOK_FIELD_CONFIGS,
@@ -153,14 +155,35 @@ function collectDistinctValues(rows: Array<{ values: Record<ImportWorkbookField,
   return Array.from(seen.values()).sort((left, right) => left.localeCompare(right));
 }
 
+function collectDistinctTagNames(rows: Array<{ values: Record<ImportWorkbookField, string> }>) {
+  const seen = new Map<string, string>();
+
+  for (const row of rows) {
+    const value = row.values.tags;
+    if (!value) continue;
+
+    for (const part of value.split(",")) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      const normalized = normalizeWorkbookName(trimmed);
+      if (!seen.has(normalized)) {
+        seen.set(normalized, trimmed);
+      }
+    }
+  }
+
+  return Array.from(seen.values()).sort((left, right) => left.localeCompare(right));
+}
+
 export function ManageImportExport({ data }: { data: ManageImportExportDataDto }) {
   const isOrganizationScope = data.scope === "organization";
   const [parseState, parseAction, parsePending] = useActionState(
-    parseImportWorkbookAction,
+    isOrganizationScope ? parseImportWorkbookOrgAction : parseImportWorkbookAction,
     manageImportExportInitialState
   );
   const [importState, importAction, importPending] = useActionState(
-    importExpensesFromWorkbookAction,
+    isOrganizationScope ? importExpensesFromWorkbookOrgAction : importExpensesFromWorkbookAction,
     manageImportExportInitialState
   );
   const [columnSelections, setColumnSelections] = useState<ColumnSelections>({});
@@ -173,7 +196,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   const preview = importState.preview ?? parseState.preview;
   const payloadJson = preview ? JSON.stringify(preview) : "";
   const fieldList = preview?.fields ?? IMPORT_WORKBOOK_FIELDS_BY_SCOPE[data.scope];
-  const exportHref = "/import-export/export";
+  const exportHref = isOrganizationScope ? "/import-export-org/export" : "/import-export/export";
 
   useEffect(() => {
     const nextKey = buildPreviewKey(preview);
@@ -254,6 +277,10 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     [data.counterparties]
   );
   const membersSorted = useMemo(() => data.members.slice().sort(sortByName), [data.members]);
+  const memberById = useMemo(
+    () => new Map(data.members.map((member) => [member.id, member] as const)),
+    [data.members]
+  );
 
   const resolvedRows = useMemo(() => {
     if (!preview) return [];
@@ -311,7 +338,20 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       const resolvedMode = selectedModeValue
         ? modeById.get(selectedModeValue) ?? null
         : null;
-      const resolvedUserName = data.currentUser.name;
+      const normalizedUserName = normalizeWorkbookName(resolvedValues.user_name);
+      const hasUserValue = resolvedValues.user_name.trim().length > 0;
+      const userMatch = findUniqueNormalizedMatch(data.members, resolvedValues.user_name);
+      const selectedUserValue =
+        userSelections[normalizedUserName] ??
+        (hasUserValue
+          ? userMatch.match
+            ? userMatch.match.id
+            : ""
+          : "");
+      const resolvedUser = selectedUserValue ? memberById.get(selectedUserValue) ?? null : null;
+      const resolvedUserName = isOrganizationScope
+        ? resolvedUser?.name ?? (resolvedValues.user_name.trim() || "—")
+        : data.currentUser.name;
 
       const displayValues: Record<ImportWorkbookField, string> = {
         amount: resolvedValues.amount,
@@ -323,6 +363,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         user_name: resolvedUserName,
         counter_party_name: (resolvedCounterparty?.name ?? resolvedValues.counter_party_name) || "—",
         mode: resolvedMode?.name || defaultTransactionMode?.name || resolvedValues.mode || "—",
+        tags: resolvedValues.tags.trim() || "—",
       };
 
       return {
@@ -346,6 +387,8 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     data.categories,
     data.counterparties,
     data.transactionModes,
+    data.members,
+    memberById,
     defaultTransactionMode,
     data.currentUser.id,
     data.currentUser.name,
@@ -366,6 +409,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     [resolvedRows]
   );
   const distinctModeNames = useMemo(() => collectDistinctValues(resolvedRows, "mode"), [resolvedRows]);
+  const distinctTagNames = useMemo(() => collectDistinctTagNames(resolvedRows), [resolvedRows]);
 
   const userMappings = useMemo(() => {
     if (!isOrganizationScope) {
@@ -441,6 +485,16 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     });
   }, [data.transactionModes, distinctModeNames]);
 
+  const tagChecks = useMemo(() => {
+    return distinctTagNames.map((sheetValue) => {
+      const match = findUniqueNormalizedMatch(data.tags, sheetValue);
+      return {
+        sheetValue,
+        hasMatch: Boolean(match.match),
+      };
+    });
+  }, [data.tags, distinctTagNames]);
+
   const unresolvedUsers = isOrganizationScope ? userMappings.filter((mapping) => !mapping.hasMatch).length : 0;
   const unresolvedCounterparties = counterpartyMappings.filter((mapping) => !mapping.hasMatch).length;
   const unresolvedCategories = categoryChecks.filter((check) => !check.hasMatch).length;
@@ -449,10 +503,12 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     unresolvedCategories > 0 || unresolvedCounterparties > 0 || unresolvedModes > 0;
 
   const modeColumnMapped = Boolean(selectedColumns.mode);
+  const tagColumnMapped = Boolean(selectedColumns.tags);
   const categoryStepLabel = isOrganizationScope ? "Step 2" : "Step 1";
   const counterpartyStepLabel = isOrganizationScope ? "Step 3" : "Step 2";
   const modeStepLabel = isOrganizationScope ? "Step 4" : "Step 3";
-  const previewStepLabel = isOrganizationScope ? "Step 5" : "Step 4";
+  const tagStepLabel = isOrganizationScope ? "Step 5" : "Step 4";
+  const previewStepLabel = isOrganizationScope ? "Step 6" : "Step 5";
 
   const resolvedPreviewRows = resolvedRows.slice(0, 10);
 
@@ -1015,6 +1071,38 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                   ) : (
                     <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
                       No mode column is mapped, so each row will use your default transaction mode.
+                    </div>
+                  )}
+
+                  {tagColumnMapped ? (
+                    <div className="space-y-4">
+                      <SectionTitle
+                        eyebrow={tagStepLabel}
+                        title="Map tags"
+                        description="Sheet tags are matched to your existing tags by name. Any tag that doesn't already exist will be created automatically during import — no action needed here."
+                      />
+                      <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
+                        <div className="grid gap-3">
+                          {tagChecks.map((check) => (
+                            <div
+                              key={check.sheetValue}
+                              className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 p-3"
+                            >
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium">{check.sheetValue}</p>
+                                <p className="text-xs text-muted-foreground">sheet tag value</p>
+                              </div>
+                              <Badge variant={check.hasMatch ? "success" : "outline"} className="shrink-0">
+                                {check.hasMatch ? "Matched" : "Will be created"}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
+                      No tags column is mapped, so imported expenses will not be tagged.
                     </div>
                   )}
 

@@ -3,7 +3,7 @@ import { getActivityDashboardData } from "@/app/actions/auth-roles/activity.acti
 import { ROUTES } from "@/app/lib/constants";
 import { ActivityDashboard } from "@/components/features/activity/activity-dashboard";
 
-export default async function ActivityPage() {
+export default async function AnalyticsPage() {
   const data = await getActivityDashboardData();
 
   if (!data.currentUser.orgId) {

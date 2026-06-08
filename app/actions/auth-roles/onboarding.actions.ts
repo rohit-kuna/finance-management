@@ -69,7 +69,7 @@ export async function joinOrganizationByInviteCodeAction(
   }
 
   await setActiveOrgCookie(organization.id);
-  redirect(ROUTES.TRANSACTIONS);
+  redirect(ROUTES.DASHBOARD);
 }
 
 export async function createOrganizationFromOnboardingAction(
@@ -110,7 +110,7 @@ export async function createOrganizationFromOnboardingAction(
   await setActiveOrgCookie(organization.id);
   revalidatePath(ROUTES.DASHBOARD, "layout");
 
-  redirect(ROUTES.TRANSACTIONS);
+  redirect(ROUTES.DASHBOARD);
 }
 
 /**
@@ -132,7 +132,7 @@ export async function openOrganizationAction(formData: FormData) {
 
   await setActiveOrgCookie(parsed.data.orgId);
   revalidatePath(ROUTES.DASHBOARD, "layout");
-  redirect(ROUTES.TRANSACTIONS);
+  redirect(ROUTES.DASHBOARD);
 }
 
 /**
