@@ -11,6 +11,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, PencilLine, Trash2, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
 import {
   createExpenseAction,
@@ -528,6 +529,8 @@ function ExpenseRowActions({
   canManage: boolean;
 }) {
   const [deleteState, deleteAction, deletePending] = useActionState(deleteExpenseAction, financeInitialState);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const deleteFormRef = useRef<HTMLFormElement>(null);
 
   if (!canManage) {
     return <span className="text-xs text-muted-foreground">Read only</span>;
@@ -546,19 +549,27 @@ function ExpenseRowActions({
         >
           <PencilLine className="size-4" />
         </Button>
-        <form action={deleteAction}>
+        <form ref={deleteFormRef} action={deleteAction}>
           <input type="hidden" name="expenseId" value={expense.id} />
           <Button
-            type="submit"
+            type="button"
             variant="destructive"
             size="icon-sm"
             disabled={deletePending}
             aria-label="Delete Transaction"
             title="Delete Transaction"
+            onClick={() => setConfirmOpen(true)}
           >
             <Trash2 className="size-4" />
           </Button>
         </form>
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Delete transaction"
+          description="Are you sure you want to delete this transaction? This cannot be undone."
+          onConfirm={() => deleteFormRef.current?.requestSubmit()}
+        />
       </div>
       <ActionError message={deleteState.error} />
     </div>
@@ -912,6 +923,13 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
     return recentExpense?.categoryId ?? null;
   }, [data.currentUser.id, data.expenses]);
 
+  const formRef = useRef<HTMLDivElement>(null);
+
+  function handleEdit(expense: ExpenseRecordDto) {
+    setEditingExpense(expense);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <section className="space-y-6">
       <Card className="py-2">
@@ -925,24 +943,26 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
         </CardHeader>
       </Card>
 
-      <ExpenseFormCard
-        key={editingExpense?.id ?? `new-${recentCategoryId ?? "none"}`}
-        categories={data.categories}
-        counterparties={data.counterparties}
-        transactionModes={data.transactionModes}
-        tags={data.tags}
-        categoryTags={data.categoryTags}
-        editingExpense={editingExpense}
-        recentCategoryId={recentCategoryId}
-        onCancelEdit={() => setEditingExpense(null)}
-      />
+      <div ref={formRef}>
+        <ExpenseFormCard
+          key={editingExpense?.id ?? `new-${recentCategoryId ?? "none"}`}
+          categories={data.categories}
+          counterparties={data.counterparties}
+          transactionModes={data.transactionModes}
+          tags={data.tags}
+          categoryTags={data.categoryTags}
+          editingExpense={editingExpense}
+          recentCategoryId={recentCategoryId}
+          onCancelEdit={() => setEditingExpense(null)}
+        />
+      </div>
 
       <ExpenseTable
         expenses={data.expenses}
         transactionModes={data.transactionModes}
         currentUserId={data.currentUser.id}
         isAdmin={isAdmin}
-        onEdit={setEditingExpense}
+        onEdit={handleEdit}
       />
     </section>
   );

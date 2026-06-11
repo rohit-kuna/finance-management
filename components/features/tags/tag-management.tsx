@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { AlertCircle, Trash2 } from "lucide-react";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
 import {
@@ -59,6 +59,13 @@ function TagRow({ tag }: { tag: TagRecordDto }) {
 
 export function TagManagement({ tags }: { tags: TagRecordDto[] }) {
   const [createState, createAction, createPending] = useActionState(createTagAction, financeInitialState);
+  const [query, setQuery] = useState("");
+
+  const filteredTags = useMemo(() => {
+    const loweredQuery = query.trim().toLowerCase();
+    if (!loweredQuery) return tags;
+    return tags.filter((tag) => tag.name.toLowerCase().includes(loweredQuery));
+  }, [tags, query]);
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
@@ -90,11 +97,28 @@ export function TagManagement({ tags }: { tags: TagRecordDto[] }) {
         </CardHeader>
         <CardContent className="space-y-3 px-4 pb-6 sm:px-8 sm:pb-8">
           {tags.length ? (
-            <div className="grid gap-3">
-              {tags.map((tag) => (
-                <TagRow key={tag.id} tag={tag} />
-              ))}
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="tag-search">Search</Label>
+                <Input
+                  id="tag-search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search by tag name..."
+                />
+              </div>
+              {filteredTags.length ? (
+                <div className="grid gap-3">
+                  {filteredTags.map((tag) => (
+                    <TagRow key={tag.id} tag={tag} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                  No tags match your search.
+                </div>
+              )}
+            </>
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
               No tags yet. Create one to label and organize transactions.

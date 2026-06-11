@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { AlertCircle, Trash2 } from "lucide-react";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
 import {
@@ -99,6 +99,13 @@ export function TransactionModeManagement({
     createTransactionModeAction,
     financeInitialState
   );
+  const [query, setQuery] = useState("");
+
+  const filteredTransactionModes = useMemo(() => {
+    const loweredQuery = query.trim().toLowerCase();
+    if (!loweredQuery) return transactionModes;
+    return transactionModes.filter((mode) => mode.name.toLowerCase().includes(loweredQuery));
+  }, [transactionModes, query]);
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
@@ -130,11 +137,28 @@ export function TransactionModeManagement({
         </CardHeader>
         <CardContent className="space-y-3 px-4 pb-6 sm:px-8 sm:pb-8">
           {transactionModes.length ? (
-            <div className="grid gap-3">
-              {transactionModes.map((transactionMode) => (
-                <TransactionModeRow key={transactionMode.id} transactionMode={transactionMode} />
-              ))}
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="transaction-mode-search">Search</Label>
+                <Input
+                  id="transaction-mode-search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search by transaction mode name..."
+                />
+              </div>
+              {filteredTransactionModes.length ? (
+                <div className="grid gap-3">
+                  {filteredTransactionModes.map((transactionMode) => (
+                    <TransactionModeRow key={transactionMode.id} transactionMode={transactionMode} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                  No transaction modes match your search.
+                </div>
+              )}
+            </>
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
               No transaction modes yet. Create one to use it on expenses.

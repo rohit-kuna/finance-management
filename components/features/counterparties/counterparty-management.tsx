@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { AlertCircle, Trash2 } from "lucide-react";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
 import {
@@ -77,6 +77,13 @@ export function CounterpartyManagement({
     createCounterpartyAction,
     financeInitialState
   );
+  const [query, setQuery] = useState("");
+
+  const filteredCounterparties = useMemo(() => {
+    const loweredQuery = query.trim().toLowerCase();
+    if (!loweredQuery) return counterparties;
+    return counterparties.filter((counterparty) => counterparty.name.toLowerCase().includes(loweredQuery));
+  }, [counterparties, query]);
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
@@ -107,11 +114,28 @@ export function CounterpartyManagement({
         </CardHeader>
         <CardContent className="space-y-3 px-4 pb-6 sm:px-8 sm:pb-8">
           {counterparties.length ? (
-            <div className="grid gap-3">
-              {counterparties.map((counterparty) => (
-                <CounterpartyRow key={counterparty.id} counterparty={counterparty} />
-              ))}
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="counterparty-search">Search</Label>
+                <Input
+                  id="counterparty-search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search by counterparty name..."
+                />
+              </div>
+              {filteredCounterparties.length ? (
+                <div className="grid gap-3">
+                  {filteredCounterparties.map((counterparty) => (
+                    <CounterpartyRow key={counterparty.id} counterparty={counterparty} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                  No counterparties match your search.
+                </div>
+              )}
+            </>
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
               No counterparties yet. Create one to tag expenses and transfers.
