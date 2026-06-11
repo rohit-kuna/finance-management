@@ -53,7 +53,7 @@ export default async function DashboardPage() {
     <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="max-w-3xl text-3xl leading-tight tracking-tight">
+          <CardTitle className="max-w-3xl text-xl leading-tight tracking-tight sm:text-3xl">
             <span className="block">
               Hi {greetingName}, Welcome
               <span className="hidden sm:inline"> to {organizationName} Dashboard</span>

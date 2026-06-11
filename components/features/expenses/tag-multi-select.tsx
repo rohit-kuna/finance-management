@@ -55,7 +55,7 @@ export function TagMultiSelect({
   const suggestions = useMemo(() => {
     const matches = localTags.filter((tag) => {
       if (selectedIds.includes(tag.id)) return false;
-      if (!loweredQuery) return true;
+      if (!loweredQuery) return categoryTagUsageById.size ? categoryTagUsageById.has(tag.id) : true;
       return tag.name.toLowerCase().includes(loweredQuery);
     });
 
