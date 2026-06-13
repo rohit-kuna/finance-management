@@ -18,6 +18,7 @@ import {
   getCounterpartyById,
 } from "@/app/actions/tables/counterparties.table.actions";
 import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
+import { getTagsByOrg, setTransactionTags } from "@/app/actions/tables/tags.table.actions";
 import {
   ensureDefaultTransactionModesForUser,
   getTransactionModeById,
@@ -41,6 +42,7 @@ const expenseSchema = z.object({
     z.coerce.number().int().positive().optional()
   ),
   occurredAt: z.string().trim().min(1, "Expense date is required"),
+  tagIds: z.array(z.coerce.number().int().positive()).optional().default([]),
 });
 
 const expenseIdSchema = z.object({
@@ -115,6 +117,15 @@ async function resolveCounterpartyId(orgId: number, counterPartyId: number | nul
   return counterparty.id;
 }
 
+async function resolveTagIds(orgId: number, tagIds: number[]) {
+  if (!tagIds.length) return [];
+
+  const orgTags = await getTagsByOrg(orgId);
+  const validTagIds = new Set(orgTags.map((tag) => tag.id));
+
+  return tagIds.filter((tagId) => validTagIds.has(tagId));
+}
+
 async function resolveSubcategoryId(orgId: number, categoryId: number, subcategoryId: number | undefined) {
   if (subcategoryId == null) {
     return null;
@@ -140,6 +151,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
       counterparties: [],
       transactionModes: [],
       subcategories: [],
+      tags: [],
       expenses: [],
       currentUser: {
         id: currentUser.id,
@@ -150,11 +162,12 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     };
   }
 
-  const [organization, categories, counterparties, subcategories, expenses] = await Promise.all([
+  const [organization, categories, counterparties, subcategories, tags, expenses] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getSubcategoriesByOrg(currentUser.orgId),
+    getTagsByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId),
   ]);
   const transactionModes = await ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id);
@@ -168,6 +181,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     counterparties,
     transactionModes,
     subcategories,
+    tags,
     expenses: visibleExpenses,
     currentUser: {
       id: currentUser.id,
@@ -242,6 +256,7 @@ export async function createExpenseAction(
     note: normalizeField(formData.get("note")) ?? null,
     subcategoryId: formData.get("subcategoryId"),
     occurredAt: formData.get("occurredAt"),
+    tagIds: formData.getAll("tagIds"),
   });
 
   if (!parsed.success) {
@@ -270,8 +285,9 @@ export async function createExpenseAction(
 
   const expenseType = category.type;
   const transferStatus = counterPartyId ? "open" : null;
+  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
 
-  await createExpenseRecord({
+  const expense = await createExpenseRecord({
     orgId,
     userId: currentUser.id,
     categoryId: parsed.data.categoryId,
@@ -285,6 +301,10 @@ export async function createExpenseAction(
     note: parsed.data.note,
     occurredAt: parseExpenseDate(parsed.data.occurredAt),
   });
+
+  if (expense) {
+    await setTransactionTags(expense.id, tagIds);
+  }
 
   redirect(ROUTES.TRANSACTIONS);
 }
@@ -306,6 +326,7 @@ export async function updateExpenseAction(
     note: normalizeField(formData.get("note")) ?? null,
     subcategoryId: formData.get("subcategoryId"),
     occurredAt: formData.get("occurredAt"),
+    tagIds: formData.getAll("tagIds"),
   });
   const expenseIdResult = expenseIdSchema.safeParse({
     expenseId: formData.get("expenseId"),
@@ -346,6 +367,7 @@ export async function updateExpenseAction(
 
   const expenseType = category.type;
   const transferStatus = counterPartyId ? expense.transferStatus ?? "open" : null;
+  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
 
   await updateExpenseRecord(expense.id, {
     categoryId: parsed.data.categoryId,
@@ -360,6 +382,8 @@ export async function updateExpenseAction(
     occurredAt: parseExpenseDate(parsed.data.occurredAt, new Date(expense.occurredAt)),
     updatedAt: new Date(),
   });
+
+  await setTransactionTags(expense.id, tagIds);
 
   redirect(ROUTES.TRANSACTIONS);
 }

@@ -1590,6 +1590,15 @@ export function ActivityDashboard({
           />
         ) : null}
 
+        {matchesChartQuery("Spend by Subcategory Overlap") ? (
+          <CategorySubcategoryOverlapChart
+            expenses={visibleData.expenses}
+            categories={visibleData.categories}
+            monthStart={monthStart}
+            monthEnd={monthEnd}
+          />
+        ) : null}
+
         {matchesChartQuery("Income by Category") ? (
           <CategoryByTypeChart
             expenses={visibleData.expenses}
@@ -1612,15 +1621,6 @@ export function ActivityDashboard({
 
         {matchesChartQuery("Expense Trends Over Time") ? (
           <ExpenseTrendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
-        ) : null}
-
-        {matchesChartQuery("Spend by Subcategory Overlap") ? (
-          <CategorySubcategoryOverlapChart
-            expenses={visibleData.expenses}
-            categories={visibleData.categories}
-            monthStart={monthStart}
-            monthEnd={monthEnd}
-          />
         ) : null}
       </div>
     </section>

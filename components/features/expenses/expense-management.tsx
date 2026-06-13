@@ -22,10 +22,12 @@ import type {
   CategoryRecordDto,
   CounterpartyRecordDto,
   SubcategoryRecordDto,
+  TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
 import type { ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expense.types";
 import { CategorySubcategorySelect } from "@/components/features/expenses/category-subcategory-select";
+import { TagMultiSelect } from "@/components/features/expenses/tag-multiselect";
 import {
   formatExpenseDate,
   toExpenseDateInputValue,
@@ -246,6 +248,7 @@ export function ExpenseFormCard({
   counterparties,
   transactionModes,
   subcategories,
+  tags,
   editingExpense,
   onCancelEdit,
 }: {
@@ -253,6 +256,7 @@ export function ExpenseFormCard({
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   subcategories: SubcategoryRecordDto[];
+  tags: TagRecordDto[];
   editingExpense: ExpenseRecordDto | null;
   onCancelEdit?: () => void;
 }) {
@@ -364,15 +368,18 @@ export function ExpenseFormCard({
                 />
               </div>
             </div>
-            {isIncome ? (
-              <input type="hidden" name="necessityScore" value={5} />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
+            {isIncome ? <input type="hidden" name="necessityScore" value={5} /> : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <TagMultiSelect tags={tags} defaultSelectedTagIds={editingExpense?.tagIds ?? []} />
+              </div>
+              {!isIncome ? (
                 <div>
                   <NecessityScoreSlider defaultValue={editingExpense?.necessityScore ?? 1} />
                 </div>
-              </div>
-            )}
+              ) : null}
+            </div>
             <div className={cn(!isAdvanced && "hidden")}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -876,6 +883,7 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
           counterparties={data.counterparties}
           transactionModes={data.transactionModes}
           subcategories={data.subcategories}
+          tags={data.tags}
           editingExpense={editingExpense}
           onCancelEdit={() => setEditingExpense(null)}
         />

@@ -61,6 +61,15 @@ export type SubcategoryRecordDto = {
   updatedAt: string;
 };
 
+export type TagRecordDto = {
+  id: number;
+  orgId: number;
+  name: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TransactionModeRecordDto = {
   id: number;
   name: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createSubcategoryInline } from "@/app/actions/auth-roles/subcategories.actions";
 import type { CategoryRecordDto, SubcategoryRecordDto } from "@/app/lib/finance.types";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ export function CategorySubcategorySelect({
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | null>(defaultSubcategoryId);
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isCreating, startCreating] = useTransition();
   const [createError, setCreateError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -224,8 +225,41 @@ export function CategorySubcategorySelect({
       return;
     }
 
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        return;
+      }
+      if (navigableCount > 0) {
+        setHighlightedIndex((current) => (current + 1) % navigableCount);
+      }
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        return;
+      }
+      if (navigableCount > 0) {
+        setHighlightedIndex((current) => (current <= 0 ? navigableCount - 1 : current - 1));
+      }
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
+
+      if (highlightedIndex >= 0) {
+        if (highlightedIndex < navigableOptions.length) {
+          selectOption(navigableOptions[highlightedIndex], selectCategory, selectSubcategory);
+        } else if (canCreate) {
+          handleCreateSubcategory();
+        }
+        return;
+      }
 
       const exactSubcategory = suggestions.find(
         (option) =>
@@ -255,10 +289,21 @@ export function CategorySubcategorySelect({
     }
   }
 
+  const closeAndMaybeClearSelection = useCallback(() => {
+    setIsOpen((wasOpen) => {
+      if (wasOpen && !trimmedQuery && selectedCategory) {
+        setSelectedCategoryId(0);
+        setSelectedSubcategoryId(null);
+        onCategoryChange(0);
+      }
+      return false;
+    });
+    setQuery("");
+  }, [trimmedQuery, selectedCategory, onCategoryChange]);
+
   function handleBlur(event: React.FocusEvent<HTMLDivElement>) {
     if (!containerRef.current?.contains(event.relatedTarget as Node | null)) {
-      setIsOpen(false);
-      setQuery("");
+      closeAndMaybeClearSelection();
     }
   }
 
@@ -267,17 +312,26 @@ export function CategorySubcategorySelect({
 
     function handlePointerDown(event: PointerEvent) {
       if (!containerRef.current?.contains(event.target as Node | null)) {
-        setIsOpen(false);
-        setQuery("");
+        closeAndMaybeClearSelection();
       }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isOpen]);
+  }, [isOpen, closeAndMaybeClearSelection]);
 
   const expenseSuggestions = suggestions.filter((option) => option.group === "Expense");
   const incomeSuggestions = suggestions.filter((option) => option.group === "Income");
+
+  const navigableOptions = useMemo(
+    () => [...expenseSuggestions, ...incomeSuggestions],
+    [expenseSuggestions, incomeSuggestions]
+  );
+  const navigableCount = navigableOptions.length + (canCreate ? 1 : 0);
+
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [query, isOpen]);
 
   return (
     <div ref={containerRef} className="relative" onBlur={handleBlur}>
@@ -308,12 +362,17 @@ export function CategorySubcategorySelect({
         </button>
       ) : null}
       {isOpen ? (
-        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-sm shadow-md">
+        <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-sm shadow-md">
           {expenseSuggestions.length ? (
             <>
               <li className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Expense</li>
               {expenseSuggestions.map((option) => (
-                <OptionRow key={optionKey(option)} option={option} onSelect={() => selectOption(option, selectCategory, selectSubcategory)} />
+                <OptionRow
+                  key={optionKey(option)}
+                  option={option}
+                  isHighlighted={navigableOptions.indexOf(option) === highlightedIndex}
+                  onSelect={() => selectOption(option, selectCategory, selectSubcategory)}
+                />
               ))}
             </>
           ) : null}
@@ -321,7 +380,12 @@ export function CategorySubcategorySelect({
             <>
               <li className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Income</li>
               {incomeSuggestions.map((option) => (
-                <OptionRow key={optionKey(option)} option={option} onSelect={() => selectOption(option, selectCategory, selectSubcategory)} />
+                <OptionRow
+                  key={optionKey(option)}
+                  option={option}
+                  isHighlighted={navigableOptions.indexOf(option) === highlightedIndex}
+                  onSelect={() => selectOption(option, selectCategory, selectSubcategory)}
+                />
               ))}
             </>
           ) : null}
@@ -333,7 +397,8 @@ export function CategorySubcategorySelect({
                 onClick={handleCreateSubcategory}
                 className={cn(
                   "block w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                  "disabled:cursor-not-allowed disabled:opacity-60"
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  highlightedIndex === navigableOptions.length && "bg-accent text-accent-foreground"
                 )}
               >
                 {isCreating ? "Creating..." : `Create "${createTargetName}" under ${createTargetCategory?.name}`}
@@ -366,7 +431,15 @@ function selectOption(
   }
 }
 
-function OptionRow({ option, onSelect }: { option: Option; onSelect: () => void }) {
+function OptionRow({
+  option,
+  isHighlighted,
+  onSelect,
+}: {
+  option: Option;
+  isHighlighted: boolean;
+  onSelect: () => void;
+}) {
   return (
     <li>
       <button
@@ -374,7 +447,8 @@ function OptionRow({ option, onSelect }: { option: Option; onSelect: () => void 
         onClick={onSelect}
         className={cn(
           "block w-full rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground",
-          option.kind === "category" && "font-medium"
+          option.kind === "category" && "font-medium",
+          isHighlighted && "bg-accent text-accent-foreground"
         )}
       >
         {option.label}

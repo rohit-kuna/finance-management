@@ -2,6 +2,7 @@ import type {
   CategoryRecordDto,
   CounterpartyRecordDto,
   SubcategoryRecordDto,
+  TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
 import type { AppRole } from "@/app/lib/roles";
@@ -26,6 +27,7 @@ export type ExpenseRecordDto = {
   note: string | null;
   subcategoryId: number | null;
   subcategoryName: string | null;
+  tagIds: number[];
   occurredAt: string;
   createdAt: string;
   updatedAt: string;
@@ -63,6 +65,7 @@ export type ExpensesDashboardDataDto = {
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   subcategories: SubcategoryRecordDto[];
+  tags: TagRecordDto[];
   expenses: ExpenseRecordDto[];
   currentUser: {
     id: string;

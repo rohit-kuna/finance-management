@@ -10,6 +10,7 @@ import {
   transactionModes,
   users,
 } from "@/db/schema";
+import { getTagIdsForTransactions } from "@/app/actions/tables/tags.table.actions";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
 import type { ExpenseType, TransferStatus } from "@/db/schema";
 
@@ -24,6 +25,7 @@ function toExpenseDto(
     transactionModeName: string | null;
     transactionModeOwnerName: string | null;
     subcategoryName: string | null;
+    tagIds?: number[];
   }
 ): ExpenseRecordDto {
   return {
@@ -46,6 +48,7 @@ function toExpenseDto(
     note: record.note,
     subcategoryId: record.subcategoryId,
     subcategoryName: record.subcategoryName,
+    tagIds: record.tagIds ?? [],
     occurredAt: record.transactionTimestamp.toISOString(),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
@@ -94,7 +97,9 @@ export async function getExpensesByOrg(orgId: number): Promise<ExpenseRecordDto[
     .where(eq(financeTransactions.orgId, orgId))
     .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt));
 
-  return records.map((record) => toExpenseDto(record));
+  const tagIdsByTransaction = await getTagIdsForTransactions(records.map((record) => record.id));
+
+  return records.map((record) => toExpenseDto({ ...record, tagIds: tagIdsByTransaction.get(record.id) ?? [] }));
 }
 
 export async function getExpenseById(id: number): Promise<ExpenseRecordDto | null> {
@@ -112,7 +117,9 @@ export async function getExpenseById(id: number): Promise<ExpenseRecordDto | nul
 
   if (!record) return null;
 
-  return toExpenseDto(record);
+  const tagIdsByTransaction = await getTagIdsForTransactions([record.id]);
+
+  return toExpenseDto({ ...record, tagIds: tagIdsByTransaction.get(record.id) ?? [] });
 }
 
 export async function formatExpenseRecordSummary(expense: ExpenseRecordDto) {
