@@ -25,7 +25,7 @@ import type {
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
 import type { ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expense.types";
-import { SubcategorySelect } from "@/components/features/expenses/subcategory-select";
+import { CategorySubcategorySelect } from "@/components/features/expenses/category-subcategory-select";
 import {
   formatExpenseDate,
   toExpenseDateInputValue,
@@ -92,48 +92,6 @@ function ActionError({ message }: { message: string | null }) {
       <AlertCircle className="mt-0.5 size-4 shrink-0" />
       <span>{message}</span>
     </div>
-  );
-}
-
-function CategorySelect({
-  categories,
-  value,
-  onChange,
-}: {
-  categories: CategoryRecordDto[];
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  const expenseCategories = categories.filter((c) => c.type === "expense");
-  const incomeCategories = categories.filter((c) => c.type === "income");
-
-  return (
-    <select
-      name="categoryId"
-      value={String(value)}
-      onChange={(event) => onChange(Number(event.target.value))}
-      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-      required
-    >
-      {expenseCategories.length > 0 && (
-        <optgroup label="Expense">
-          {expenseCategories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-      {incomeCategories.length > 0 && (
-        <optgroup label="Income">
-          {incomeCategories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-    </select>
   );
 }
 
@@ -289,7 +247,6 @@ export function ExpenseFormCard({
   transactionModes,
   subcategories,
   editingExpense,
-  recentCategoryId,
   onCancelEdit,
 }: {
   categories: CategoryRecordDto[];
@@ -297,7 +254,6 @@ export function ExpenseFormCard({
   transactionModes: TransactionModeRecordDto[];
   subcategories: SubcategoryRecordDto[];
   editingExpense: ExpenseRecordDto | null;
-  recentCategoryId: number | null;
   onCancelEdit?: () => void;
 }) {
   const [createState, createAction, createPending] = useActionState(createExpenseAction, financeInitialState);
@@ -315,20 +271,16 @@ export function ExpenseFormCard({
     ? String(editingExpense.transactionModeId)
     : String(transactionModes.find((mode) => mode.isDefault)?.id ?? transactionModes[0]?.id ?? "");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const defaultCategoryId = isEditing
-    ? editingExpense?.categoryId ?? categories[0]?.id ?? 0
-    : categories.some((category) => category.id === recentCategoryId)
-      ? recentCategoryId ?? categories[0]?.id ?? 0
-      : categories[0]?.id ?? 0;
+  const defaultCategoryId = isEditing ? editingExpense?.categoryId ?? categories[0]?.id ?? 0 : 0;
   const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCategoryId);
   const resolvedSelectedCategoryId = categories.some((category) => category.id === selectedCategoryId)
     ? selectedCategoryId
     : defaultCategoryId;
 
   const isAdvanced = isEditing || showAdvanced;
-  const transactionCardClasses = getTransactionCardClasses(
-    categories.find((category) => category.id === resolvedSelectedCategoryId)?.type ?? null
-  );
+  const selectedCategoryType = categories.find((category) => category.id === resolvedSelectedCategoryId)?.type ?? null;
+  const transactionCardClasses = getTransactionCardClasses(selectedCategoryType);
+  const isIncome = selectedCategoryType === "income";
 
   return (
     <Card className={cn("py-2", transactionCardClasses)}>
@@ -402,28 +354,25 @@ export function ExpenseFormCard({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Category <span className="text-destructive">*</span></Label>
-                <CategorySelect
+                <Label>Category / Subcategory <span className="text-destructive">*</span></Label>
+                <CategorySubcategorySelect
                   categories={categories}
-                  value={resolvedSelectedCategoryId}
-                  onChange={setSelectedCategoryId}
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Subcategory</Label>
-                <SubcategorySelect
                   subcategories={subcategories}
-                  name="subcategoryId"
-                  defaultSelectedId={editingExpense?.subcategoryId ?? null}
-                  categoryId={resolvedSelectedCategoryId}
+                  defaultCategoryId={resolvedSelectedCategoryId}
+                  defaultSubcategoryId={editingExpense?.subcategoryId ?? null}
+                  onCategoryChange={setSelectedCategoryId}
                 />
               </div>
-              <div>
-                <NecessityScoreSlider defaultValue={editingExpense?.necessityScore ?? 1} />
-              </div>
             </div>
+            {isIncome ? (
+              <input type="hidden" name="necessityScore" value={5} />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <NecessityScoreSlider defaultValue={editingExpense?.necessityScore ?? 1} />
+                </div>
+              </div>
+            )}
             <div className={cn(!isAdvanced && "hidden")}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -900,17 +849,6 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
   const isAdmin = data.currentUser.role === "ADMIN";
   const organizationName = data.organization?.name ?? "your organization";
   const greetingName = data.currentUser.name || "there";
-  const recentCategoryId = useMemo(() => {
-    const recentExpense = data.expenses
-      .filter((expense) => expense.userId === data.currentUser.id)
-      .slice()
-      .sort((left, right) =>
-        right.occurredAt.localeCompare(left.occurredAt) || right.createdAt.localeCompare(left.createdAt)
-      )[0];
-
-    return recentExpense?.categoryId ?? null;
-  }, [data.currentUser.id, data.expenses]);
-
   const formRef = useRef<HTMLDivElement>(null);
 
   function handleEdit(expense: ExpenseRecordDto) {
@@ -933,13 +871,12 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
 
       <div ref={formRef}>
         <ExpenseFormCard
-          key={editingExpense?.id ?? `new-${recentCategoryId ?? "none"}`}
+          key={editingExpense?.id ?? "new"}
           categories={data.categories}
           counterparties={data.counterparties}
           transactionModes={data.transactionModes}
           subcategories={data.subcategories}
           editingExpense={editingExpense}
-          recentCategoryId={recentCategoryId}
           onCancelEdit={() => setEditingExpense(null)}
         />
       </div>

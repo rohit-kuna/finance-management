@@ -41,12 +41,6 @@ export default async function DashboardPage() {
   const greetingName = data.currentUser.name || "there";
   const organizationName = data.organization?.name ?? "your organization";
   const ownExpenses = data.expenses.filter((expense) => expense.userId === data.currentUser.id);
-  const recentExpense = ownExpenses
-    .slice()
-    .sort((left, right) =>
-      right.occurredAt.localeCompare(left.occurredAt) || right.createdAt.localeCompare(left.createdAt)
-    )[0];
-  const recentCategoryId = recentExpense?.categoryId ?? null;
   const currentMonth = new Date().toISOString().slice(0, 7);
 
   return (
@@ -66,13 +60,11 @@ export default async function DashboardPage() {
       </Card>
 
       <ExpenseFormCard
-        key={`new-${recentCategoryId ?? "none"}`}
         categories={data.categories}
         counterparties={data.counterparties}
         transactionModes={data.transactionModes}
         subcategories={data.subcategories}
         editingExpense={null}
-        recentCategoryId={recentCategoryId}
       />
 
       <ExpenseActivityChart expenses={ownExpenses} monthStart={currentMonth} monthEnd={currentMonth} />
