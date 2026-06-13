@@ -13,6 +13,7 @@ import { normalizeWorkbookHeaderName } from "@/app/lib/manage-import-export.shar
 export const EXPORT_WORKBOOK_HEADERS = [
   "transaction_timestamp",
   "amount",
+  "type",
   "category",
   "note",
   "necessity_score",
@@ -20,17 +21,20 @@ export const EXPORT_WORKBOOK_HEADERS = [
   "counter_party_name",
   "mode",
   "subcategories",
+  "tags",
 ] as const;
 
 export const USER_EXPORT_WORKBOOK_HEADERS = [
   "transaction_timestamp",
   "amount",
+  "type",
   "category",
   "note",
   "necessity_score",
   "counter_party_name",
   "mode",
   "subcategories",
+  "tags",
 ] as const;
 
 const FIELD_ALIASES: Record<ImportWorkbookField, string[]> = {
@@ -43,7 +47,8 @@ const FIELD_ALIASES: Record<ImportWorkbookField, string[]> = {
   user_name: ["user_name", "user name", "user", "member", "member name"],
   counter_party_name: ["counter_party_name", "counter party name", "counterparty", "counterparty name"],
   mode: ["mode", "transaction mode", "transaction_mode", "payment mode"],
-  subcategories: ["subcategories", "subcategory", "tags", "tag", "labels"],
+  subcategories: ["subcategories", "subcategory"],
+  tags: ["tags", "tag", "labels"],
 };
 
 function toWorkbookText(value: unknown) {
@@ -161,6 +166,7 @@ export function parseWorkbookBuffer(
 export function buildExpenseExportWorkbook(
   rows: Array<{
     amount: string;
+    type: string;
     necessity_score: number | string;
     note: string;
     category: string;
@@ -169,6 +175,7 @@ export function buildExpenseExportWorkbook(
     counter_party_name: string;
     mode: string;
     subcategories: string;
+    tags: string;
   }>,
   scope: ManageImportExportScope
 ) {

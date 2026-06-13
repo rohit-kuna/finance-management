@@ -11,10 +11,12 @@ export async function GET(request: Request) {
   }
 
   const expenses = await getExpensesByOrg(data.currentUser.orgId);
+  const tagNameById = new Map(data.tags.map((tag) => [tag.id, tag.name]));
   const workbook = buildExpenseExportWorkbook(
     expenses.map((expense) => ({
       transaction_timestamp: expense.occurredAt.slice(0, 10),
       amount: expense.amount,
+      type: expense.type,
       category: expense.categoryName,
       note: expense.note ?? "",
       necessity_score: expense.necessityScore,
@@ -22,6 +24,7 @@ export async function GET(request: Request) {
       counter_party_name: expense.counterPartyName ?? "",
       mode: expense.transactionModeName ?? "",
       subcategories: expense.subcategoryName ?? "",
+      tags: expense.tagIds.map((tagId) => tagNameById.get(tagId)).filter(Boolean).join(", "),
     })),
     "organization"
   );

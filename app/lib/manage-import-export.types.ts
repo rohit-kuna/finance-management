@@ -1,4 +1,4 @@
-import type { CategoryRecordDto, CounterpartyRecordDto, SubcategoryRecordDto, TransactionModeRecordDto } from "@/app/lib/finance.types";
+import type { CategoryRecordDto, CounterpartyRecordDto, SubcategoryRecordDto, TagRecordDto, TransactionModeRecordDto } from "@/app/lib/finance.types";
 import type { OrganizationMemberRecord } from "@/app/lib/admin-dashboard.types";
 import type { AppRole } from "@/app/lib/roles";
 
@@ -13,6 +13,7 @@ export const IMPORT_WORKBOOK_FIELDS = [
   "counter_party_name",
   "mode",
   "subcategories",
+  "tags",
 ] as const;
 
 export type ImportWorkbookField = (typeof IMPORT_WORKBOOK_FIELDS)[number];
@@ -31,6 +32,7 @@ export const IMPORT_WORKBOOK_FIELD_CONFIGS = [
   { key: "counter_party_name", label: "Counterparty", required: false, valueMapping: "counterparty" },
   { key: "mode", label: "Mode", required: false, valueMapping: "mode" },
   { key: "subcategories", label: "Subcategories", required: false, valueMapping: null },
+  { key: "tags", label: "Tags", required: false, valueMapping: null },
 ] as const satisfies ReadonlyArray<{
   key: ImportWorkbookField;
   label: string;
@@ -50,6 +52,7 @@ export const IMPORT_WORKBOOK_FIELDS_BY_SCOPE = {
     "counter_party_name",
     "mode",
     "subcategories",
+    "tags",
   ],
   user: [
     "amount",
@@ -61,6 +64,7 @@ export const IMPORT_WORKBOOK_FIELDS_BY_SCOPE = {
     "counter_party_name",
     "mode",
     "subcategories",
+    "tags",
   ],
 } as const satisfies Record<ManageImportExportScope, readonly ImportWorkbookField[]>;
 
@@ -108,6 +112,7 @@ export type ManageImportExportDataDto = {
   categories: CategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   subcategories: SubcategoryRecordDto[];
+  tags: TagRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   members: Pick<
     OrganizationMemberRecord,
