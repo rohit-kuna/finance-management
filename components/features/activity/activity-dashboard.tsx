@@ -7,9 +7,10 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  LabelList,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,6 +18,7 @@ import {
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MonthInput } from "@/components/ui/month-input";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,8 @@ const chartPalette = [
   "var(--color-chart-5)",
 ];
 
+const untaggedColor = "var(--color-muted-foreground)";
+
 const expenseLegendItems = [
   { label: "Income", color: "var(--color-chart-2)" },
   { label: "Expense", color: "var(--color-chart-1)" },
@@ -57,19 +61,6 @@ const expenseLegendItems = [
 const budgetVsActualLegendItems = [
   { label: "Budgeted amount", color: "var(--color-chart-4)" },
   { label: "Actual spend", color: "var(--color-chart-1)" },
-] as const;
-
-const categoryLegendItems = [
-  { label: "Top 3 categories", color: "var(--color-chart-2)" },
-  { label: "Other categories", color: "var(--color-chart-5)" },
-] as const;
-
-const necessityLegendItems = [
-  { label: "Essential", color: "var(--color-chart-1)" },
-  { label: "Important", color: "var(--color-chart-2)" },
-  { label: "Moderate", color: "var(--color-chart-3)" },
-  { label: "Nice to have", color: "var(--color-chart-4)" },
-  { label: "Optional", color: "var(--color-chart-5)" },
 ] as const;
 
 const trendLegendItems = [
@@ -815,84 +806,40 @@ function CategoryByTypeChart({
           <div className="rounded-2xl border bg-muted/10 p-4">
             <div className="h-[360px] w-full min-w-0 min-h-0 sm:h-[420px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData}
-                  layout="vertical"
-                  margin={{ top: 16, right: 12, left: 0, bottom: 0 }}
-                >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(value) => formatCompactMoney(Number(value))} tick={{ fontSize: 12 }} />
-                <YAxis
-                  type="category"
-                  dataKey="categoryName"
-                  width={96}
-                  tickMargin={6}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--color-muted)" }}
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const entry = payload[0];
-                    const row = entry?.payload as (typeof chartData)[number] | undefined;
-                    if (!row) return null;
-                    return (
-                      <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-lg">
-                        <p className="mb-1 font-medium">{row.categoryName}</p>
-                        <p>{formatMoney(row.amount)} ({row.percentage.toFixed(1)}%)</p>
-                      </div>
-                    );
-                  }}
-                />
-                <Legend content={<OrderedLegend items={categoryLegendItems} />} />
-                <Bar dataKey="amount" name="Total amount" radius={[0, 8, 8, 0]}>
-                  {chartData.map((entry) => (
-                    <Cell
-                      key={entry.categoryId}
-                      fill={entry.isTopThree ? entry.color : "var(--color-chart-5)"}
-                      fillOpacity={entry.isTopThree ? 1 : 0.45}
-                    />
-                  ))}
-                  <LabelList
+                <PieChart>
+                  <Pie
+                    data={chartData}
                     dataKey="amount"
-                    position="right"
-                    content={(props) => {
-                      const labelProps = props as
-                        | {
-                            payload?: (typeof chartData)[number];
-                            x?: number;
-                            y?: number;
-                            width?: number;
-                            height?: number;
-                            value?: number | string;
-                          }
-                        | undefined;
-                      const row = labelProps?.payload;
-                      if (
-                        !labelProps ||
-                        typeof labelProps.x !== "number" ||
-                        typeof labelProps.y !== "number" ||
-                        typeof labelProps.width !== "number" ||
-                        typeof labelProps.height !== "number" ||
-                        row == null
-                      ) {
-                        return null;
-                      }
-
+                    nameKey="categoryName"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius="75%"
+                    label={({ name, value }) => `${name}: ${formatCompactMoney(Number(value ?? 0))}`}
+                  >
+                    {chartData.map((entry) => (
+                      <Cell
+                        key={entry.categoryId}
+                        fill={entry.isTopThree ? entry.color : "var(--color-chart-5)"}
+                        fillOpacity={entry.isTopThree ? 1 : 0.45}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const entry = payload[0];
+                      const row = entry?.payload as (typeof chartData)[number] | undefined;
+                      if (!row) return null;
                       return (
-                        <text
-                          x={labelProps.x + labelProps.width + 8}
-                          y={labelProps.y + labelProps.height / 2 + 4}
-                          fill="currentColor"
-                          className="fill-foreground text-xs font-medium"
-                        >
-                          {formatMoney(Number(labelProps.value ?? 0))} • {row.percentage.toFixed(0)}%
-                        </text>
+                        <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-lg">
+                          <p className="mb-1 font-medium">{row.categoryName}</p>
+                          <p>{formatMoney(row.amount)} ({row.percentage.toFixed(1)}%)</p>
+                        </div>
                       );
                     }}
                   />
-                </Bar>
-              </BarChart>
+                  <Legend />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -989,6 +936,22 @@ function NecessitySpendChart({
 
   const hasData = chartData.some((item) => item.total > 0);
 
+  const pieData = useMemo(() => {
+    const entries = [
+      { key: "essential", label: necessityLabels[5], amount: totals.essential, color: "var(--color-chart-1)" },
+      { key: "important", label: necessityLabels[4], amount: totals.important, color: "var(--color-chart-2)" },
+      { key: "moderate", label: necessityLabels[3], amount: totals.moderate, color: "var(--color-chart-3)" },
+      { key: "niceToHave", label: necessityLabels[2], amount: totals.niceToHave, color: "var(--color-chart-4)" },
+      { key: "optional", label: necessityLabels[1], amount: totals.optional, color: "var(--color-chart-5)" },
+    ];
+    return entries
+      .filter((entry) => entry.amount > 0)
+      .map((entry) => ({
+        ...entry,
+        percentage: totals.totalExpense > 0 ? (entry.amount / totals.totalExpense) * 100 : 0,
+      }));
+  }, [totals]);
+
   return (
     <Card className="py-2">
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
@@ -1020,48 +983,36 @@ function NecessitySpendChart({
           <div className="rounded-2xl border bg-muted/10 p-4">
             <div className="h-[320px] w-full min-w-0 min-h-0 sm:h-[380px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData}
-                  margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
-                >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" tickMargin={10} tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(value) => formatCompactMoney(Number(value))} width={72} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  cursor={{ fill: "var(--color-muted)" }}
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    return (
-                      <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-lg">
-                        <p className="mb-1 font-medium">{String(label)}</p>
-                        <div className="space-y-0.5">
-                          {payload.map((entry) => (
-                            <p key={String(entry.dataKey)}>{String(entry.name)}: {formatMoney(Number(entry.value ?? 0))}</p>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                <Legend content={<OrderedLegend items={necessityLegendItems} />} />
-                {[
-                  { key: "essential", label: necessityLabels[5], color: "var(--color-chart-1)" },
-                  { key: "important", label: necessityLabels[4], color: "var(--color-chart-2)" },
-                  { key: "moderate", label: necessityLabels[3], color: "var(--color-chart-3)" },
-                  { key: "niceToHave", label: necessityLabels[2], color: "var(--color-chart-4)" },
-                  { key: "optional", label: necessityLabels[1], color: "var(--color-chart-5)" },
-                ].map((series) => (
-                  <Bar key={series.key} dataKey={series.key} name={series.label} radius={[0, 0, 0, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell
-                        key={`${series.key}-${entry.month}`}
-                        fill={series.color}
-                        fillOpacity={series.key === "essential" ? 1 : 0.9}
-                      />
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="amount"
+                    nameKey="label"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius="75%"
+                    label={({ name, value }) => `${name}: ${formatCompactMoney(Number(value ?? 0))}`}
+                  >
+                    {pieData.map((entry) => (
+                      <Cell key={entry.key} fill={entry.color} />
                     ))}
-                  </Bar>
-                ))}
-              </BarChart>
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const entry = payload[0];
+                      const row = entry?.payload as (typeof pieData)[number] | undefined;
+                      if (!row) return null;
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-lg">
+                          <p className="mb-1 font-medium">{row.label}</p>
+                          <p>{formatMoney(row.amount)} ({row.percentage.toFixed(1)}%)</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -1261,6 +1212,207 @@ function ExpenseTrendChart({
   );
 }
 
+function CategoryTagOverlapChart({
+  expenses,
+  categories,
+  monthStart,
+  monthEnd,
+}: {
+  expenses: ActivityDashboardDataDto["expenses"];
+  categories: ActivityDashboardDataDto["categories"];
+  monthStart: string;
+  monthEnd: string;
+}) {
+  const categoryOptions = useMemo(() => {
+    const seen = new Map<number, string>();
+    for (const expense of expenses) {
+      if (!seen.has(expense.categoryId)) {
+        seen.set(expense.categoryId, expense.categoryName);
+      }
+    }
+    for (const category of categories) {
+      if (!seen.has(category.id)) {
+        seen.set(category.id, category.name);
+      }
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [expenses, categories]);
+
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+
+  const effectiveCategoryId = useMemo(() => {
+    if (selectedCategoryId && categoryOptions.some((option) => String(option.id) === selectedCategoryId)) {
+      return selectedCategoryId;
+    }
+    return categoryOptions[0] ? String(categoryOptions[0].id) : "";
+  }, [selectedCategoryId, categoryOptions]);
+
+  const result = useMemo(() => {
+    const filtered = expenses.filter((expense) => {
+      const expenseMonth = getMonthKey(expense.occurredAt);
+      return (
+        expense.type === "expense" &&
+        String(expense.categoryId) === effectiveCategoryId &&
+        expenseMonth >= monthStart &&
+        expenseMonth <= monthEnd
+      );
+    });
+
+    const categoryTotal = filtered.reduce((sum, expense) => sum + Number(expense.amount), 0);
+
+    const tagTotals = new Map<number, { id: number; name: string; amount: number }>();
+    let untaggedTotal = 0;
+
+    for (const expense of filtered) {
+      const amount = Number(expense.amount);
+      if (expense.tagIds.length === 0) {
+        untaggedTotal += amount;
+        continue;
+      }
+      expense.tagIds.forEach((tagId, index) => {
+        const tagName = expense.tagNames[index] ?? `Tag ${tagId}`;
+        const existing = tagTotals.get(tagId);
+        tagTotals.set(tagId, {
+          id: tagId,
+          name: tagName,
+          amount: (existing?.amount ?? 0) + amount,
+        });
+      });
+    }
+
+    const combinationTotals = new Map<string, { label: string; amount: number; count: number }>();
+    for (const expense of filtered) {
+      const amount = Number(expense.amount);
+      const label = expense.tagNames.length
+        ? Array.from(new Set(expense.tagNames)).sort().join(" ∩ ")
+        : "Untagged";
+      const existing = combinationTotals.get(label);
+      combinationTotals.set(label, {
+        label,
+        amount: (existing?.amount ?? 0) + amount,
+        count: (existing?.count ?? 0) + 1,
+      });
+    }
+
+    const combinations = Array.from(combinationTotals.values())
+      .sort((left, right) => right.amount - left.amount)
+      .map((entry) => ({
+        ...entry,
+        percentage: categoryTotal > 0 ? (entry.amount / categoryTotal) * 100 : 0,
+      }));
+
+    return {
+      categoryTotal,
+      transactionCount: filtered.length,
+      distinctTagCount: tagTotals.size,
+      untaggedTotal,
+      combinations,
+    };
+  }, [expenses, effectiveCategoryId, monthStart, monthEnd]);
+
+  const selectedCategoryName =
+    categoryOptions.find((option) => String(option.id) === effectiveCategoryId)?.name ?? "—";
+  const hasData = result.transactionCount > 0;
+  const pieData = result.combinations.filter((combination) => combination.amount > 0);
+
+  return (
+    <Card className="py-2">
+      <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
+        <SectionHeader
+          title="Spend by Tag Overlap"
+          description="Pick a category to see how its spending splits across tags, including transactions tagged with multiple tags at once."
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">Range {getMonthLabel(monthStart)} → {getMonthLabel(monthEnd)}</Badge>
+        </div>
+
+        <div className="max-w-sm space-y-2">
+          <Label htmlFor="tag-overlap-category">Category</Label>
+          {categoryOptions.length ? (
+            <select
+              id="tag-overlap-category"
+              value={effectiveCategoryId}
+              onChange={(event) => setSelectedCategoryId(event.target.value)}
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {categoryOptions.map((option) => (
+                <option key={option.id} value={String(option.id)}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-muted-foreground">No categories available.</p>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-6 px-4 pb-6 sm:px-8 sm:pb-8">
+        {!hasData ? (
+          <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+            No transactions found for {selectedCategoryName} in the selected range.
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <MetricCard label="Total spend" value={formatMoney(result.categoryTotal)} tone="warning" />
+              <MetricCard label="Distinct tags" value={String(result.distinctTagCount)} />
+              <MetricCard label="Untagged spend" value={formatMoney(result.untaggedTotal)} />
+            </div>
+
+            {pieData.length ? (
+              <div className="rounded-2xl border bg-muted/10 p-4">
+                <div className="h-[320px] w-full min-w-0 min-h-0 sm:h-[380px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        dataKey="amount"
+                        nameKey="label"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius="75%"
+                        label={({ name, value }) =>
+                          `${name}: ${formatCompactMoney(Number(value ?? 0))}`
+                        }
+                      >
+                        {pieData.map((combination, index) => (
+                          <Cell
+                            key={combination.label}
+                            fill={
+                              combination.label === "Untagged"
+                                ? untaggedColor
+                                : chartPalette[index % chartPalette.length]
+                            }
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value, _name, item) => [
+                          `${formatMoney(Number(value ?? 0))} (${(item.payload.percentage as number).toFixed(1)}%)`,
+                          item.payload.label,
+                        ]}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                No tagged transactions found for {selectedCategoryName} in the selected range.
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ActivityDashboard({
   data,
 }: {
@@ -1276,7 +1428,13 @@ export function ActivityDashboard({
   const [monthStart, setMonthStart] = useState(minMonth);
   const [monthEnd, setMonthEnd] = useState(maxMonth);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [chartQuery, setChartQuery] = useState("");
   const isAdmin = data.currentUser.role === "ADMIN";
+
+  const matchesChartQuery = (title: string) => {
+    const loweredQuery = chartQuery.trim().toLowerCase();
+    return !loweredQuery || title.toLowerCase().includes(loweredQuery);
+  };
 
   const scopedData = useMemo(() => getScopedActivityData(data, audience), [data, audience]);
   const visibleData = useMemo(() => {
@@ -1391,47 +1549,84 @@ export function ActivityDashboard({
         </CardHeader>
       </Card>
 
-      <ExpenseActivityChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
+      <Card className="py-2">
+        <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
+          <div className="space-y-2">
+            <Label htmlFor="chart-search">Search charts</Label>
+            <Input
+              id="chart-search"
+              value={chartQuery}
+              onChange={(event) => setChartQuery(event.target.value)}
+              placeholder="Search by chart name..."
+            />
+          </div>
+        </CardHeader>
+      </Card>
 
-      <BudgetVsActualChart
-        budgets={visibleData.budgets}
-        expenses={visibleData.expenses}
-        monthStart={monthStart}
-        monthEnd={monthEnd}
-        audience={audience}
-      />
+      <div className="grid gap-6">
+        {matchesChartQuery("Income vs Expense") ? (
+          <ExpenseActivityChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
+        ) : null}
 
-      <CategoryByTypeChart
-        expenses={visibleData.expenses}
-        monthStart={monthStart}
-        monthEnd={monthEnd}
-        transactionType="expense"
-        title="Spending by Category"
-        description="See which categories consume the most spending across the selected month range."
-        emptyMessage="No spending found for the selected range."
-        totalLabel="Total spending"
-        topCategoryLabel="Top category"
-        topCategoriesLabel="Top 3 share"
-        positiveTone="warning"
-      />
+        {matchesChartQuery("Budget vs Actual Spending") ? (
+          <BudgetVsActualChart
+            budgets={visibleData.budgets}
+            expenses={visibleData.expenses}
+            monthStart={monthStart}
+            monthEnd={monthEnd}
+            audience={audience}
+          />
+        ) : null}
 
-      <CategoryByTypeChart
-        expenses={visibleData.expenses}
-        monthStart={monthStart}
-        monthEnd={monthEnd}
-        transactionType="income"
-        title="Income by Category"
-        description="See which categories bring in the most income across the selected month range."
-        emptyMessage="No income found for the selected range."
-        totalLabel="Total income"
-        topCategoryLabel="Top income category"
-        topCategoriesLabel="Top 3 share"
-        positiveTone="success"
-      />
+        {matchesChartQuery("Spending by Category") ? (
+          <CategoryByTypeChart
+            expenses={visibleData.expenses}
+            monthStart={monthStart}
+            monthEnd={monthEnd}
+            transactionType="expense"
+            title="Spending by Category"
+            description="See which categories consume the most spending across the selected month range."
+            emptyMessage="No spending found for the selected range."
+            totalLabel="Total spending"
+            topCategoryLabel="Top category"
+            topCategoriesLabel="Top 3 share"
+            positiveTone="warning"
+          />
+        ) : null}
 
-      <NecessitySpendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
+        {matchesChartQuery("Income by Category") ? (
+          <CategoryByTypeChart
+            expenses={visibleData.expenses}
+            monthStart={monthStart}
+            monthEnd={monthEnd}
+            transactionType="income"
+            title="Income by Category"
+            description="See which categories bring in the most income across the selected month range."
+            emptyMessage="No income found for the selected range."
+            totalLabel="Total income"
+            topCategoryLabel="Top income category"
+            topCategoriesLabel="Top 3 share"
+            positiveTone="success"
+          />
+        ) : null}
 
-      <ExpenseTrendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
+        {matchesChartQuery("Spending by Necessity Level") ? (
+          <NecessitySpendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
+        ) : null}
+
+        {matchesChartQuery("Expense Trends Over Time") ? (
+          <ExpenseTrendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
+        ) : null}
+
+        {matchesChartQuery("Spend by Tag Overlap") ? (
+          <CategoryTagOverlapChart
+            expenses={visibleData.expenses}
+            categories={visibleData.categories}
+            monthStart={monthStart}
+            monthEnd={monthEnd}
+          />
+        ) : null}
+      </div>
     </section>
   );
 }
