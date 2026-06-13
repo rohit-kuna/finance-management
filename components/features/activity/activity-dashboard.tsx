@@ -1457,9 +1457,6 @@ export function ActivityDashboard({
     <section className="space-y-6">
       <Card className="py-2">
         <CardHeader className="space-y-3 px-4 pt-6 sm:px-8 sm:pt-8">
-          <Badge variant="secondary" className="w-fit">
-            Analytics
-          </Badge>
           <CardTitle className="text-3xl tracking-tight">Analytics</CardTitle>
           <p className="max-w-4xl text-sm text-muted-foreground">
             Visualize spending, income, and budget health with one shared set of filters.

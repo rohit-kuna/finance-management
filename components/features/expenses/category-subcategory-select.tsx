@@ -132,11 +132,6 @@ export function CategorySubcategorySelect({
 
   const suggestions = isArrowMode ? arrowSuggestions : normalSuggestions;
 
-  const categorySubcategories = useMemo(
-    () => localSubcategories.filter((subcategory) => subcategory.categoryId === selectedCategoryId),
-    [localSubcategories, selectedCategoryId]
-  );
-
   const canCreate = isArrowMode
     ? Boolean(arrowCategory) &&
       Boolean(arrowSubPart) &&
@@ -144,10 +139,7 @@ export function CategorySubcategorySelect({
       !localSubcategories.some(
         (subcategory) => subcategory.categoryId === arrowCategory?.id && subcategory.name.toLowerCase() === arrowSubQueryLowered
       )
-    : Boolean(selectedCategory) &&
-      trimmedQuery.length >= 2 &&
-      !categorySubcategories.some((subcategory) => subcategory.name.toLowerCase() === loweredQuery) &&
-      !categories.some((category) => category.name.toLowerCase() === loweredQuery);
+    : false;
 
   const createTargetCategory = isArrowMode ? arrowCategory : selectedCategory;
   const createTargetName = isArrowMode ? arrowSubPart ?? "" : trimmedQuery;
@@ -283,6 +275,11 @@ export function CategorySubcategorySelect({
         }
       }
 
+      if (suggestions.length) {
+        selectOption(suggestions[0], selectCategory, selectSubcategory);
+        return;
+      }
+
       if (canCreate) {
         handleCreateSubcategory();
       }
@@ -349,10 +346,10 @@ export function CategorySubcategorySelect({
         placeholder="Type to find a category or subcategory..."
         className={cn(
           "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          !isOpen && selectedCategory ? "pr-32" : null
+          selectedCategory && arrowIndex < 0 ? "pr-32" : null
         )}
       />
-      {!isOpen && selectedCategory ? (
+      {selectedCategory && arrowIndex < 0 ? (
         <button
           type="button"
           onClick={handleAddSubcategoryHint}
