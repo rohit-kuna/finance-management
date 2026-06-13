@@ -1,14 +1,13 @@
 "use server";
 
-import { aliasedTable, desc, eq, inArray } from "drizzle-orm";
+import { aliasedTable, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   categories,
   counterParty,
   financeTransactions,
-  tags,
+  subcategories,
   transactionModes,
-  transactionTags,
   users,
 } from "@/db/schema";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
@@ -24,8 +23,8 @@ function toExpenseDto(
     counterPartyName: string | null;
     transactionModeName: string | null;
     transactionModeOwnerName: string | null;
-  },
-  tagAssociations: { id: number; name: string }[] = []
+    subcategoryName: string | null;
+  }
 ): ExpenseRecordDto {
   return {
     id: record.id,
@@ -45,44 +44,12 @@ function toExpenseDto(
     transferStatus: (record.transferStatus as TransferStatus | null) ?? null,
     necessityScore: Number(record.necessityScore),
     note: record.note,
-    tagIds: tagAssociations.map((tag) => tag.id),
-    tagNames: tagAssociations.map((tag) => tag.name),
+    subcategoryId: record.subcategoryId,
+    subcategoryName: record.subcategoryName,
     occurredAt: record.transactionTimestamp.toISOString(),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
-}
-
-async function getTagAssociationsByTransactionIds(
-  transactionIds: number[]
-): Promise<Map<number, { id: number; name: string }[]>> {
-  const associations = new Map<number, { id: number; name: string }[]>();
-
-  if (!transactionIds.length) {
-    return associations;
-  }
-
-  const rows = await db
-    .select({
-      transactionId: transactionTags.transactionId,
-      id: tags.id,
-      name: tags.name,
-    })
-    .from(transactionTags)
-    .innerJoin(tags, eq(tags.id, transactionTags.tagId))
-    .where(inArray(transactionTags.transactionId, transactionIds));
-
-  for (const row of rows) {
-    const existing = associations.get(row.transactionId);
-    const tag = { id: row.id, name: row.name };
-    if (existing) {
-      existing.push(tag);
-    } else {
-      associations.set(row.transactionId, [tag]);
-    }
-  }
-
-  return associations;
 }
 
 function expenseSelectShape() {
@@ -104,6 +71,8 @@ function expenseSelectShape() {
     transferStatus: financeTransactions.transferStatus,
     necessityScore: financeTransactions.necessityScore,
     note: financeTransactions.note,
+    subcategoryId: financeTransactions.subcategoryId,
+    subcategoryName: subcategories.name,
     transactionTimestamp: financeTransactions.transactionTimestamp,
     createdAt: financeTransactions.createdAt,
     updatedAt: financeTransactions.updatedAt,
@@ -121,12 +90,11 @@ export async function getExpensesByOrg(orgId: number): Promise<ExpenseRecordDto[
     .leftJoin(counterParty, eq(counterParty.id, financeTransactions.counterPartyId))
     .leftJoin(transactionModes, eq(transactionModes.id, financeTransactions.transactionModeId))
     .leftJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
+    .leftJoin(subcategories, eq(subcategories.id, financeTransactions.subcategoryId))
     .where(eq(financeTransactions.orgId, orgId))
     .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt));
 
-  const tagAssociations = await getTagAssociationsByTransactionIds(records.map((record) => record.id));
-
-  return records.map((record) => toExpenseDto(record, tagAssociations.get(record.id) ?? []));
+  return records.map((record) => toExpenseDto(record));
 }
 
 export async function getExpenseById(id: number): Promise<ExpenseRecordDto | null> {
@@ -138,14 +106,13 @@ export async function getExpenseById(id: number): Promise<ExpenseRecordDto | nul
     .leftJoin(counterParty, eq(counterParty.id, financeTransactions.counterPartyId))
     .leftJoin(transactionModes, eq(transactionModes.id, financeTransactions.transactionModeId))
     .leftJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
+    .leftJoin(subcategories, eq(subcategories.id, financeTransactions.subcategoryId))
     .where(eq(financeTransactions.id, id))
     .limit(1);
 
   if (!record) return null;
 
-  const tagAssociations = await getTagAssociationsByTransactionIds([record.id]);
-
-  return toExpenseDto(record, tagAssociations.get(record.id) ?? []);
+  return toExpenseDto(record);
 }
 
 export async function formatExpenseRecordSummary(expense: ExpenseRecordDto) {
@@ -177,6 +144,7 @@ export async function createExpenseRecord(input: {
   categoryId: number;
   counterPartyId: number | null;
   transactionModeId: number | null;
+  subcategoryId: number | null;
   transferStatus: TransferStatus | null;
   amount: string;
   type: ExpenseType;
@@ -200,6 +168,7 @@ export async function updateExpenseRecord(
     categoryId: number;
     counterPartyId: number | null;
     transactionModeId: number | null;
+    subcategoryId: number | null;
     transferStatus: TransferStatus | null;
     amount: string;
     type: ExpenseType;
@@ -224,12 +193,4 @@ export async function updateExpenseRecord(
 export async function deleteExpenseRecord(id: number) {
   const [record] = await db.delete(financeTransactions).where(eq(financeTransactions.id, id)).returning();
   return record ?? null;
-}
-
-export async function setTransactionTags(transactionId: number, tagIds: number[]) {
-  await db.delete(transactionTags).where(eq(transactionTags.transactionId, transactionId));
-
-  if (tagIds.length) {
-    await db.insert(transactionTags).values(tagIds.map((tagId) => ({ transactionId, tagId })));
-  }
 }

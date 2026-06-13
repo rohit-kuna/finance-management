@@ -65,7 +65,6 @@ const adminSettingsGroups: HeaderNavGroup[] = [
       { label: "Organization", href: ROUTES.ORGANIZATION },
       { label: "Users", href: ROUTES.USERS },
       { label: "Categories", href: ROUTES.CATEGORIES },
-      { label: "Tags", href: ROUTES.TAGS },
       { label: "Modes", href: ROUTES.TRANSACTION_MODES },
       { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
     ],
@@ -91,7 +90,7 @@ const userSettingsGroups: HeaderNavGroup[] = [
   {
     label: "Settings",
     items: [
-      { label: "Tags", href: ROUTES.TAGS },
+      { label: "Subcategories", href: ROUTES.SUBCATEGORIES },
       { label: "Modes", href: ROUTES.TRANSACTION_MODES },
       { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
     ],

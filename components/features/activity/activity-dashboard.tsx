@@ -51,7 +51,7 @@ const chartPalette = [
   "var(--color-chart-5)",
 ];
 
-const untaggedColor = "var(--color-muted-foreground)";
+const noSubcategoryColor = "var(--color-muted-foreground)";
 
 const expenseLegendItems = [
   { label: "Income", color: "var(--color-chart-2)" },
@@ -1212,7 +1212,7 @@ function ExpenseTrendChart({
   );
 }
 
-function CategoryTagOverlapChart({
+function CategorySubcategoryOverlapChart({
   expenses,
   categories,
   monthStart,
@@ -1262,32 +1262,28 @@ function CategoryTagOverlapChart({
 
     const categoryTotal = filtered.reduce((sum, expense) => sum + Number(expense.amount), 0);
 
-    const tagTotals = new Map<number, { id: number; name: string; amount: number }>();
-    let untaggedTotal = 0;
+    const subcategoryTotals = new Map<number, { id: number; name: string; amount: number }>();
+    let noSubcategoryTotal = 0;
 
     for (const expense of filtered) {
       const amount = Number(expense.amount);
-      if (expense.tagIds.length === 0) {
-        untaggedTotal += amount;
+      if (expense.subcategoryId == null) {
+        noSubcategoryTotal += amount;
         continue;
       }
-      expense.tagIds.forEach((tagId, index) => {
-        const tagName = expense.tagNames[index] ?? `Tag ${tagId}`;
-        const existing = tagTotals.get(tagId);
-        tagTotals.set(tagId, {
-          id: tagId,
-          name: tagName,
-          amount: (existing?.amount ?? 0) + amount,
-        });
+      const subcategoryName = expense.subcategoryName ?? `Subcategory ${expense.subcategoryId}`;
+      const existing = subcategoryTotals.get(expense.subcategoryId);
+      subcategoryTotals.set(expense.subcategoryId, {
+        id: expense.subcategoryId,
+        name: subcategoryName,
+        amount: (existing?.amount ?? 0) + amount,
       });
     }
 
     const combinationTotals = new Map<string, { label: string; amount: number; count: number }>();
     for (const expense of filtered) {
       const amount = Number(expense.amount);
-      const label = expense.tagNames.length
-        ? Array.from(new Set(expense.tagNames)).sort().join(" ∩ ")
-        : "Untagged";
+      const label = expense.subcategoryName ?? "No subcategory";
       const existing = combinationTotals.get(label);
       combinationTotals.set(label, {
         label,
@@ -1306,8 +1302,8 @@ function CategoryTagOverlapChart({
     return {
       categoryTotal,
       transactionCount: filtered.length,
-      distinctTagCount: tagTotals.size,
-      untaggedTotal,
+      distinctSubcategoryCount: subcategoryTotals.size,
+      noSubcategoryTotal,
       combinations,
     };
   }, [expenses, effectiveCategoryId, monthStart, monthEnd]);
@@ -1321,8 +1317,8 @@ function CategoryTagOverlapChart({
     <Card className="py-2">
       <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
-          title="Spend by Tag Overlap"
-          description="Pick a category to see how its spending splits across tags, including transactions tagged with multiple tags at once."
+          title="Spend by Subcategory Overlap"
+          description="Pick a category to see how its spending splits across subcategories, including transactions with multiple subcategories at once."
         />
 
         <div className="flex flex-wrap gap-2">
@@ -1330,10 +1326,10 @@ function CategoryTagOverlapChart({
         </div>
 
         <div className="max-w-sm space-y-2">
-          <Label htmlFor="tag-overlap-category">Category</Label>
+          <Label htmlFor="subcategory-overlap-category">Category</Label>
           {categoryOptions.length ? (
             <select
-              id="tag-overlap-category"
+              id="subcategory-overlap-category"
               value={effectiveCategoryId}
               onChange={(event) => setSelectedCategoryId(event.target.value)}
               className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -1359,8 +1355,8 @@ function CategoryTagOverlapChart({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <MetricCard label="Total spend" value={formatMoney(result.categoryTotal)} tone="warning" />
-              <MetricCard label="Distinct tags" value={String(result.distinctTagCount)} />
-              <MetricCard label="Untagged spend" value={formatMoney(result.untaggedTotal)} />
+              <MetricCard label="Distinct subcategories" value={String(result.distinctSubcategoryCount)} />
+              <MetricCard label="No subcategory spend" value={formatMoney(result.noSubcategoryTotal)} />
             </div>
 
             {pieData.length ? (
@@ -1383,8 +1379,8 @@ function CategoryTagOverlapChart({
                           <Cell
                             key={combination.label}
                             fill={
-                              combination.label === "Untagged"
-                                ? untaggedColor
+                              combination.label === "No subcategory"
+                                ? noSubcategoryColor
                                 : chartPalette[index % chartPalette.length]
                             }
                           />
@@ -1403,7 +1399,7 @@ function CategoryTagOverlapChart({
               </div>
             ) : (
               <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-                No tagged transactions found for {selectedCategoryName} in the selected range.
+                No subcategorized transactions found for {selectedCategoryName} in the selected range.
               </div>
             )}
           </>
@@ -1618,8 +1614,8 @@ export function ActivityDashboard({
           <ExpenseTrendChart expenses={visibleData.expenses} monthStart={monthStart} monthEnd={monthEnd} />
         ) : null}
 
-        {matchesChartQuery("Spend by Tag Overlap") ? (
-          <CategoryTagOverlapChart
+        {matchesChartQuery("Spend by Subcategory Overlap") ? (
+          <CategorySubcategoryOverlapChart
             expenses={visibleData.expenses}
             categories={visibleData.categories}
             monthStart={monthStart}

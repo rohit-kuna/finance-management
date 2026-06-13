@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       user_name: expense.userName,
       counter_party_name: expense.counterPartyName ?? "",
       mode: expense.transactionModeName ?? "",
-      tags: expense.tagNames.join(", "),
+      subcategories: expense.subcategoryName ?? "",
     })),
     "organization"
   );

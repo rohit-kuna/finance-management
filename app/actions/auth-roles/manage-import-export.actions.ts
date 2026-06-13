@@ -3,17 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { categories, counterParty, financeTransactions, tags, transactionModes, transactionTags } from "@/db/schema";
+import { categories, counterParty, financeTransactions, subcategories, transactionModes } from "@/db/schema";
 import { requireAdmin, requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getCategoriesByOrg } from "@/app/actions/tables/categories.table.actions";
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
 import { formatExpenseRecordSummary, getExpensesByOrg } from "@/app/actions/tables/expenses.table.actions";
-import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
+import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
 import { getTransactionModesByUser } from "@/app/actions/tables/transaction-modes.table.actions";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
 import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
-import { incrementCategoryTagUsage } from "@/app/actions/tables/category-tags.table.actions";
 import type {
   ImportWorkbookField,
   ImportWorkbookPreview,
@@ -140,20 +139,10 @@ function parseNote(value: string) {
   return trimmed.length ? trimmed : null;
 }
 
-function parseTagNames(value: string) {
-  const seen = new Map<string, string>();
-
-  for (const part of value.split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-
-    const normalized = normalizeWorkbookName(trimmed);
-    if (!seen.has(normalized)) {
-      seen.set(normalized, trimmed);
-    }
-  }
-
-  return Array.from(seen.values());
+function parseSubcategoryName(value: string) {
+  const [first] = value.split(",");
+  const trimmed = first?.trim() ?? "";
+  return trimmed.length ? trimmed : null;
 }
 
 function formatImportRowSummary(input: {
@@ -279,24 +268,6 @@ function getDistinctWorkbookValues(
   return Array.from(seen.values()).sort((left, right) => left.localeCompare(right));
 }
 
-function getDistinctTagNames(payload: ImportPayload, headerIndex: Map<string, number>, formData: FormData) {
-  const columnName = resolveMappedColumn(payload, "tags", formData);
-  if (!columnName) return [];
-
-  const seen = new Map<string, string>();
-  for (const row of payload.rows) {
-    const rawValue = resolveWorkbookRowValue(row.values, headerIndex, columnName);
-    for (const tagName of parseTagNames(rawValue)) {
-      const normalized = normalizeWorkbookName(tagName);
-      if (!seen.has(normalized)) {
-        seen.set(normalized, tagName);
-      }
-    }
-  }
-
-  return Array.from(seen.values()).sort((left, right) => left.localeCompare(right));
-}
-
 function isDuplicateExpenseConstraintError(error: unknown) {
   return (
     typeof error === "object" &&
@@ -319,7 +290,7 @@ export async function getManageImportExportData(): Promise<ManageImportExportDat
       organization: null,
       categories: [],
       counterparties: [],
-      tags: [],
+      subcategories: [],
       transactionModes: [],
       members: [],
       currentUser: toManageImportExportCurrentUserDto(currentUser),
@@ -328,11 +299,11 @@ export async function getManageImportExportData(): Promise<ManageImportExportDat
 
   const orgId = currentUser.orgId;
 
-  const [organization, categoriesResult, counterparties, orgTags] = await Promise.all([
+  const [organization, categoriesResult, counterparties, orgSubcategories] = await Promise.all([
     getOrganizationById(orgId),
     getCategoriesByOrg(orgId),
     getCounterpartiesByOrg(orgId),
-    getTagsByOrg(orgId),
+    getSubcategoriesByOrg(orgId),
   ]);
 
   const transactionModes = await getTransactionModesByUser(orgId, currentUser.id);
@@ -342,7 +313,7 @@ export async function getManageImportExportData(): Promise<ManageImportExportDat
     organization: toManageImportExportOrganizationDto(organization),
     categories: categoriesResult,
     counterparties,
-    tags: orgTags,
+    subcategories: orgSubcategories,
     transactionModes,
     members: [],
     currentUser: toManageImportExportCurrentUserDto(currentUser),
@@ -444,10 +415,10 @@ async function importUserScopedExpensesFromWorkbookAction(
 
   const orgId = currentUser.orgId;
 
-  const [orgCategories, orgCounterparties, orgTags, existingExpenses, userTransactionModes] = await Promise.all([
+  const [orgCategories, orgCounterparties, orgSubcategories, existingExpenses, userTransactionModes] = await Promise.all([
     getCategoriesByOrg(orgId),
     getCounterpartiesByOrg(orgId),
-    getTagsByOrg(orgId),
+    getSubcategoriesByOrg(orgId),
     getExpensesByOrg(orgId),
     getTransactionModesByUser(orgId, currentUser.id),
   ]);
@@ -507,7 +478,6 @@ async function importUserScopedExpensesFromWorkbookAction(
     formData
   );
   const distinctModeNames = getDistinctWorkbookValues(payload, headerIndex, "mode", formData);
-  const distinctTagNames = getDistinctTagNames(payload, headerIndex, formData);
 
   const categorySelections = new Map<
     string,
@@ -797,23 +767,12 @@ async function importUserScopedExpensesFromWorkbookAction(
 
   try {
     await db.transaction(async (tx) => {
-      const tagIdByNormalizedName = new Map<string, number>(
-        orgTags.map((tag) => [normalizeWorkbookName(tag.name), tag.id])
+      const subcategoryIdByKey = new Map<string, number>(
+        orgSubcategories.map((subcategory) => [
+          `${subcategory.categoryId}:${normalizeWorkbookName(subcategory.name)}`,
+          subcategory.id,
+        ])
       );
-
-      for (const tagName of distinctTagNames) {
-        const normalized = normalizeWorkbookName(tagName);
-        if (tagIdByNormalizedName.has(normalized)) continue;
-
-        const [createdTag] = await tx
-          .insert(tags)
-          .values({ orgId, name: tagName, createdBy: currentUser.id })
-          .returning();
-
-        if (createdTag) {
-          tagIdByNormalizedName.set(normalized, createdTag.id);
-        }
-      }
 
       for (const row of payload.rows) {
         if (skippedDuplicateRows.has(row.rowNumber)) {
@@ -839,7 +798,7 @@ async function importUserScopedExpensesFromWorkbookAction(
           formData
         );
         const modeValue = resolveWorkbookValue(row, headerIndex, "mode", payload, formData);
-        const tagsValue = resolveWorkbookValue(row, headerIndex, "tags", payload, formData);
+        const subcategoriesValue = resolveWorkbookValue(row, headerIndex, "subcategories", payload, formData);
 
         const normalizedCategoryName = normalizeWorkbookName(categoryValue.trim());
         const categorySelection = categorySelections.get(normalizedCategoryName);
@@ -913,7 +872,26 @@ async function importUserScopedExpensesFromWorkbookAction(
         );
 
         try {
-          const [insertedExpense] = await tx
+          let subcategoryId: number | null = null;
+          const subcategoryName = parseSubcategoryName(subcategoriesValue);
+          if (subcategoryName) {
+            const key = `${categoryId}:${normalizeWorkbookName(subcategoryName)}`;
+            subcategoryId = subcategoryIdByKey.get(key) ?? null;
+
+            if (subcategoryId === null) {
+              const [createdSubcategory] = await tx
+                .insert(subcategories)
+                .values({ orgId, categoryId, name: subcategoryName, createdBy: currentUser.id })
+                .returning();
+
+              if (createdSubcategory) {
+                subcategoryId = createdSubcategory.id;
+                subcategoryIdByKey.set(key, subcategoryId);
+              }
+            }
+          }
+
+          await tx
             .insert(financeTransactions)
             .values({
               orgId,
@@ -921,6 +899,7 @@ async function importUserScopedExpensesFromWorkbookAction(
               categoryId,
               counterPartyId: counterpartyId,
               transactionModeId,
+              subcategoryId,
               transferStatus: counterpartyId ? "open" : null,
               amount,
               type,
@@ -929,17 +908,6 @@ async function importUserScopedExpensesFromWorkbookAction(
               transactionTimestamp,
             })
             .returning();
-
-          const tagIds = parseTagNames(tagsValue)
-            .map((tagName) => tagIdByNormalizedName.get(normalizeWorkbookName(tagName)))
-            .filter((tagId): tagId is number => tagId !== undefined);
-
-          if (insertedExpense && tagIds.length) {
-            await tx.insert(transactionTags).values(
-              tagIds.map((tagId) => ({ transactionId: insertedExpense.id, tagId }))
-            );
-            await incrementCategoryTagUsage(tx, orgId, categoryId, tagIds);
-          }
         } catch (error) {
           if (isDuplicateExpenseConstraintError(error)) {
             const duplicateDetails =
@@ -979,7 +947,6 @@ async function importUserScopedExpensesFromWorkbookAction(
   revalidatePath(ROUTES.TRANSFERS);
   revalidatePath(ROUTES.COUNTERPARTIES);
   revalidatePath(ROUTES.CATEGORIES);
-  revalidatePath(ROUTES.TAGS);
   revalidatePath(ROUTES.DASHBOARD, "layout");
 
   const importedRowCount = payload.rows.length - skippedDuplicateRows.size;
@@ -1003,7 +970,7 @@ export async function getManageImportExportOrgData(): Promise<ManageImportExport
       organization: null,
       categories: [],
       counterparties: [],
-      tags: [],
+      subcategories: [],
       transactionModes: [],
       members: [],
       currentUser: toManageImportExportCurrentUserDto(currentAdmin),
@@ -1012,11 +979,11 @@ export async function getManageImportExportOrgData(): Promise<ManageImportExport
 
   const orgId = currentAdmin.orgId;
 
-  const [organization, categoriesResult, counterparties, orgTags, members] = await Promise.all([
+  const [organization, categoriesResult, counterparties, orgSubcategories, members] = await Promise.all([
     getOrganizationById(orgId),
     getCategoriesByOrg(orgId),
     getCounterpartiesByOrg(orgId),
-    getTagsByOrg(orgId),
+    getSubcategoriesByOrg(orgId),
     getOrganizationMembers(orgId),
   ]);
 
@@ -1030,7 +997,7 @@ export async function getManageImportExportOrgData(): Promise<ManageImportExport
     organization: toManageImportExportOrganizationDto(organization),
     categories: categoriesResult,
     counterparties,
-    tags: orgTags,
+    subcategories: orgSubcategories,
     transactionModes,
     members,
     currentUser: toManageImportExportCurrentUserDto(currentAdmin),
@@ -1130,10 +1097,10 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
 
   const orgId = currentAdmin.orgId;
 
-  const [orgCategories, orgCounterparties, orgTags, existingExpenses, members] = await Promise.all([
+  const [orgCategories, orgCounterparties, orgSubcategories, existingExpenses, members] = await Promise.all([
     getCategoriesByOrg(orgId),
     getCounterpartiesByOrg(orgId),
-    getTagsByOrg(orgId),
+    getSubcategoriesByOrg(orgId),
     getExpensesByOrg(orgId),
     getOrganizationMembers(orgId),
   ]);
@@ -1190,7 +1157,6 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
     formData
   );
   const distinctModeNames = getDistinctWorkbookValues(payload, headerIndex, "mode", formData);
-  const distinctTagNames = getDistinctTagNames(payload, headerIndex, formData);
 
   const userSelections = new Map<string, { userId: string; userName: string } | null>();
   const userSelectionErrors = new Map<string, string>();
@@ -1529,23 +1495,12 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
 
   try {
     await db.transaction(async (tx) => {
-      const tagIdByNormalizedName = new Map<string, number>(
-        orgTags.map((tag) => [normalizeWorkbookName(tag.name), tag.id])
+      const subcategoryIdByKey = new Map<string, number>(
+        orgSubcategories.map((subcategory) => [
+          `${subcategory.categoryId}:${normalizeWorkbookName(subcategory.name)}`,
+          subcategory.id,
+        ])
       );
-
-      for (const tagName of distinctTagNames) {
-        const normalized = normalizeWorkbookName(tagName);
-        if (tagIdByNormalizedName.has(normalized)) continue;
-
-        const [createdTag] = await tx
-          .insert(tags)
-          .values({ orgId, name: tagName, createdBy: currentAdmin.id })
-          .returning();
-
-        if (createdTag) {
-          tagIdByNormalizedName.set(normalized, createdTag.id);
-        }
-      }
 
       for (const row of payload.rows) {
         if (skippedDuplicateRows.has(row.rowNumber)) {
@@ -1572,7 +1527,7 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
           formData
         );
         const modeValue = resolveWorkbookValue(row, headerIndex, "mode", payload, formData);
-        const tagsValue = resolveWorkbookValue(row, headerIndex, "tags", payload, formData);
+        const subcategoriesValue = resolveWorkbookValue(row, headerIndex, "subcategories", payload, formData);
 
         const userSelection = userSelections.get(normalizeWorkbookName(userNameValue.trim()));
         if (!userSelection) {
@@ -1656,7 +1611,26 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
         );
 
         try {
-          const [insertedExpense] = await tx
+          let subcategoryId: number | null = null;
+          const subcategoryName = parseSubcategoryName(subcategoriesValue);
+          if (subcategoryName) {
+            const key = `${categoryId}:${normalizeWorkbookName(subcategoryName)}`;
+            subcategoryId = subcategoryIdByKey.get(key) ?? null;
+
+            if (subcategoryId === null) {
+              const [createdSubcategory] = await tx
+                .insert(subcategories)
+                .values({ orgId, categoryId, name: subcategoryName, createdBy: currentAdmin.id })
+                .returning();
+
+              if (createdSubcategory) {
+                subcategoryId = createdSubcategory.id;
+                subcategoryIdByKey.set(key, subcategoryId);
+              }
+            }
+          }
+
+          await tx
             .insert(financeTransactions)
             .values({
               orgId,
@@ -1664,6 +1638,7 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
               categoryId,
               counterPartyId: counterpartyId,
               transactionModeId,
+              subcategoryId,
               transferStatus: counterpartyId ? "open" : null,
               amount,
               type,
@@ -1672,17 +1647,6 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
               transactionTimestamp,
             })
             .returning();
-
-          const tagIds = parseTagNames(tagsValue)
-            .map((tagName) => tagIdByNormalizedName.get(normalizeWorkbookName(tagName)))
-            .filter((tagId): tagId is number => tagId !== undefined);
-
-          if (insertedExpense && tagIds.length) {
-            await tx.insert(transactionTags).values(
-              tagIds.map((tagId) => ({ transactionId: insertedExpense.id, tagId }))
-            );
-            await incrementCategoryTagUsage(tx, orgId, categoryId, tagIds);
-          }
         } catch (error) {
           if (isDuplicateExpenseConstraintError(error)) {
             const duplicateDetails =
@@ -1722,7 +1686,6 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
   revalidatePath(ROUTES.TRANSFERS);
   revalidatePath(ROUTES.COUNTERPARTIES);
   revalidatePath(ROUTES.CATEGORIES);
-  revalidatePath(ROUTES.TAGS);
   revalidatePath(ROUTES.DASHBOARD, "layout");
 
   const importedRowCount = payload.rows.length - skippedDuplicateRows.size;

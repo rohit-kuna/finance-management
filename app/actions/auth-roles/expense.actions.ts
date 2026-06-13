@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { db } from "@/db";
 import { requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
@@ -12,19 +11,13 @@ import {
   deleteExpenseRecord,
   getExpenseById,
   getExpensesByOrg,
-  setTransactionTags,
   updateExpenseRecord,
 } from "@/app/actions/tables/expenses.table.actions";
 import {
   getCounterpartiesByOrg,
   getCounterpartyById,
 } from "@/app/actions/tables/counterparties.table.actions";
-import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
-import {
-  decrementCategoryTagUsage,
-  getCategoryTagsByOrg,
-  incrementCategoryTagUsage,
-} from "@/app/actions/tables/category-tags.table.actions";
+import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
 import {
   ensureDefaultTransactionModesForUser,
   getTransactionModeById,
@@ -43,7 +36,10 @@ const expenseSchema = z.object({
   amount: z.coerce.number().positive("Amount must be greater than zero"),
   necessityScore: z.coerce.number().int().min(1, "Necessity score must be between 1 and 5").max(5),
   note: z.string().trim().max(500).nullable(),
-  tagIds: z.array(z.coerce.number().int().positive()).optional().default([]),
+  subcategoryId: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() ? value : undefined),
+    z.coerce.number().int().positive().optional()
+  ),
   occurredAt: z.string().trim().min(1, "Expense date is required"),
 });
 
@@ -119,19 +115,19 @@ async function resolveCounterpartyId(orgId: number, counterPartyId: number | nul
   return counterparty.id;
 }
 
-async function resolveTagIds(orgId: number, tagIds: number[]) {
-  if (!tagIds.length) {
-    return [];
-  }
-
-  const orgTags = await getTagsByOrg(orgId);
-  const orgTagIds = new Set(orgTags.map((tag) => tag.id));
-
-  if (!tagIds.every((tagId) => orgTagIds.has(tagId))) {
+async function resolveSubcategoryId(orgId: number, categoryId: number, subcategoryId: number | undefined) {
+  if (subcategoryId == null) {
     return null;
   }
 
-  return tagIds;
+  const orgSubcategories = await getSubcategoriesByOrg(orgId);
+  const subcategory = orgSubcategories.find((candidate) => candidate.id === subcategoryId);
+
+  if (!subcategory || subcategory.categoryId !== categoryId) {
+    return undefined;
+  }
+
+  return subcategoryId;
 }
 
 export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataDto> {
@@ -143,8 +139,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
       categories: [],
       counterparties: [],
       transactionModes: [],
-      tags: [],
-      categoryTags: [],
+      subcategories: [],
       expenses: [],
       currentUser: {
         id: currentUser.id,
@@ -155,12 +150,11 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     };
   }
 
-  const [organization, categories, counterparties, tags, categoryTags, expenses] = await Promise.all([
+  const [organization, categories, counterparties, subcategories, expenses] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
-    getTagsByOrg(currentUser.orgId),
-    getCategoryTagsByOrg(currentUser.orgId),
+    getSubcategoriesByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId),
   ]);
   const transactionModes = await ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id);
@@ -173,8 +167,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     categories,
     counterparties,
     transactionModes,
-    tags,
-    categoryTags,
+    subcategories,
     expenses: visibleExpenses,
     currentUser: {
       id: currentUser.id,
@@ -247,7 +240,7 @@ export async function createExpenseAction(
     amount: formData.get("amount"),
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
-    tagIds: formData.getAll("tagIds"),
+    subcategoryId: formData.get("subcategoryId"),
     occurredAt: formData.get("occurredAt"),
   });
 
@@ -270,20 +263,21 @@ export async function createExpenseAction(
     return { error: "Transaction mode does not exist" };
   }
 
-  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
-  if (!tagIds) {
-    return { error: "One or more tags do not belong to your organization" };
+  const subcategoryId = await resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId);
+  if (subcategoryId === undefined) {
+    return { error: "Subcategory does not belong to the selected category" };
   }
 
   const expenseType = category.type;
   const transferStatus = counterPartyId ? "open" : null;
 
-  const record = await createExpenseRecord({
+  await createExpenseRecord({
     orgId,
     userId: currentUser.id,
     categoryId: parsed.data.categoryId,
     counterPartyId,
     transactionModeId: transactionMode.id,
+    subcategoryId,
     transferStatus,
     amount: toMoneyString(parsed.data.amount),
     type: expenseType,
@@ -291,13 +285,6 @@ export async function createExpenseAction(
     note: parsed.data.note,
     occurredAt: parseExpenseDate(parsed.data.occurredAt),
   });
-
-  if (record) {
-    await setTransactionTags(record.id, tagIds);
-    if (tagIds.length) {
-      await incrementCategoryTagUsage(db, orgId, parsed.data.categoryId, tagIds);
-    }
-  }
 
   redirect(ROUTES.TRANSACTIONS);
 }
@@ -317,7 +304,7 @@ export async function updateExpenseAction(
     amount: formData.get("amount"),
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
-    tagIds: formData.getAll("tagIds"),
+    subcategoryId: formData.get("subcategoryId"),
     occurredAt: formData.get("occurredAt"),
   });
   const expenseIdResult = expenseIdSchema.safeParse({
@@ -352,9 +339,9 @@ export async function updateExpenseAction(
     return { error: "Transaction mode does not exist" };
   }
 
-  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
-  if (!tagIds) {
-    return { error: "One or more tags do not belong to your organization" };
+  const subcategoryId = await resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId);
+  if (subcategoryId === undefined) {
+    return { error: "Subcategory does not belong to the selected category" };
   }
 
   const expenseType = category.type;
@@ -364,6 +351,7 @@ export async function updateExpenseAction(
     categoryId: parsed.data.categoryId,
     counterPartyId,
     transactionModeId: transactionMode.id,
+    subcategoryId,
     transferStatus,
     amount: toMoneyString(parsed.data.amount),
     type: expenseType,
@@ -372,18 +360,6 @@ export async function updateExpenseAction(
     occurredAt: parseExpenseDate(parsed.data.occurredAt, new Date(expense.occurredAt)),
     updatedAt: new Date(),
   });
-
-  await setTransactionTags(expense.id, tagIds);
-
-  if (expense.categoryId === parsed.data.categoryId) {
-    const removedTagIds = expense.tagIds.filter((tagId) => !tagIds.includes(tagId));
-    const addedTagIds = tagIds.filter((tagId) => !expense.tagIds.includes(tagId));
-    await decrementCategoryTagUsage(db, orgId, expense.categoryId, removedTagIds);
-    await incrementCategoryTagUsage(db, orgId, expense.categoryId, addedTagIds);
-  } else {
-    await decrementCategoryTagUsage(db, orgId, expense.categoryId, expense.tagIds);
-    await incrementCategoryTagUsage(db, orgId, parsed.data.categoryId, tagIds);
-  }
 
   redirect(ROUTES.TRANSACTIONS);
 }
@@ -439,7 +415,6 @@ export async function deleteExpenseAction(
     return { error: "Expense does not belong to your organization" };
   }
 
-  await decrementCategoryTagUsage(db, orgId, expense.categoryId, expense.tagIds);
   await deleteExpenseRecord(expense.id);
 
   redirect(ROUTES.TRANSACTIONS);

@@ -8,8 +8,7 @@ export default async function CategoriesPage() {
     <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">
       <CategoryManagement
         categories={financeData.categories}
-        tags={financeData.tags}
-        categoryTags={financeData.categoryTags}
+        subcategories={financeData.subcategories}
       />
     </main>
   );

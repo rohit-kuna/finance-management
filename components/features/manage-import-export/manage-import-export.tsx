@@ -155,11 +155,11 @@ function collectDistinctValues(rows: Array<{ values: Record<ImportWorkbookField,
   return Array.from(seen.values()).sort((left, right) => left.localeCompare(right));
 }
 
-function collectDistinctTagNames(rows: Array<{ values: Record<ImportWorkbookField, string> }>) {
+function collectDistinctSubcategoryNames(rows: Array<{ values: Record<ImportWorkbookField, string> }>) {
   const seen = new Map<string, string>();
 
   for (const row of rows) {
-    const value = row.values.tags;
+    const value = row.values.subcategories;
     if (!value) continue;
 
     for (const part of value.split(",")) {
@@ -363,7 +363,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         user_name: resolvedUserName,
         counter_party_name: (resolvedCounterparty?.name ?? resolvedValues.counter_party_name) || "—",
         mode: resolvedMode?.name || defaultTransactionMode?.name || resolvedValues.mode || "—",
-        tags: resolvedValues.tags.trim() || "—",
+        subcategories: resolvedValues.subcategories.trim() || "—",
       };
 
       return {
@@ -409,7 +409,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     [resolvedRows]
   );
   const distinctModeNames = useMemo(() => collectDistinctValues(resolvedRows, "mode"), [resolvedRows]);
-  const distinctTagNames = useMemo(() => collectDistinctTagNames(resolvedRows), [resolvedRows]);
+  const distinctSubcategoryNames = useMemo(() => collectDistinctSubcategoryNames(resolvedRows), [resolvedRows]);
 
   const userMappings = useMemo(() => {
     if (!isOrganizationScope) {
@@ -485,15 +485,15 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     });
   }, [data.transactionModes, distinctModeNames]);
 
-  const tagChecks = useMemo(() => {
-    return distinctTagNames.map((sheetValue) => {
-      const match = findUniqueNormalizedMatch(data.tags, sheetValue);
+  const subcategoryChecks = useMemo(() => {
+    return distinctSubcategoryNames.map((sheetValue) => {
+      const match = findUniqueNormalizedMatch(data.subcategories, sheetValue);
       return {
         sheetValue,
         hasMatch: Boolean(match.match),
       };
     });
-  }, [data.tags, distinctTagNames]);
+  }, [data.subcategories, distinctSubcategoryNames]);
 
   const unresolvedUsers = isOrganizationScope ? userMappings.filter((mapping) => !mapping.hasMatch).length : 0;
   const unresolvedCounterparties = counterpartyMappings.filter((mapping) => !mapping.hasMatch).length;
@@ -503,11 +503,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     unresolvedCategories > 0 || unresolvedCounterparties > 0 || unresolvedModes > 0;
 
   const modeColumnMapped = Boolean(selectedColumns.mode);
-  const tagColumnMapped = Boolean(selectedColumns.tags);
+  const subcategoryColumnMapped = Boolean(selectedColumns.subcategories);
   const categoryStepLabel = isOrganizationScope ? "Step 2" : "Step 1";
   const counterpartyStepLabel = isOrganizationScope ? "Step 3" : "Step 2";
   const modeStepLabel = isOrganizationScope ? "Step 4" : "Step 3";
-  const tagStepLabel = isOrganizationScope ? "Step 5" : "Step 4";
+  const subcategoryStepLabel = isOrganizationScope ? "Step 5" : "Step 4";
   const previewStepLabel = isOrganizationScope ? "Step 6" : "Step 5";
 
   const resolvedPreviewRows = resolvedRows.slice(0, 10);
@@ -1074,23 +1074,23 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   )}
 
-                  {tagColumnMapped ? (
+                  {subcategoryColumnMapped ? (
                     <div className="space-y-4">
                       <SectionTitle
-                        eyebrow={tagStepLabel}
-                        title="Map tags"
-                        description="Sheet tags are matched to your existing tags by name. Any tag that doesn't already exist will be created automatically during import — no action needed here."
+                        eyebrow={subcategoryStepLabel}
+                        title="Map subcategories"
+                        description="Sheet subcategories are matched to your existing subcategories by name within the row's category. Any subcategory that doesn't already exist will be created automatically during import — no action needed here."
                       />
                       <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
                         <div className="grid gap-3">
-                          {tagChecks.map((check) => (
+                          {subcategoryChecks.map((check) => (
                             <div
                               key={check.sheetValue}
                               className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 p-3"
                             >
                               <div className="space-y-1">
                                 <p className="text-sm font-medium">{check.sheetValue}</p>
-                                <p className="text-xs text-muted-foreground">sheet tag value</p>
+                                <p className="text-xs text-muted-foreground">sheet subcategory value</p>
                               </div>
                               <Badge variant={check.hasMatch ? "success" : "outline"} className="shrink-0">
                                 {check.hasMatch ? "Matched" : "Will be created"}
@@ -1102,7 +1102,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   ) : (
                     <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
-                      No tags column is mapped, so imported expenses will not be tagged.
+                      No subcategories column is mapped, so imported expenses will not have subcategories.
                     </div>
                   )}
 

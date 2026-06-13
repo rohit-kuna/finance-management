@@ -23,11 +23,7 @@ import {
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
 import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import { ensureDefaultTransactionModesForUser } from "@/app/actions/tables/transaction-modes.table.actions";
-import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
-import {
-  getCategoryTagsByOrg,
-  setCategoryTags,
-} from "@/app/actions/tables/category-tags.table.actions";
+import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
 import { buildBudgetAllocationSummaries } from "@/app/lib/budget-utils";
 import { getBudgetMonthBounds, isValidBudgetMonth } from "@/app/lib/budget-month";
 import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
@@ -142,19 +138,38 @@ export async function getOrganizationCategoriesForAdmin() {
     return {
       organization: null,
       categories: [],
-      tags: [],
-      categoryTags: [],
+      subcategories: [],
     };
   }
 
-  const [organization, categories, tags, categoryTags] = await Promise.all([
+  const [organization, categories, subcategories] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
-    getTagsByOrg(currentUser.orgId),
-    getCategoryTagsByOrg(currentUser.orgId),
+    getSubcategoriesByOrg(currentUser.orgId),
   ]);
 
-  return { organization, categories, tags, categoryTags };
+  return { organization, categories, subcategories };
+}
+
+export async function getOrganizationCategoriesForUser() {
+  const currentUser = await requireUser();
+
+  if (!currentUser.orgId) {
+    return {
+      organization: null,
+      categories: [],
+      subcategories: [],
+      currentUserId: currentUser.id,
+    };
+  }
+
+  const [organization, categories, subcategories] = await Promise.all([
+    getOrganizationById(currentUser.orgId),
+    getCategoriesByOrg(currentUser.orgId),
+    getSubcategoriesByOrg(currentUser.orgId),
+  ]);
+
+  return { organization, categories, subcategories, currentUserId: currentUser.id };
 }
 
 export async function createCategoryAction(
@@ -256,35 +271,6 @@ export async function deleteCategoryAction(
   }
 
   await deleteCategoryRecord(category.id);
-  redirect(ROUTES.CATEGORIES);
-}
-
-export async function updateCategoryTagsAction(
-  _previousState: FinanceActionState,
-  formData: FormData
-): Promise<FinanceActionState> {
-  const currentUser = await requireAdmin();
-  const categoryIdResult = categoryIdSchema.safeParse({
-    categoryId: formData.get("categoryId"),
-  });
-
-  if (!categoryIdResult.success) {
-    return { error: "Category is required" };
-  }
-
-  const orgId = assertOrgId(currentUser);
-  const category = await getCategoryById(categoryIdResult.data.categoryId);
-  if (!category || category.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
-  }
-
-  const tagIds = formData
-    .getAll("tagIds")
-    .map((value) => Number(value))
-    .filter((value) => Number.isInteger(value) && value > 0);
-
-  await setCategoryTags(orgId, category.id, tagIds);
-
   redirect(ROUTES.CATEGORIES);
 }
 

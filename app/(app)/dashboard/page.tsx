@@ -70,8 +70,7 @@ export default async function DashboardPage() {
         categories={data.categories}
         counterparties={data.counterparties}
         transactionModes={data.transactionModes}
-        tags={data.tags}
-        categoryTags={data.categoryTags}
+        subcategories={data.subcategories}
         editingExpense={null}
         recentCategoryId={recentCategoryId}
       />

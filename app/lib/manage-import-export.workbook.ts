@@ -19,7 +19,7 @@ export const EXPORT_WORKBOOK_HEADERS = [
   "user_name",
   "counter_party_name",
   "mode",
-  "tags",
+  "subcategories",
 ] as const;
 
 export const USER_EXPORT_WORKBOOK_HEADERS = [
@@ -30,7 +30,7 @@ export const USER_EXPORT_WORKBOOK_HEADERS = [
   "necessity_score",
   "counter_party_name",
   "mode",
-  "tags",
+  "subcategories",
 ] as const;
 
 const FIELD_ALIASES: Record<ImportWorkbookField, string[]> = {
@@ -43,7 +43,7 @@ const FIELD_ALIASES: Record<ImportWorkbookField, string[]> = {
   user_name: ["user_name", "user name", "user", "member", "member name"],
   counter_party_name: ["counter_party_name", "counter party name", "counterparty", "counterparty name"],
   mode: ["mode", "transaction mode", "transaction_mode", "payment mode"],
-  tags: ["tags", "tag", "labels"],
+  subcategories: ["subcategories", "subcategory", "tags", "tag", "labels"],
 };
 
 function toWorkbookText(value: unknown) {
@@ -168,7 +168,7 @@ export function buildExpenseExportWorkbook(
     user_name?: string;
     counter_party_name: string;
     mode: string;
-    tags: string;
+    subcategories: string;
   }>,
   scope: ManageImportExportScope
 ) {

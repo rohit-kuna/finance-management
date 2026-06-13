@@ -78,6 +78,20 @@
       "when": 1781113652501,
       "tag": "0012_glossy_la_nuit",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781349927873,
+      "tag": "0013_open_warlock",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781354344851,
+      "tag": "0014_dry_changeling",
+      "breakpoints": true
     }
   ]
 }
