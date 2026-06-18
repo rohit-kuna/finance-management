@@ -97,14 +97,14 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
     };
   }
 
-  const [organization, categories, counterparties, budgets, members] = await Promise.all([
+  const [organization, categories, counterparties, budgets, members, transactionModes] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getBudgetsByOrg(currentUser.orgId),
     getOrganizationMembers(currentUser.orgId),
+    ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id),
   ]);
-  const transactionModes = await ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id);
   const allocationSummaries = buildBudgetAllocationSummaries(budgets);
   const visibleBudgets = budgets.filter(
     (budget) => budget.scope === "family" || (budget.scope === "personal" && budget.userId === currentUser.id)

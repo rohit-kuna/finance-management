@@ -84,7 +84,7 @@ function expenseSelectShape() {
 
 type ExpenseJoinRow = Parameters<typeof toExpenseDto>[0];
 
-export async function getExpensesByOrg(orgId: number): Promise<ExpenseRecordDto[]> {
+export async function getExpensesByOrg(orgId: number, limit = 500): Promise<ExpenseRecordDto[]> {
   const records: ExpenseJoinRow[] = await db
     .select(expenseSelectShape())
     .from(financeTransactions)
@@ -95,7 +95,8 @@ export async function getExpensesByOrg(orgId: number): Promise<ExpenseRecordDto[
     .leftJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
     .leftJoin(subcategories, eq(subcategories.id, financeTransactions.subcategoryId))
     .where(eq(financeTransactions.orgId, orgId))
-    .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt));
+    .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt))
+    .limit(limit);
 
   const tagIdsByTransaction = await getTagIdsForTransactions(records.map((record) => record.id));
 

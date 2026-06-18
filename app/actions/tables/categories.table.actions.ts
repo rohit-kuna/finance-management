@@ -23,7 +23,6 @@ export async function getCategoriesByOrg(orgId: number): Promise<CategoryRecordD
     .from(categories)
     .where(eq(categories.orgId, orgId))
     .orderBy(desc(categories.createdAt));
-
   return records.map(toCategoryDto);
 }
 
@@ -55,19 +54,10 @@ export async function updateCategoryRecord(
 }
 
 export async function getCategoryUsageCounts(categoryId: number) {
-  const [budgetUsage] = await db
-    .select({
-      count: count(budget.id),
-    })
-    .from(budget)
-    .where(eq(budget.categoryId, categoryId));
-
-  const [expenseUsage] = await db
-    .select({
-      count: count(financeTransactions.id),
-    })
-    .from(financeTransactions)
-    .where(eq(financeTransactions.categoryId, categoryId));
+  const [[budgetUsage], [expenseUsage]] = await Promise.all([
+    db.select({ count: count(budget.id) }).from(budget).where(eq(budget.categoryId, categoryId)),
+    db.select({ count: count(financeTransactions.id) }).from(financeTransactions).where(eq(financeTransactions.categoryId, categoryId)),
+  ]);
 
   return {
     budgetCount: Number(budgetUsage?.count ?? 0),

@@ -50,7 +50,6 @@ export async function getBudgetsByOrg(orgId: number): Promise<BudgetRecordDto[]>
     .innerJoin(categories, eq(categories.id, budget.categoryId))
     .where(eq(budget.orgId, orgId))
     .orderBy(desc(budget.createdAt));
-
   return records.map(toBudgetDto);
 }
 

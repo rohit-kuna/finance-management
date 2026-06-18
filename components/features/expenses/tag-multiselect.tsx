@@ -13,7 +13,7 @@ export function TagMultiSelect({
   tags: TagRecordDto[];
   defaultSelectedTagIds?: number[];
 }) {
-  const [localTags, setLocalTags] = useState<TagRecordDto[]>(tags);
+  const [localAdditions, setLocalAdditions] = useState<TagRecordDto[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>(defaultSelectedTagIds);
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -22,9 +22,11 @@ export function TagMultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setLocalTags(tags);
-  }, [tags]);
+  const localTags = useMemo(() => {
+    const serverIds = new Set(tags.map((t) => t.id));
+    const additions = localAdditions.filter((t) => !serverIds.has(t.id));
+    return additions.length ? [...additions, ...tags] : tags;
+  }, [tags, localAdditions]);
 
   const tagsById = useMemo(() => {
     const map = new Map<number, TagRecordDto>();
@@ -75,7 +77,7 @@ export function TagMultiSelect({
         return;
       }
 
-      setLocalTags((current) => (current.some((tag) => tag.id === result.tag.id) ? current : [result.tag, ...current]));
+      setLocalAdditions((current) => (current.some((tag) => tag.id === result.tag.id) ? current : [result.tag, ...current]));
       addTag(result.tag.id);
     });
   }
@@ -115,7 +117,6 @@ export function TagMultiSelect({
   function handleBlur(event: React.FocusEvent<HTMLDivElement>) {
     if (!containerRef.current?.contains(event.relatedTarget as Node | null)) {
       setIsOpen(false);
-      setQuery("");
     }
   }
 
@@ -125,7 +126,6 @@ export function TagMultiSelect({
     function handlePointerDown(event: PointerEvent) {
       if (!containerRef.current?.contains(event.target as Node | null)) {
         setIsOpen(false);
-        setQuery("");
       }
     }
 

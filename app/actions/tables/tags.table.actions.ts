@@ -18,7 +18,6 @@ function toTagDto(record: typeof tags.$inferSelect): TagRecordDto {
 
 export async function getTagsByOrg(orgId: number): Promise<TagRecordDto[]> {
   const records = await db.select().from(tags).where(eq(tags.orgId, orgId)).orderBy(desc(tags.createdAt));
-
   return records.map(toTagDto);
 }
 

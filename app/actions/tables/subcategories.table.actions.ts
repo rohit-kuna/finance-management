@@ -23,7 +23,6 @@ export async function getSubcategoriesByOrg(orgId: number): Promise<SubcategoryR
     .from(subcategories)
     .where(eq(subcategories.orgId, orgId))
     .orderBy(desc(subcategories.createdAt));
-
   return records.map(toSubcategoryDto);
 }
 
