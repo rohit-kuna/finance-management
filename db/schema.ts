@@ -83,6 +83,7 @@ export const categories = pgTable(
   },
   (table) => ({
     uniqueNamePerOrg: unique("categories_name_org_unique").on(table.name, table.orgId),
+    categoriesOrgIdx: index("categories_org_id_idx").on(table.orgId),
   })
 );
 
@@ -249,5 +250,8 @@ export const budget = pgTable(
       table.periodFrom,
       table.periodTo
     ),
+    budgetOrgIdx: index("budget_org_id_idx").on(table.orgId),
+    budgetUserIdx: index("budget_user_id_idx").on(table.userId),
+    budgetCategoryIdx: index("budget_category_id_idx").on(table.categoryId),
   })
 );

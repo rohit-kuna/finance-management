@@ -21,7 +21,6 @@ export async function getCounterpartiesByOrg(orgId: number): Promise<Counterpart
     .from(counterParty)
     .where(eq(counterParty.orgId, orgId))
     .orderBy(desc(counterParty.createdAt));
-
   return records.map(toCounterpartyDto);
 }
 

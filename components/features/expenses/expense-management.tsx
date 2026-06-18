@@ -360,6 +360,7 @@ export function ExpenseFormCard({
               <div className="space-y-2">
                 <Label>Category / Subcategory <span className="text-destructive">*</span></Label>
                 <CategorySubcategorySelect
+
                   categories={categories}
                   subcategories={subcategories}
                   defaultCategoryId={resolvedSelectedCategoryId}

@@ -12,11 +12,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
   NavigationMenu,
-  NavigationMenuContent,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
-  NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import {
@@ -129,35 +127,43 @@ function SettingsMenu({ groups }: { groups: HeaderNavGroup[] }) {
   if (!groups.length) return null;
 
   return (
-    <NavigationMenuItem>
-      <NavigationMenuTrigger>More</NavigationMenuTrigger>
-      <NavigationMenuContent>
-        <div className="grid w-[260px] gap-3 p-2">
-          {groups.map((group, groupIndex) => (
-            <div key={group.label}>
-              {groupIndex > 0 ? <div className="mx-1 mb-2 border-t" /> : null}
-              <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {group.label}
-              </p>
-              <ul className="grid gap-1">
-                {group.items.map((item) => (
-                  <li key={item.label}>
-                    <NavigationMenuLink asChild>
-                      <Link
-                        href={item.href}
-                        className="block rounded-md px-3 py-2 text-sm leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                      >
-                        {item.label}
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </NavigationMenuContent>
-    </NavigationMenuItem>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="group inline-flex h-9 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus-visible:outline-none data-[state=open]:bg-accent/50">
+          More
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="relative top-px ml-1 transition duration-300 group-data-[state=open]:rotate-180"
+            aria-hidden="true"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-55">
+        {groups.map((group, groupIndex) => (
+          <div key={group.label}>
+            {groupIndex > 0 ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+              {group.label}
+            </DropdownMenuLabel>
+            {group.items.map((item) => (
+              <DropdownMenuItem key={item.label} asChild>
+                <Link href={item.href}>{item.label}</Link>
+              </DropdownMenuItem>
+            ))}
+          </div>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

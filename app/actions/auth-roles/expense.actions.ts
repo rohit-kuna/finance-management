@@ -162,15 +162,15 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     };
   }
 
-  const [organization, categories, counterparties, subcategories, tags, expenses] = await Promise.all([
+  const [organization, categories, counterparties, subcategories, tags, expenses, transactionModes] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getSubcategoriesByOrg(currentUser.orgId),
     getTagsByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId),
+    ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id),
   ]);
-  const transactionModes = await ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id);
   const visibleExpenses = currentUser.role === "ADMIN"
     ? expenses
     : expenses.filter((expense) => expense.userId === currentUser.id);
@@ -211,13 +211,13 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
     };
   }
 
-  const [organization, categories, counterparties, expenses] = await Promise.all([
+  const [organization, categories, counterparties, expenses, transactionModes] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId),
+    ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id),
   ]);
-  const transactionModes = await ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id);
   const visibleExpenses =
     currentUser.role === "ADMIN"
       ? expenses
@@ -263,29 +263,33 @@ export async function createExpenseAction(
     return { error: parsed.error.issues[0]?.message ?? "Unable to create expense" };
   }
 
-  const category = await getCategoryById(parsed.data.categoryId);
+  const [category, counterPartyId, transactionMode] = await Promise.all([
+    getCategoryById(parsed.data.categoryId),
+    resolveCounterpartyId(orgId, parsed.data.counterPartyId),
+    getTransactionModeById(parsed.data.transactionModeId),
+  ]);
+
   if (!category || category.orgId !== orgId) {
     return { error: "Category does not belong to your organization" };
   }
-
-  const counterPartyId = await resolveCounterpartyId(orgId, parsed.data.counterPartyId);
   if (parsed.data.counterPartyId != null && !counterPartyId) {
     return { error: "Counterparty does not belong to your organization" };
   }
-
-  const transactionMode = await getTransactionModeById(parsed.data.transactionModeId);
   if (!transactionMode || transactionMode.userId !== currentUser.id) {
     return { error: "Transaction mode does not exist" };
   }
 
-  const subcategoryId = await resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId);
+  const [subcategoryId, tagIds] = await Promise.all([
+    resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId),
+    resolveTagIds(orgId, parsed.data.tagIds),
+  ]);
+
   if (subcategoryId === undefined) {
     return { error: "Subcategory does not belong to the selected category" };
   }
 
   const expenseType = category.type;
   const transferStatus = counterPartyId ? "open" : null;
-  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
 
   const expense = await createExpenseRecord({
     orgId,
@@ -345,29 +349,33 @@ export async function updateExpenseAction(
     return { error: "Expense does not belong to your organization" };
   }
 
-  const category = await getCategoryById(parsed.data.categoryId);
+  const [category, counterPartyId, transactionMode] = await Promise.all([
+    getCategoryById(parsed.data.categoryId),
+    resolveCounterpartyId(orgId, parsed.data.counterPartyId),
+    getTransactionModeById(parsed.data.transactionModeId),
+  ]);
+
   if (!category || category.orgId !== orgId) {
     return { error: "Category does not belong to your organization" };
   }
-
-  const counterPartyId = await resolveCounterpartyId(orgId, parsed.data.counterPartyId);
   if (parsed.data.counterPartyId != null && !counterPartyId) {
     return { error: "Counterparty does not belong to your organization" };
   }
-
-  const transactionMode = await getTransactionModeById(parsed.data.transactionModeId);
   if (!transactionMode || transactionMode.userId !== currentUser.id) {
     return { error: "Transaction mode does not exist" };
   }
 
-  const subcategoryId = await resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId);
+  const [subcategoryId, tagIds] = await Promise.all([
+    resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId),
+    resolveTagIds(orgId, parsed.data.tagIds),
+  ]);
+
   if (subcategoryId === undefined) {
     return { error: "Subcategory does not belong to the selected category" };
   }
 
   const expenseType = category.type;
   const transferStatus = counterPartyId ? expense.transferStatus ?? "open" : null;
-  const tagIds = await resolveTagIds(orgId, parsed.data.tagIds);
 
   await updateExpenseRecord(expense.id, {
     categoryId: parsed.data.categoryId,

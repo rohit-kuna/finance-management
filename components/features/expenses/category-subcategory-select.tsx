@@ -22,7 +22,7 @@ export function CategorySubcategorySelect({
   defaultSubcategoryId?: number | null;
   onCategoryChange: (categoryId: number) => void;
 }) {
-  const [localSubcategories, setLocalSubcategories] = useState<SubcategoryRecordDto[]>(subcategories);
+  const [localAdditions, setLocalAdditions] = useState<SubcategoryRecordDto[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCategoryId);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | null>(defaultSubcategoryId);
   const [query, setQuery] = useState("");
@@ -34,9 +34,11 @@ export function CategorySubcategorySelect({
   const inputRef = useRef<HTMLInputElement>(null);
   const skipFocusResetRef = useRef(false);
 
-  useEffect(() => {
-    setLocalSubcategories(subcategories);
-  }, [subcategories]);
+  const localSubcategories = useMemo(() => {
+    const serverIds = new Set(subcategories.map((s) => s.id));
+    const additions = localAdditions.filter((s) => !serverIds.has(s.id));
+    return additions.length ? [...additions, ...subcategories] : subcategories;
+  }, [subcategories, localAdditions]);
 
   const categoriesById = useMemo(() => {
     const map = new Map<number, CategoryRecordDto>();
@@ -174,7 +176,7 @@ export function CategorySubcategorySelect({
         return;
       }
 
-      setLocalSubcategories((current) =>
+      setLocalAdditions((current) =>
         current.some((subcategory) => subcategory.id === result.subcategory.id)
           ? current
           : [result.subcategory, ...current]
