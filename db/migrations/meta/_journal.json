@@ -106,6 +106,13 @@
       "when": 1781770873208,
       "tag": "0016_freiren_magical",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782039763784,
+      "tag": "0017_mac_gargan",
+      "breakpoints": true
     }
   ]
 }

@@ -35,6 +35,7 @@ export function CategorySubcategorySelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipFocusResetRef = useRef(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   const localSubcategories = useMemo(() => {
     const serverIds = new Set(subcategories.map((s) => s.id));
@@ -328,6 +329,30 @@ export function CategorySubcategorySelect({
     setHighlightedIndex(-1);
   }, [query, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    function updatePosition() {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOpen]);
+
   return (
     <div ref={containerRef} className="relative" onBlur={handleBlur}>
       <input type="hidden" name="categoryId" value={selectedCategoryId} />
@@ -347,10 +372,10 @@ export function CategorySubcategorySelect({
         placeholder="Type to find a category or subcategory..."
         className={cn(
           "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          selectedCategory && arrowIndex < 0 ? "sm:pr-32" : null
+          selectedCategory && !selectedSubcategoryId && arrowIndex < 0 ? "sm:pr-32" : null
         )}
       />
-      {selectedCategory && arrowIndex < 0 ? (
+      {selectedCategory && !selectedSubcategoryId && arrowIndex < 0 ? (
         <button
           type="button"
           onClick={handleAddSubcategoryHint}
@@ -360,7 +385,7 @@ export function CategorySubcategorySelect({
         </button>
       ) : null}
       {isOpen ? (
-        <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-sm shadow-md">
+        <ul style={dropdownStyle} className="max-h-64 overflow-auto rounded-md border border-border bg-popover p-1 text-sm shadow-md">
           {expenseSuggestions.length ? (
             <>
               <li className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Expense</li>

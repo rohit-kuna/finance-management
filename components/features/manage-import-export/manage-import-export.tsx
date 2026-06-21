@@ -554,18 +554,21 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   const unresolvedCounterparties = counterpartyMappings.filter((mapping) => !mapping.hasMatch).length;
   const unresolvedCategories = categoryChecks.filter((check) => !check.hasMatch).length;
   const unresolvedModes = modeChecks.filter((check) => !check.hasMatch).length;
+  // Org import: modes are auto-resolved per user, so unresolved modes don't block import.
   const hasUnresolvedLookups =
-    unresolvedCategories > 0 || unresolvedCounterparties > 0 || unresolvedModes > 0;
+    unresolvedCategories > 0 ||
+    unresolvedCounterparties > 0 ||
+    (!isOrganizationScope && unresolvedModes > 0);
 
   const modeColumnMapped = Boolean(selectedColumns.mode);
   const subcategoryColumnMapped = Boolean(selectedColumns.subcategories);
   const tagColumnMapped = Boolean(selectedColumns.tags);
   const categoryStepLabel = isOrganizationScope ? "Step 2" : "Step 1";
   const counterpartyStepLabel = isOrganizationScope ? "Step 3" : "Step 2";
-  const modeStepLabel = isOrganizationScope ? "Step 4" : "Step 3";
-  const subcategoryStepLabel = isOrganizationScope ? "Step 5" : "Step 4";
-  const tagStepLabel = isOrganizationScope ? "Step 6" : "Step 5";
-  const previewStepLabel = isOrganizationScope ? "Step 7" : "Step 6";
+  const modeStepLabel = isOrganizationScope ? "" : "Step 3";
+  const subcategoryStepLabel = isOrganizationScope ? "Step 4" : "Step 4";
+  const tagStepLabel = isOrganizationScope ? "Step 5" : "Step 5";
+  const previewStepLabel = isOrganizationScope ? "Step 6" : "Step 6";
 
   const resolvedPreviewRows = resolvedRows.slice(0, 10);
 
@@ -1063,7 +1066,21 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   </div>
 
-                  {modeColumnMapped ? (
+                  {isOrganizationScope ? (
+                    modeColumnMapped ? (
+                      <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
+                        <p className="font-medium text-foreground">Modes are matched automatically per user.</p>
+                        <p className="mt-1">
+                          Each mode name in the sheet is matched to the corresponding user&apos;s existing mode.
+                          If a mode does not exist for a user, it will be created automatically during import.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
+                        No mode column is mapped — each row will use that user&apos;s default transaction mode.
+                      </div>
+                    )
+                  ) : modeColumnMapped ? (
                     <div className="space-y-4">
                     <SectionTitle
                       eyebrow={modeStepLabel}

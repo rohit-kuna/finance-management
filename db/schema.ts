@@ -175,7 +175,7 @@ export const financeTransactions = pgTable(
     transferStatus: varchar("transfer_status", { length: 10 }).$type<TransferStatus>(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     type: varchar("type", { length: 10 }).notNull().default("expense").$type<ExpenseType>(),
-    necessityScore: smallint("necessity_score").notNull().default(1),
+    necessityScore: smallint("necessity_score").notNull().default(0),
     note: text("note"),
     transactionTimestamp: timestamp("transaction_timestamp", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -184,7 +184,7 @@ export const financeTransactions = pgTable(
   (table) => ({
     necessityScoreCheck: check(
       "finance_transactions_necessity_score_check",
-      sql`${table.necessityScore} >= 1 AND ${table.necessityScore} <= 5`
+      sql`${table.necessityScore} IN (-1, 0, 1)`
     ),
     exactDuplicateIdx: uniqueIndex("finance_transactions_exact_duplicate_unique").on(
       table.amount,

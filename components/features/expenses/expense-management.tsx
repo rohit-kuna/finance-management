@@ -29,6 +29,7 @@ import type { ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expen
 import { CategorySubcategorySelect } from "@/components/features/expenses/category-subcategory-select";
 import { TagMultiSelect } from "@/components/features/expenses/tag-multiselect";
 import { InlineEditRow } from "@/components/features/expenses/inline-edit-row";
+import { BulkAddSection } from "@/components/features/expenses/bulk-add-section";
 import {
   formatExpenseDate,
   toExpenseDateInputValue,
@@ -61,14 +62,20 @@ const expenseTypes = [
   { value: "income", label: "Income" },
 ] as const;
 
-const necessityScores = [1, 2, 3, 4, 5] as const;
+const necessityOptions = [
+  { value: -1, label: "Optional" },
+  { value: 0, label: "Default" },
+  { value: 1, label: "Important" },
+] as const;
 
 function formatMoney(amount: string) {
   return moneyFormatter.format(Number(amount));
 }
 
 function formatNecessityScore(score: number) {
-  return String(score);
+  if (score === -1) return "Optional";
+  if (score === 1) return "Important";
+  return "Default";
 }
 
 function formatTransactionModeLabel(mode: TransactionModeRecordDto) {
@@ -155,65 +162,30 @@ function FilterSelect({
   );
 }
 
-function NecessityScoreSlider({ defaultValue }: { defaultValue: number }) {
+function NecessityScoreToggle({ defaultValue }: { defaultValue: number }) {
   const [value, setValue] = useState(defaultValue);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-  const scores = [1, 2, 3, 4, 5] as const;
-
-  function valueFromClientX(clientX: number) {
-    if (!containerRef.current) return value;
-    const { left, width } = containerRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - left) / width));
-    return Math.max(1, Math.min(5, Math.round(ratio * 4) + 1)) as 1 | 2 | 3 | 4 | 5;
-  }
-
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    dragging.current = true;
-    containerRef.current?.setPointerCapture(e.pointerId);
-    setValue(valueFromClientX(e.clientX));
-  }
-
-  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragging.current) return;
-    setValue(valueFromClientX(e.clientX));
-  }
-
-  function handlePointerUp() {
-    dragging.current = false;
-  }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="expense-necessity">Necessity score <span className="text-destructive">*</span></Label>
-        <span className="text-sm text-muted-foreground">1 low → 5 high</span>
-      </div>
+      <Label htmlFor="expense-necessity">
+        Necessity <span className="text-destructive">*</span>
+      </Label>
       <input type="hidden" id="expense-necessity" name="necessityScore" value={value} />
-      <div
-        ref={containerRef}
-        className="relative flex h-9 cursor-pointer select-none items-center justify-between rounded-full border border-border bg-background px-1"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        <div
-          className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary/20 transition-all duration-150"
-          style={{ width: `calc(${(value - 1) / 4} * (100% - 2.25rem) + 2rem)` }}
-        />
-        {scores.map((score) => (
-          <div key={score} className="relative z-10 flex items-center justify-center">
-            {score === value ? (
-              <span className="flex h-7 w-7 cursor-grab items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow active:cursor-grabbing">
-                {score}
-              </span>
-            ) : (
-              <span className="flex h-7 w-7 items-center justify-center text-sm text-muted-foreground transition-colors hover:text-foreground">
-                {score}
-              </span>
+      <div className="flex rounded-full border border-border bg-background p-0.5">
+        {necessityOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => setValue(option.value)}
+            className={cn(
+              "flex-1 rounded-full px-3 py-1.5 text-sm transition-colors",
+              value === option.value
+                ? "bg-primary text-primary-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground"
             )}
-          </div>
+          >
+            {option.label}
+          </button>
         ))}
       </div>
     </div>
@@ -370,7 +342,7 @@ export function ExpenseFormCard({
                 />
               </div>
             </div>
-            {isIncome ? <input type="hidden" name="necessityScore" value={5} /> : null}
+            {isIncome ? <input type="hidden" name="necessityScore" value={1} /> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Tags</Label>
@@ -378,7 +350,7 @@ export function ExpenseFormCard({
               </div>
               {!isIncome ? (
                 <div>
-                  <NecessityScoreSlider defaultValue={editingExpense?.necessityScore ?? 1} />
+                  <NecessityScoreToggle defaultValue={editingExpense?.necessityScore ?? 0} />
                 </div>
               ) : null}
             </div>
@@ -665,18 +637,14 @@ function ExpenseTable({
       },
       {
         accessorKey: "categoryName",
-        header: ({ column }) => <SortableHeader column={column} title="Category" />,
-        cell: ({ row }) => <span className="font-medium">{row.original.categoryName}</span>,
-      },
-      {
-        id: "subcategory",
-        header: "Subcategory",
-        cell: ({ row }) =>
-          row.original.subcategoryName ? (
-            <Badge variant="secondary">{row.original.subcategoryName}</Badge>
-          ) : (
-            "—"
-          ),
+        header: ({ column }) => <SortableHeader column={column} title="Category > Subcategory" />,
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {row.original.subcategoryName
+              ? `${row.original.categoryName} > ${row.original.subcategoryName}`
+              : row.original.categoryName}
+          </span>
+        ),
       },
       {
         accessorKey: "note",
@@ -796,11 +764,8 @@ function ExpenseTable({
               value={necessityFilter}
               onChange={setNecessityFilter}
               options={[
-                { value: "all", label: "All scores" },
-                ...necessityScores.map((score) => ({
-                  value: String(score),
-                  label: String(score),
-                })),
+                { value: "all", label: "All" },
+                ...necessityOptions.map((o) => ({ value: String(o.value), label: o.label })),
               ]}
             />
           </div>
@@ -899,9 +864,8 @@ function ExpenseTable({
 
 export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) {
   const [editingExpense, setEditingExpense] = useState<ExpenseRecordDto | null>(null);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
   const isAdmin = data.currentUser.role === "ADMIN";
-  const organizationName = data.organization?.name ?? "your organization";
-  const greetingName = data.currentUser.name || "there";
   const formRef = useRef<HTMLDivElement>(null);
 
   function handleEdit(expense: ExpenseRecordDto) {
@@ -913,12 +877,25 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
     <section className="space-y-6">
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="max-w-3xl text-3xl leading-tight tracking-tight">
-            <span className="block">Manage Your Transactions</span>
-          </CardTitle>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            Add a transaction quickly, then use filters and sorting to review your own spending.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="max-w-3xl text-3xl leading-tight tracking-tight">
+                <span className="block">Manage Your Transactions</span>
+              </CardTitle>
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                Add a transaction quickly, then use filters and sorting to review your own spending.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden md:inline-flex"
+              onClick={() => setShowBulkAdd((v) => !v)}
+            >
+              {showBulkAdd ? "Hide Bulk Add" : "Bulk Add"}
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 
@@ -934,6 +911,19 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
           onCancelEdit={() => setEditingExpense(null)}
         />
       </div>
+
+      {showBulkAdd && (
+        <div className="hidden md:block">
+          <BulkAddSection
+            categories={data.categories}
+            subcategories={data.subcategories}
+            counterparties={data.counterparties}
+            transactionModes={data.transactionModes}
+            tags={data.tags}
+            onClose={() => setShowBulkAdd(false)}
+          />
+        </div>
+      )}
 
       <ExpenseTable
         expenses={data.expenses}

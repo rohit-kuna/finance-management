@@ -50,7 +50,6 @@ export function InlineEditRow({
   const [tagIds, setTagIds] = useState<number[]>(expense.tagIds);
 
   const inferredType = categories.find((c) => c.id === categoryId)?.type ?? expense.type;
-  const selectedSubcategoryName = subcategories.find((s) => s.id === subcategoryId)?.name ?? null;
 
   function handleSave() {
     setError(null);
@@ -79,17 +78,12 @@ export function InlineEditRow({
   return (
     <TableRow className="bg-muted/20 hover:bg-muted/20" onClick={(e) => e.stopPropagation()}>
       {/* Date */}
-      <TableCell className="min-w-[130px] py-2">
-        <Input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="h-8 w-full"
-        />
+      <TableCell className="min-w-32.5 py-2">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-full" />
       </TableCell>
 
       {/* Amount */}
-      <TableCell className="min-w-[90px] py-2">
+      <TableCell className="min-w-22.5 py-2">
         <Input
           type="number"
           step="0.01"
@@ -100,13 +94,13 @@ export function InlineEditRow({
         />
       </TableCell>
 
-      {/* Type (read-only, derived from category) */}
+      {/* Type — read-only, derived from selected category */}
       <TableCell className="py-2">
         <Badge variant={inferredType === "income" ? "default" : "secondary"}>{inferredType}</Badge>
       </TableCell>
 
-      {/* Category + Subcategory (one combobox, controls both columns) */}
-      <TableCell className="min-w-[220px] py-2">
+      {/* Category + Subcategory — single combobox in "Category > Subcategory" format */}
+      <TableCell className="min-w-55 py-2">
         <CategorySubcategorySelect
           categories={categories}
           subcategories={subcategories}
@@ -120,32 +114,18 @@ export function InlineEditRow({
         />
       </TableCell>
 
-      {/* Subcategory (reactive display of what CategorySubcategorySelect picked) */}
-      <TableCell className="py-2">
-        {selectedSubcategoryName ? (
-          <Badge variant="secondary">{selectedSubcategoryName}</Badge>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        )}
-      </TableCell>
-
       {/* Note */}
-      <TableCell className="min-w-[140px] py-2">
-        <Input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Note…"
-          className="h-8 w-full"
-        />
+      <TableCell className="min-w-35 py-2">
+        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note…" className="h-8 w-full" />
       </TableCell>
 
       {/* Tags */}
-      <TableCell className="min-w-[160px] py-2">
+      <TableCell className="min-w-40 py-2">
         <TagMultiSelect tags={tags} defaultSelectedTagIds={tagIds} onTagsChange={setTagIds} />
       </TableCell>
 
       {/* Mode */}
-      <TableCell className="min-w-[110px] py-2">
+      <TableCell className="min-w-27.5 py-2">
         <select value={modeId} onChange={(e) => setModeId(e.target.value)} className={selectClass}>
           {transactionModes.map((mode) => (
             <option key={mode.id} value={String(mode.id)}>
@@ -156,19 +136,16 @@ export function InlineEditRow({
       </TableCell>
 
       {/* Necessity */}
-      <TableCell className="min-w-[60px] py-2">
-        <Input
-          type="number"
-          min="1"
-          max="5"
-          value={necessity}
-          onChange={(e) => setNecessity(e.target.value)}
-          className="h-8 w-14"
-        />
+      <TableCell className="min-w-15 py-2">
+        <select value={necessity} onChange={(e) => setNecessity(e.target.value)} className={selectClass}>
+          <option value="-1">Optional</option>
+          <option value="0">Default</option>
+          <option value="1">Important</option>
+        </select>
       </TableCell>
 
       {/* Counterparty */}
-      <TableCell className="min-w-[120px] py-2">
+      <TableCell className="min-w-30 py-2">
         <select value={counterPartyId} onChange={(e) => setCounterPartyId(e.target.value)} className={selectClass}>
           <option value="">None</option>
           {counterparties.map((cp) => (
@@ -184,24 +161,10 @@ export function InlineEditRow({
         <div className="flex flex-col gap-1">
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              size="icon-sm"
-              onClick={handleSave}
-              disabled={pending}
-              title="Save"
-              aria-label="Save"
-            >
+            <Button type="button" size="icon-sm" onClick={handleSave} disabled={pending} title="Save" aria-label="Save">
               <Check className="size-4" />
             </Button>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              onClick={onCancel}
-              title="Cancel"
-              aria-label="Cancel"
-            >
+            <Button type="button" size="icon-sm" variant="outline" onClick={onCancel} title="Cancel" aria-label="Cancel">
               <X className="size-4" />
             </Button>
           </div>
