@@ -15,13 +15,13 @@ export const EXPORT_WORKBOOK_HEADERS = [
   "amount",
   "type",
   "category",
+  "subcategories",
   "note",
+  "tags",
+  "mode",
   "necessity_score",
   "user_name",
   "counter_party_name",
-  "mode",
-  "subcategories",
-  "tags",
 ] as const;
 
 export const USER_EXPORT_WORKBOOK_HEADERS = [
@@ -29,12 +29,12 @@ export const USER_EXPORT_WORKBOOK_HEADERS = [
   "amount",
   "type",
   "category",
+  "subcategories",
   "note",
+  "tags",
+  "mode",
   "necessity_score",
   "counter_party_name",
-  "mode",
-  "subcategories",
-  "tags",
 ] as const;
 
 const FIELD_ALIASES: Record<ImportWorkbookField, string[]> = {

@@ -35,7 +35,10 @@ const expenseSchema = z.object({
   ),
   transactionModeId: z.coerce.number().int().positive(),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
-  necessityScore: z.coerce.number().int().min(1, "Necessity score must be between 1 and 5").max(5),
+  necessityScore: z.coerce.number().int().refine(
+    (v) => v === -1 || v === 0 || v === 1,
+    { message: "Necessity must be -1 (Optional), 0 (Default), or 1 (Important)" }
+  ),
   note: z.string().trim().max(500).nullable(),
   subcategoryId: z.preprocess(
     (value) => (typeof value === "string" && value.trim() ? value : undefined),

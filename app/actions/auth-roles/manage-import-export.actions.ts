@@ -105,12 +105,12 @@ function parseAmount(value: string) {
 
 function parseNecessityScore(value: string) {
   if (!value.trim()) {
-    return 1;
+    return 0;
   }
 
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5) {
-    throw new Error(`Invalid necessity_score: ${value}`);
+  if (parsed !== -1 && parsed !== 0 && parsed !== 1) {
+    throw new Error(`Invalid necessity_score: "${value}". Must be -1 (Optional), 0 (Default), or 1 (Important)`);
   }
 
   return parsed;
