@@ -1176,6 +1176,16 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
     })
   );
 
+  // Per-user mode lookup: userId → Map<normalizedModeName, modeId>
+  const modeByUserAndName = new Map<string, Map<string, number>>();
+  members.forEach((member, index) => {
+    const userModes = memberTransactionModes[index] ?? [];
+    modeByUserAndName.set(
+      member.id,
+      new Map(userModes.map((m) => [normalizeWorkbookName(m.name), m.id]))
+    );
+  });
+
   const existingExpenseKeys = new Set(
     existingExpenses.map((expense) =>
       toDuplicateKey({
@@ -1320,42 +1330,7 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
     });
   });
 
-  const modeSelections = new Map<string, { modeId: number | null; error: string | null }>();
-  distinctModeNames.forEach((sheetModeName, index) => {
-    const selected = formData.get(`mode_map_${index}`);
-    const normalizedSheetModeName = normalizeWorkbookName(sheetModeName);
-
-    if (typeof selected !== "string" || !selected.trim()) {
-      modeSelections.set(normalizedSheetModeName, {
-        modeId: null,
-        error: `Create the transaction mode "${sheetModeName}" first, then map it here.`,
-      });
-      return;
-    }
-
-    const parsedModeId = Number.parseInt(selected.trim(), 10);
-    if (!Number.isInteger(parsedModeId)) {
-      modeSelections.set(normalizedSheetModeName, {
-        modeId: null,
-        error: `Invalid mode mapping for "${sheetModeName}"`,
-      });
-      return;
-    }
-
-    const existingMode = transactionModeById.get(parsedModeId);
-    if (!existingMode) {
-      modeSelections.set(normalizedSheetModeName, {
-        modeId: null,
-        error: `Mode "${sheetModeName}" no longer exists in your organization. Create it first, then refresh this page.`,
-      });
-      return;
-    }
-
-    modeSelections.set(normalizedSheetModeName, {
-      modeId: existingMode.id,
-      error: null,
-    });
-  });
+  // Modes are auto-resolved per user: no manual mapping step needed for org import.
 
   const importedExpenseSummaries = new Map<string, string>();
   const duplicateWarnings: string[] = [];
@@ -1432,21 +1407,13 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
 
     const modeSelectionValue = modeValue.trim();
     let resolvedModeForRow: { id: number; name: string; userId: string } | null = null;
-    if (modeSelectionValue) {
-      const normalizedModeName = normalizeWorkbookName(modeSelectionValue);
-      const modeSelection = modeSelections.get(normalizedModeName);
-      if (!modeSelection) {
-        issues.push(`Create the transaction mode "${modeSelectionValue}" first, then refresh and map it.`);
-      } else if (modeSelection.error !== null) {
-        issues.push(modeSelection.error as string);
-      } else if (modeSelection.modeId !== null) {
-        resolvedModeForRow = transactionModeById.get(modeSelection.modeId) ?? null;
-        if (resolvedModeForRow && userSelection && resolvedModeForRow.userId !== userSelection.userId) {
-          issues.push(
-            `Mode "${modeSelectionValue}" belongs to a different user than "${userNameValue}". Map it to a mode owned by that user.`
-          );
-        }
+    if (modeSelectionValue && userSelection) {
+      const userModeMap = modeByUserAndName.get(userSelection.userId);
+      const resolvedModeId = userModeMap?.get(normalizeWorkbookName(modeSelectionValue));
+      if (resolvedModeId !== undefined) {
+        resolvedModeForRow = transactionModeById.get(resolvedModeId) ?? null;
       }
+      // Mode not found → will be auto-created for this user during import; no validation issue.
     }
 
     let amount = "";
@@ -1539,7 +1506,7 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
   const hasValidationIssues = validatedRows.some((row) => row.issues.length > 0);
   if (hasValidationIssues) {
     return {
-      error: "Map every user, category, counterparty, and mode first, then try again",
+      error: "Map every user, category, and counterparty first, then try again",
       success: null,
       preview: annotatedPreview,
     };
@@ -1615,13 +1582,31 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
         let transactionModeId: number | null = null;
         let resolvedModeName: string | null = null;
         if (modeSelectionValue) {
-          const selectedMode = modeSelections.get(normalizeWorkbookName(modeSelectionValue));
-          if (!selectedMode || selectedMode.error || selectedMode.modeId === null) {
-            throw new Error(`Create the transaction mode "${modeSelectionValue}" first, then refresh and map it.`);
+          const normalizedModeName = normalizeWorkbookName(modeSelectionValue);
+          let userModeMap = modeByUserAndName.get(targetUserId);
+          let resolvedModeId = userModeMap?.get(normalizedModeName);
+
+          if (resolvedModeId === undefined) {
+            // Auto-create mode for this user
+            const [newMode] = await tx
+              .insert(transactionModes)
+              .values({ orgId, userId: targetUserId, name: modeSelectionValue, isDefault: false })
+              .returning();
+            if (newMode) {
+              if (!userModeMap) {
+                userModeMap = new Map();
+                modeByUserAndName.set(targetUserId, userModeMap);
+              }
+              userModeMap.set(normalizedModeName, newMode.id);
+              transactionModeById.set(newMode.id, { id: newMode.id, name: newMode.name, userId: targetUserId });
+              resolvedModeId = newMode.id;
+            }
           }
 
-          transactionModeId = selectedMode.modeId;
-          resolvedModeName = transactionModeById.get(selectedMode.modeId)?.name ?? null;
+          if (resolvedModeId !== undefined) {
+            transactionModeId = resolvedModeId;
+            resolvedModeName = transactionModeById.get(resolvedModeId)?.name ?? modeSelectionValue;
+          }
         } else if (defaultModeForUser) {
           transactionModeId = defaultModeForUser.id;
           resolvedModeName = defaultModeForUser.name;

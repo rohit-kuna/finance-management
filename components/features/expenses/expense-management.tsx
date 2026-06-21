@@ -890,6 +890,7 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
               type="button"
               variant="outline"
               size="sm"
+              className="hidden md:inline-flex"
               onClick={() => setShowBulkAdd((v) => !v)}
             >
               {showBulkAdd ? "Hide Bulk Add" : "Bulk Add"}
@@ -912,14 +913,16 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
       </div>
 
       {showBulkAdd && (
-        <BulkAddSection
-          categories={data.categories}
-          subcategories={data.subcategories}
-          counterparties={data.counterparties}
-          transactionModes={data.transactionModes}
-          tags={data.tags}
-          onClose={() => setShowBulkAdd(false)}
-        />
+        <div className="hidden md:block">
+          <BulkAddSection
+            categories={data.categories}
+            subcategories={data.subcategories}
+            counterparties={data.counterparties}
+            transactionModes={data.transactionModes}
+            tags={data.tags}
+            onClose={() => setShowBulkAdd(false)}
+          />
+        </div>
       )}
 
       <ExpenseTable
