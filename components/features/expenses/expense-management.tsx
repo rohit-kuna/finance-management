@@ -28,6 +28,7 @@ import type {
 import type { ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expense.types";
 import { CategorySubcategorySelect } from "@/components/features/expenses/category-subcategory-select";
 import { TagMultiSelect } from "@/components/features/expenses/tag-multiselect";
+import { InlineEditRow } from "@/components/features/expenses/inline-edit-row";
 import {
   formatExpenseDate,
   toExpenseDateInputValue,
@@ -496,6 +497,7 @@ function ExpenseRowActions({
           type="button"
           variant="outline"
           size="icon-sm"
+          className="md:hidden"
           onClick={() => onEdit(expense)}
           aria-label="Edit Transaction"
           title="Edit Transaction"
@@ -531,13 +533,21 @@ function ExpenseRowActions({
 
 function ExpenseTable({
   expenses,
+  categories,
+  subcategories,
+  counterparties,
   transactionModes,
+  tags,
   currentUserId,
   isAdmin,
   onEdit,
 }: {
   expenses: ExpenseRecordDto[];
+  categories: CategoryRecordDto[];
+  subcategories: SubcategoryRecordDto[];
+  counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
+  tags: TagRecordDto[];
   currentUserId: string;
   isAdmin: boolean;
   onEdit: (expense: ExpenseRecordDto) => void;
@@ -550,6 +560,13 @@ function ExpenseTable({
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "occurredAt", desc: true }]);
+  const [editingRowId, setEditingRowId] = useState<number | null>(null);
+
+  const tagsById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const tag of tags) map.set(tag.id, tag.name);
+    return map;
+  }, [tags]);
 
   const categoryOptions = useMemo(
     () => [
@@ -631,14 +648,9 @@ function ExpenseTable({
   const columns = useMemo<ColumnDef<ExpenseRecordDto>[]>(
     () => [
       {
-        accessorKey: "categoryName",
-        header: ({ column }) => <SortableHeader column={column} title="Category" />,
-        cell: ({ row }) => <span className="font-medium">{row.original.categoryName}</span>,
-      },
-      {
-        accessorKey: "counterPartyName",
-        header: "Counterparty",
-        cell: ({ row }) => row.original.counterPartyName ?? "—",
+        accessorKey: "occurredAt",
+        header: ({ column }) => <SortableHeader column={column} title="Date" />,
+        cell: ({ row }) => formatExpenseDate(row.original.occurredAt),
       },
       {
         accessorKey: "amount",
@@ -652,38 +664,9 @@ function ExpenseTable({
         cell: ({ row }) => <Badge variant="secondary">{row.original.type}</Badge>,
       },
       {
-        accessorKey: "transactionModeName",
-        header: ({ column }) => <SortableHeader column={column} title="Transaction mode" />,
-        cell: ({ row }) => <Badge variant="outline">{row.original.transactionModeName ?? "—"}</Badge>,
-      },
-      {
-        accessorKey: "transferStatus",
-        header: ({ column }) => <SortableHeader column={column} title="Transfer status" />,
-        cell: ({ row }) =>
-          row.original.counterPartyId ? (
-            <Badge variant={row.original.transferStatus === "settled" ? "secondary" : "outline"}>
-              {row.original.transferStatus ?? "open"}
-            </Badge>
-          ) : (
-            "—"
-          ),
-      },
-      {
-        accessorKey: "necessityScore",
-        header: ({ column }) => <SortableHeader column={column} title="Necessity" />,
-        cell: ({ row }) => <Badge variant="secondary">{formatNecessityScore(row.original.necessityScore)}</Badge>,
-      },
-      {
-        accessorKey: "occurredAt",
-        header: ({ column }) => <SortableHeader column={column} title="Date" />,
-        cell: ({ row }) => formatExpenseDate(row.original.occurredAt),
-      },
-      {
-        accessorKey: "note",
-        header: "Note",
-        cell: ({ row }) => (
-          <span className="block max-w-[280px] truncate text-muted-foreground">{row.original.note ?? "—"}</span>
-        ),
+        accessorKey: "categoryName",
+        header: ({ column }) => <SortableHeader column={column} title="Category" />,
+        cell: ({ row }) => <span className="font-medium">{row.original.categoryName}</span>,
       },
       {
         id: "subcategory",
@@ -696,18 +679,60 @@ function ExpenseTable({
           ),
       },
       {
-        id: "actions",
-        header: "Actions",
+        accessorKey: "note",
+        header: "Note",
         cell: ({ row }) => (
-          <ExpenseRowActions
-            expense={row.original}
-            onEdit={onEdit}
-            canManage={isAdmin || row.original.userId === currentUserId}
-          />
+          <span className="block max-w-[220px] truncate text-muted-foreground">{row.original.note ?? "—"}</span>
+        ),
+      },
+      {
+        id: "tags",
+        header: "Tags",
+        cell: ({ row }) => {
+          const names = row.original.tagIds.map((id) => tagsById.get(id)).filter(Boolean) as string[];
+          return names.length ? (
+            <div className="flex flex-wrap gap-1">
+              {names.map((name) => (
+                <Badge key={name} variant="outline" className="text-xs">
+                  {name}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            "—"
+          );
+        },
+      },
+      {
+        accessorKey: "transactionModeName",
+        header: ({ column }) => <SortableHeader column={column} title="Mode" />,
+        cell: ({ row }) => <Badge variant="outline">{row.original.transactionModeName ?? "—"}</Badge>,
+      },
+      {
+        accessorKey: "necessityScore",
+        header: ({ column }) => <SortableHeader column={column} title="Necessity" />,
+        cell: ({ row }) => <Badge variant="secondary">{formatNecessityScore(row.original.necessityScore)}</Badge>,
+      },
+      {
+        accessorKey: "counterPartyName",
+        header: "Counterparty",
+        cell: ({ row }) => row.original.counterPartyName ?? "—",
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <span onClick={(e) => e.stopPropagation()}>
+            <ExpenseRowActions
+              expense={row.original}
+              onEdit={onEdit}
+              canManage={isAdmin || row.original.userId === currentUserId}
+            />
+          </span>
         ),
       },
     ],
-    [currentUserId, isAdmin, onEdit]
+    [currentUserId, isAdmin, onEdit, tagsById]
   );
 
   const table = useReactTable({
@@ -810,13 +835,13 @@ function ExpenseTable({
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border">
-          <Table className="min-w-[1250px]">
+        <div className={cn("rounded-lg border", editingRowId === null ? "overflow-x-auto" : "overflow-visible")}>
+          <Table className="min-w-[1400px]">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className={cn(header.column.id === "actions" && "text-center")}>
+                    <TableHead key={header.id}>
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}
@@ -825,18 +850,38 @@ function ExpenseTable({
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(cell.column.id === "actions" && "align-top whitespace-nowrap text-left")}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
+                table.getRowModel().rows.map((row) => {
+                  const isEditing = editingRowId === row.original.id;
+                  return isEditing ? (
+                    <InlineEditRow
+                      key={row.id}
+                      expense={row.original}
+                      categories={categories}
+                      subcategories={subcategories}
+                      counterparties={counterparties}
+                      transactionModes={transactionModes}
+                      tags={tags}
+                      onCancel={() => setEditingRowId(null)}
+                    />
+                  ) : (
+                    <TableRow
+                      key={row.id}
+                      className="md:cursor-pointer"
+                      title="Click to edit"
+                      onClick={() => {
+                        if (window.matchMedia("(min-width: 768px)").matches) {
+                          setEditingRowId(row.original.id);
+                        }
+                      }}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="py-10 text-center text-muted-foreground">
@@ -892,7 +937,11 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
 
       <ExpenseTable
         expenses={data.expenses}
+        categories={data.categories}
+        subcategories={data.subcategories}
+        counterparties={data.counterparties}
         transactionModes={data.transactionModes}
+        tags={data.tags}
         currentUserId={data.currentUser.id}
         isAdmin={isAdmin}
         onEdit={handleEdit}
