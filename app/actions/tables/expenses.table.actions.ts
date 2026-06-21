@@ -1,6 +1,6 @@
 "use server";
 
-import { aliasedTable, desc, eq } from "drizzle-orm";
+import { aliasedTable, and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   categories,
@@ -84,7 +84,11 @@ function expenseSelectShape() {
 
 type ExpenseJoinRow = Parameters<typeof toExpenseDto>[0];
 
-export async function getExpensesByOrg(orgId: number, limit = 500): Promise<ExpenseRecordDto[]> {
+export async function getExpensesByOrg(orgId: number, limit = 500, userId?: string): Promise<ExpenseRecordDto[]> {
+  const whereClause = userId
+    ? and(eq(financeTransactions.orgId, orgId), eq(financeTransactions.userId, userId))
+    : eq(financeTransactions.orgId, orgId);
+
   const records: ExpenseJoinRow[] = await db
     .select(expenseSelectShape())
     .from(financeTransactions)
@@ -94,7 +98,7 @@ export async function getExpensesByOrg(orgId: number, limit = 500): Promise<Expe
     .leftJoin(transactionModes, eq(transactionModes.id, financeTransactions.transactionModeId))
     .leftJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
     .leftJoin(subcategories, eq(subcategories.id, financeTransactions.subcategoryId))
-    .where(eq(financeTransactions.orgId, orgId))
+    .where(whereClause)
     .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt))
     .limit(limit);
 

@@ -168,12 +168,9 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     getCounterpartiesByOrg(currentUser.orgId),
     getSubcategoriesByOrg(currentUser.orgId),
     getTagsByOrg(currentUser.orgId),
-    getExpensesByOrg(currentUser.orgId),
+    getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
     ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id),
   ]);
-  const visibleExpenses = currentUser.role === "ADMIN"
-    ? expenses
-    : expenses.filter((expense) => expense.userId === currentUser.id);
 
   return {
     organization: toOrganizationDto(organization),
@@ -182,7 +179,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     transactionModes,
     subcategories,
     tags,
-    expenses: visibleExpenses,
+    expenses,
     currentUser: {
       id: currentUser.id,
       name: currentUser.name,
@@ -215,14 +212,10 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
-    getExpensesByOrg(currentUser.orgId),
+    getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
     ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id),
   ]);
-  const visibleExpenses =
-    currentUser.role === "ADMIN"
-      ? expenses
-      : expenses.filter((expense) => expense.userId === currentUser.id);
-  const visibleTransfers = visibleExpenses.filter((expense) => expense.counterPartyId !== null);
+  const visibleTransfers = expenses.filter((expense) => expense.counterPartyId !== null);
 
   return {
     organization: toOrganizationDto(organization),

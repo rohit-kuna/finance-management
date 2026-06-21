@@ -15,12 +15,14 @@ export function CategorySubcategorySelect({
   defaultCategoryId,
   defaultSubcategoryId = null,
   onCategoryChange,
+  onSubcategoryChange,
 }: {
   categories: CategoryRecordDto[];
   subcategories: SubcategoryRecordDto[];
   defaultCategoryId: number;
   defaultSubcategoryId?: number | null;
   onCategoryChange: (categoryId: number) => void;
+  onSubcategoryChange?: (subcategoryId: number | null) => void;
 }) {
   const [localAdditions, setLocalAdditions] = useState<SubcategoryRecordDto[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCategoryId);
@@ -150,6 +152,7 @@ export function CategorySubcategorySelect({
     setSelectedCategoryId(categoryId);
     setSelectedSubcategoryId(null);
     onCategoryChange(categoryId);
+    onSubcategoryChange?.(null);
     setQuery("");
     setIsOpen(false);
   }
@@ -158,6 +161,7 @@ export function CategorySubcategorySelect({
     setSelectedCategoryId(categoryId);
     setSelectedSubcategoryId(subcategoryId);
     onCategoryChange(categoryId);
+    onSubcategoryChange?.(subcategoryId);
     setQuery("");
     setIsOpen(false);
   }

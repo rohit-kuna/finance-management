@@ -9,9 +9,11 @@ import { cn } from "@/lib/utils";
 export function TagMultiSelect({
   tags,
   defaultSelectedTagIds = [],
+  onTagsChange,
 }: {
   tags: TagRecordDto[];
   defaultSelectedTagIds?: number[];
+  onTagsChange?: (tagIds: number[]) => void;
 }) {
   const [localAdditions, setLocalAdditions] = useState<TagRecordDto[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>(defaultSelectedTagIds);
@@ -21,6 +23,16 @@ export function TagMultiSelect({
   const [createError, setCreateError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    onTagsChange?.(selectedTagIds);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTagIds]);
 
   const localTags = useMemo(() => {
     const serverIds = new Set(tags.map((t) => t.id));
