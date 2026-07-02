@@ -9,16 +9,16 @@ import { getCategoriesByOrg, getCategoryById } from "@/app/actions/tables/catego
 import {
   createExpenseRecord,
   deleteExpenseRecord,
-  getExpenseById,
+  getExpenseOwnershipRow,
   getExpensesByOrg,
   updateExpenseRecord,
 } from "@/app/actions/tables/expenses.table.actions";
 import {
+  counterpartyExistsInOrg,
   getCounterpartiesByOrg,
-  getCounterpartyById,
 } from "@/app/actions/tables/counterparties.table.actions";
-import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
-import { getTagsByOrg, setTransactionTags } from "@/app/actions/tables/tags.table.actions";
+import { getSubcategoriesByOrg, getSubcategoryByIdAndCategory } from "@/app/actions/tables/subcategories.table.actions";
+import { getTagsByOrg, getValidTagIdsByOrg, setTransactionTags } from "@/app/actions/tables/tags.table.actions";
 import {
   ensureDefaultTransactionModesForUser,
   getTransactionModeById,
@@ -26,6 +26,7 @@ import {
 import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
 import type { ExpensesDashboardDataDto, TransferDashboardDataDto } from "@/app/lib/expense.types";
 import { parseExpenseDate } from "@/app/lib/expense-date";
+import type { TransferStatus } from "@/db/schema";
 
 const expenseSchema = z.object({
   categoryId: z.coerce.number().int().positive(),
@@ -90,7 +91,7 @@ function toOrganizationDto(organization: Awaited<ReturnType<typeof getOrganizati
 }
 
 async function ensureExpenseOwnershipOrAdmin(expenseId: number, currentUser: Awaited<ReturnType<typeof requireUser>>) {
-  const expense = await getExpenseById(expenseId);
+  const expense = await getExpenseOwnershipRow(expenseId);
 
   if (!expense || expense.orgId !== currentUser.orgId) {
     return null;
@@ -112,21 +113,12 @@ async function resolveCounterpartyId(orgId: number, counterPartyId: number | nul
     return null;
   }
 
-  const counterparty = await getCounterpartyById(counterPartyId);
-  if (!counterparty || counterparty.orgId !== orgId) {
-    return null;
-  }
-
-  return counterparty.id;
+  const exists = await counterpartyExistsInOrg(counterPartyId, orgId);
+  return exists ? counterPartyId : null;
 }
 
 async function resolveTagIds(orgId: number, tagIds: number[]) {
-  if (!tagIds.length) return [];
-
-  const orgTags = await getTagsByOrg(orgId);
-  const validTagIds = new Set(orgTags.map((tag) => tag.id));
-
-  return tagIds.filter((tagId) => validTagIds.has(tagId));
+  return getValidTagIdsByOrg(orgId, tagIds);
 }
 
 async function resolveSubcategoryId(orgId: number, categoryId: number, subcategoryId: number | undefined) {
@@ -134,14 +126,8 @@ async function resolveSubcategoryId(orgId: number, categoryId: number, subcatego
     return null;
   }
 
-  const orgSubcategories = await getSubcategoriesByOrg(orgId);
-  const subcategory = orgSubcategories.find((candidate) => candidate.id === subcategoryId);
-
-  if (!subcategory || subcategory.categoryId !== categoryId) {
-    return undefined;
-  }
-
-  return subcategoryId;
+  const match = await getSubcategoryByIdAndCategory(subcategoryId, orgId, categoryId);
+  return match ? subcategoryId : undefined;
 }
 
 export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataDto> {
@@ -239,9 +225,9 @@ export async function createExpenseAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
+  console.time("createExpenseAction");
   const currentUser = await requireUser();
   const orgId = assertOrgId(currentUser);
-  await ensureDefaultTransactionModesForUser(orgId, currentUser.id);
 
   const parsed = expenseSchema.safeParse({
     categoryId: formData.get("categoryId"),
@@ -256,31 +242,32 @@ export async function createExpenseAction(
   });
 
   if (!parsed.success) {
+    console.timeEnd("createExpenseAction");
     return { error: parsed.error.issues[0]?.message ?? "Unable to create expense" };
   }
 
-  const [category, counterPartyId, transactionMode] = await Promise.all([
+  const [category, counterPartyId, transactionMode, subcategoryId, tagIds] = await Promise.all([
     getCategoryById(parsed.data.categoryId),
     resolveCounterpartyId(orgId, parsed.data.counterPartyId),
     getTransactionModeById(parsed.data.transactionModeId),
-  ]);
-
-  if (!category || category.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
-  }
-  if (parsed.data.counterPartyId != null && !counterPartyId) {
-    return { error: "Counterparty does not belong to your organization" };
-  }
-  if (!transactionMode || transactionMode.userId !== currentUser.id) {
-    return { error: "Transaction mode does not exist" };
-  }
-
-  const [subcategoryId, tagIds] = await Promise.all([
     resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId),
     resolveTagIds(orgId, parsed.data.tagIds),
   ]);
 
+  if (!category || category.orgId !== orgId) {
+    console.timeEnd("createExpenseAction");
+    return { error: "Category does not belong to your organization" };
+  }
+  if (parsed.data.counterPartyId != null && !counterPartyId) {
+    console.timeEnd("createExpenseAction");
+    return { error: "Counterparty does not belong to your organization" };
+  }
+  if (!transactionMode || transactionMode.userId !== currentUser.id) {
+    console.timeEnd("createExpenseAction");
+    return { error: "Transaction mode does not exist" };
+  }
   if (subcategoryId === undefined) {
+    console.timeEnd("createExpenseAction");
     return { error: "Subcategory does not belong to the selected category" };
   }
 
@@ -306,6 +293,7 @@ export async function createExpenseAction(
     await setTransactionTags(expense.id, tagIds);
   }
 
+  console.timeEnd("createExpenseAction");
   redirect(ROUTES.TRANSACTIONS);
 }
 
@@ -313,9 +301,9 @@ export async function updateExpenseAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
+  console.time("updateExpenseAction");
   const currentUser = await requireUser();
   const orgId = assertOrgId(currentUser);
-  await ensureDefaultTransactionModesForUser(orgId, currentUser.id);
 
   const parsed = expenseSchema.safeParse({
     categoryId: formData.get("categoryId"),
@@ -333,45 +321,48 @@ export async function updateExpenseAction(
   });
 
   if (!parsed.success) {
+    console.timeEnd("updateExpenseAction");
     return { error: parsed.error.issues[0]?.message ?? "Unable to update expense" };
   }
 
   if (!expenseIdResult.success) {
+    console.timeEnd("updateExpenseAction");
     return { error: "Expense is required" };
   }
 
   const expense = await ensureExpenseOwnershipOrAdmin(expenseIdResult.data.expenseId, currentUser);
   if (!expense) {
+    console.timeEnd("updateExpenseAction");
     return { error: "Expense does not belong to your organization" };
   }
 
-  const [category, counterPartyId, transactionMode] = await Promise.all([
+  const [category, counterPartyId, transactionMode, subcategoryId, tagIds] = await Promise.all([
     getCategoryById(parsed.data.categoryId),
     resolveCounterpartyId(orgId, parsed.data.counterPartyId),
     getTransactionModeById(parsed.data.transactionModeId),
-  ]);
-
-  if (!category || category.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
-  }
-  if (parsed.data.counterPartyId != null && !counterPartyId) {
-    return { error: "Counterparty does not belong to your organization" };
-  }
-  if (!transactionMode || transactionMode.userId !== currentUser.id) {
-    return { error: "Transaction mode does not exist" };
-  }
-
-  const [subcategoryId, tagIds] = await Promise.all([
     resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId),
     resolveTagIds(orgId, parsed.data.tagIds),
   ]);
 
+  if (!category || category.orgId !== orgId) {
+    console.timeEnd("updateExpenseAction");
+    return { error: "Category does not belong to your organization" };
+  }
+  if (parsed.data.counterPartyId != null && !counterPartyId) {
+    console.timeEnd("updateExpenseAction");
+    return { error: "Counterparty does not belong to your organization" };
+  }
+  if (!transactionMode || transactionMode.userId !== currentUser.id) {
+    console.timeEnd("updateExpenseAction");
+    return { error: "Transaction mode does not exist" };
+  }
   if (subcategoryId === undefined) {
+    console.timeEnd("updateExpenseAction");
     return { error: "Subcategory does not belong to the selected category" };
   }
 
   const expenseType = category.type;
-  const transferStatus = counterPartyId ? expense.transferStatus ?? "open" : null;
+  const transferStatus = counterPartyId ? (expense.transferStatus ?? "open") as TransferStatus : null;
 
   await updateExpenseRecord(expense.id, {
     categoryId: parsed.data.categoryId,
@@ -389,6 +380,7 @@ export async function updateExpenseAction(
 
   await setTransactionTags(expense.id, tagIds);
 
+  console.timeEnd("updateExpenseAction");
   redirect(ROUTES.TRANSACTIONS);
 }
 

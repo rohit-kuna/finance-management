@@ -1,6 +1,6 @@
 "use server";
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { counterParty } from "@/db/schema";
 import type { CounterpartyRecordDto } from "@/app/lib/finance.types";
@@ -22,6 +22,15 @@ export async function getCounterpartiesByOrg(orgId: number): Promise<Counterpart
     .where(eq(counterParty.orgId, orgId))
     .orderBy(desc(counterParty.createdAt));
   return records.map(toCounterpartyDto);
+}
+
+export async function counterpartyExistsInOrg(id: number, orgId: number): Promise<boolean> {
+  const [record] = await db
+    .select({ id: counterParty.id })
+    .from(counterParty)
+    .where(and(eq(counterParty.id, id), eq(counterParty.orgId, orgId)))
+    .limit(1);
+  return Boolean(record);
 }
 
 export async function getCounterpartyById(id: number) {

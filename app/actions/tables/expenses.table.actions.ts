@@ -107,6 +107,31 @@ export async function getExpensesByOrg(orgId: number, limit = 500, userId?: stri
   return records.map((record) => toExpenseDto({ ...record, tagIds: tagIdsByTransaction.get(record.id) ?? [] }));
 }
 
+export async function getExpenseOwnershipRow(id: number): Promise<{
+  id: number;
+  orgId: number;
+  userId: string;
+  transferStatus: string | null;
+  counterPartyId: number | null;
+  occurredAt: string;
+} | null> {
+  const [record] = await db
+    .select({
+      id: financeTransactions.id,
+      orgId: financeTransactions.orgId,
+      userId: financeTransactions.userId,
+      transferStatus: financeTransactions.transferStatus,
+      counterPartyId: financeTransactions.counterPartyId,
+      occurredAt: financeTransactions.transactionTimestamp,
+    })
+    .from(financeTransactions)
+    .where(eq(financeTransactions.id, id))
+    .limit(1);
+
+  if (!record) return null;
+  return { ...record, occurredAt: record.occurredAt.toISOString() };
+}
+
 export async function getExpenseById(id: number): Promise<ExpenseRecordDto | null> {
   const [record]: ExpenseJoinRow[] = await db
     .select(expenseSelectShape())
