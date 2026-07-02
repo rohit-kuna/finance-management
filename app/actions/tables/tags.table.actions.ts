@@ -1,6 +1,6 @@
 "use server";
 
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { tags, transactionTags } from "@/db/schema";
 import type { TagRecordDto } from "@/app/lib/finance.types";
@@ -41,6 +41,15 @@ export async function deleteTagRecord(id: number) {
   return record ?? null;
 }
 
+export async function getValidTagIdsByOrg(orgId: number, tagIds: number[]): Promise<number[]> {
+  if (!tagIds.length) return [];
+  const records = await db
+    .select({ id: tags.id })
+    .from(tags)
+    .where(and(inArray(tags.id, tagIds), eq(tags.orgId, orgId)));
+  return records.map((r) => r.id);
+}
+
 export async function getTagIdsForTransactions(transactionIds: number[]): Promise<Map<number, number[]>> {
   const map = new Map<number, number[]>();
   if (!transactionIds.length) return map;
@@ -66,9 +75,10 @@ export async function getTagIdsForTransactions(transactionIds: number[]): Promis
 }
 
 export async function setTransactionTags(transactionId: number, tagIds: number[]) {
-  await db.delete(transactionTags).where(eq(transactionTags.transactionId, transactionId));
-
-  if (!tagIds.length) return;
-
-  await db.insert(transactionTags).values(tagIds.map((tagId) => ({ transactionId, tagId })));
+  await db.transaction(async (tx) => {
+    await tx.delete(transactionTags).where(eq(transactionTags.transactionId, transactionId));
+    if (tagIds.length) {
+      await tx.insert(transactionTags).values(tagIds.map((tagId) => ({ transactionId, tagId })));
+    }
+  });
 }

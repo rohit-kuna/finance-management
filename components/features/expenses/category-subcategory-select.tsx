@@ -190,21 +190,34 @@ export function CategorySubcategorySelect({
     });
   }
 
+  function openDropdown() {
+    if (!containerRef.current) { setIsOpen(true); return; }
+    const rect = containerRef.current.getBoundingClientRect();
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    });
+    setIsOpen(true);
+  }
+
   function handleFocus() {
     if (skipFocusResetRef.current) {
       skipFocusResetRef.current = false;
-      setIsOpen(true);
+      openDropdown();
       return;
     }
     setQuery(displayValue);
-    setIsOpen(true);
+    openDropdown();
   }
 
   function handleAddSubcategoryHint() {
     if (!selectedCategory) return;
     skipFocusResetRef.current = true;
     setQuery(`${selectedCategory.name} > `);
-    setIsOpen(true);
+    openDropdown();
     inputRef.current?.focus();
   }
 
@@ -219,7 +232,7 @@ export function CategorySubcategorySelect({
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (!isOpen) {
-        setIsOpen(true);
+        openDropdown();
         return;
       }
       if (navigableCount > 0) {
@@ -231,7 +244,7 @@ export function CategorySubcategorySelect({
     if (event.key === "ArrowUp") {
       event.preventDefault();
       if (!isOpen) {
-        setIsOpen(true);
+        openDropdown();
         return;
       }
       if (navigableCount > 0) {
@@ -344,7 +357,6 @@ export function CategorySubcategorySelect({
       });
     }
 
-    updatePosition();
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("resize", updatePosition);
     return () => {
@@ -364,7 +376,7 @@ export function CategorySubcategorySelect({
         type="text"
         value={isOpen ? query : displayValue}
         onChange={(event) => {
-          if (!isOpen) setIsOpen(true);
+          if (!isOpen) openDropdown();
           setQuery(event.target.value);
         }}
         onFocus={handleFocus}
