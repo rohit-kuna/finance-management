@@ -25,16 +25,33 @@ export const syncUserWithDb = cache(async (clerkUser?: ClerkUser | null) => {
   const name =
     [resolvedClerkUser.firstName, resolvedClerkUser.lastName].filter(Boolean).join(" ") || email;
 
-  // Insert once; no-op for returning users.
-  await db
+  // Common case (every request after first-ever login): one round trip.
+  const [existingUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkUserId, resolvedClerkUserId))
+    .limit(1);
+
+  if (existingUser) {
+    return existingUser;
+  }
+
+  // First-time login only: insert then return the row directly.
+  const [insertedUser] = await db
     .insert(users)
     .values({
       clerkUserId: resolvedClerkUserId,
       email,
       name,
     })
-    .onConflictDoNothing({ target: users.clerkUserId });
+    .onConflictDoNothing({ target: users.clerkUserId })
+    .returning();
 
+  if (insertedUser) {
+    return insertedUser;
+  }
+
+  // Lost a race with a concurrent insert for the same user; fetch what won.
   const [user] = await db
     .select()
     .from(users)
