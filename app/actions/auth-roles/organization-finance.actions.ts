@@ -9,6 +9,7 @@ import {
   createCategoryRecord,
   deleteCategoryRecord,
   getCategoriesByOrg,
+  getCategoryByOrgAndName,
   getCategoryById,
   getCategoryUsageCounts,
   updateCategoryRecord,
@@ -187,9 +188,8 @@ export async function createCategoryAction(
   }
 
   const orgId = assertOrgId(currentUser);
-  const existingCategories = await getCategoriesByOrg(orgId);
 
-  if (existingCategories.some((category) => category.name.toLowerCase() === parsed.data.name.toLowerCase())) {
+  if (await getCategoryByOrgAndName(orgId, parsed.data.name)) {
     return { error: "Category already exists" };
   }
 

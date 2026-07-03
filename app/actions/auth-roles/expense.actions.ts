@@ -20,8 +20,8 @@ import {
 import { getSubcategoriesByOrg, getSubcategoryByIdAndCategory } from "@/app/actions/tables/subcategories.table.actions";
 import { getTagsByOrg, getValidTagIdsByOrg, setTransactionTags } from "@/app/actions/tables/tags.table.actions";
 import {
-  ensureDefaultTransactionModesForUser,
   getTransactionModeById,
+  getTransactionModesByUser,
 } from "@/app/actions/tables/transaction-modes.table.actions";
 import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
 import type { ExpensesDashboardDataDto, TransferDashboardDataDto } from "@/app/lib/expense.types";
@@ -158,7 +158,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     getSubcategoriesByOrg(currentUser.orgId),
     getTagsByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
-    ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id),
+    getTransactionModesByUser(currentUser.orgId, currentUser.id),
   ]);
 
   return {
@@ -202,7 +202,7 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
-    ensureDefaultTransactionModesForUser(currentUser.orgId, currentUser.id),
+    getTransactionModesByUser(currentUser.orgId, currentUser.id),
   ]);
   const visibleTransfers = expenses.filter((expense) => expense.counterPartyId !== null);
 

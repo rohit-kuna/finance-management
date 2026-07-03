@@ -1,11 +1,12 @@
 "use server";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizationMembers, organizations, users } from "@/db/schema";
 import { ROLES } from "@/app/lib/roles";
 import type { AppRole } from "@/app/lib/roles";
 import type { OrganizationMemberRecord } from "@/app/lib/admin-dashboard.types";
+import { ensureDefaultTransactionModesForUser } from "@/app/actions/tables/transaction-modes.table.actions";
 
 export async function getOrganizationMembership(orgId: number, userId: string) {
   const [membership] = await db
@@ -39,7 +40,7 @@ export async function addOrganizationMember(input: {
   role: AppRole;
   isDefault?: boolean;
 }) {
-  return db.transaction(async (tx) => {
+  const membership = await db.transaction(async (tx) => {
     if (input.isDefault) {
       await tx
         .update(organizationMembers)
@@ -47,7 +48,7 @@ export async function addOrganizationMember(input: {
         .where(eq(organizationMembers.userId, input.userId));
     }
 
-    const [membership] = await tx
+    const [inserted] = await tx
       .insert(organizationMembers)
       .values({
         orgId: input.orgId,
@@ -60,8 +61,15 @@ export async function addOrganizationMember(input: {
       })
       .returning();
 
-    return membership ?? null;
+    return inserted ?? null;
   });
+
+  if (membership) {
+    // One-time setup at membership creation, not on every dashboard read.
+    await ensureDefaultTransactionModesForUser(input.orgId, input.userId);
+  }
+
+  return membership;
 }
 
 export async function setDefaultOrganizationForUser(userId: string, orgId: number) {
@@ -110,10 +118,10 @@ export async function getOrganizationMembers(orgId: number): Promise<Organizatio
 }
 
 export async function getOrganizationAdminCount(orgId: number) {
-  const records = await db
-    .select({ role: organizationMembers.role })
+  const [record] = await db
+    .select({ count: count() })
     .from(organizationMembers)
-    .where(eq(organizationMembers.orgId, orgId));
+    .where(and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.role, ROLES.ADMIN)));
 
-  return records.filter((record) => record.role === ROLES.ADMIN).length;
+  return record?.count ?? 0;
 }

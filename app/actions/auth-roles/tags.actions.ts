@@ -7,6 +7,7 @@ import { ROUTES } from "@/app/lib/constants";
 import {
   createTagRecord,
   deleteTagRecord,
+  getTagByOrgAndName,
   getTagById,
   getTagsByOrg,
   updateTagRecord,
@@ -28,15 +29,6 @@ function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
   }
 
   return currentUser.orgId;
-}
-
-function normalizeTagName(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function findDuplicateTag(existingTags: TagRecordDto[], name: string, excludeTagId?: number) {
-  const normalizedName = normalizeTagName(name);
-  return existingTags.find((tag) => tag.id !== excludeTagId && normalizeTagName(tag.name) === normalizedName);
 }
 
 export async function getOrganizationTagsForAdmin() {
@@ -62,9 +54,8 @@ export async function createTagAction(
   }
 
   const orgId = assertOrgId(currentUser);
-  const existingTags = await getTagsByOrg(orgId);
 
-  if (findDuplicateTag(existingTags, parsed.data.name)) {
+  if (await getTagByOrgAndName(orgId, parsed.data.name)) {
     return { error: "Tag already exists" };
   }
 
@@ -100,8 +91,7 @@ export async function updateTagAction(
     return { error: "Tag does not belong to your organization" };
   }
 
-  const existingTags = await getTagsByOrg(orgId);
-  if (findDuplicateTag(existingTags, parsed.data.name, tag.id)) {
+  if (await getTagByOrgAndName(orgId, parsed.data.name, tag.id)) {
     return { error: "Tag already exists" };
   }
 
@@ -145,8 +135,7 @@ export async function createTagInline(name: string): Promise<{ tag: TagRecordDto
   }
 
   const orgId = assertOrgId(currentUser);
-  const existingTags = await getTagsByOrg(orgId);
-  const existingTag = findDuplicateTag(existingTags, parsed.data.name);
+  const existingTag = await getTagByOrgAndName(orgId, parsed.data.name);
 
   if (existingTag) {
     return { tag: existingTag };

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { tags, transactionTags } from "@/db/schema";
 import type { TagRecordDto } from "@/app/lib/finance.types";
@@ -41,6 +41,21 @@ export async function deleteTagRecord(id: number) {
   return record ?? null;
 }
 
+export async function getTagByOrgAndName(orgId: number, name: string, excludeId?: number) {
+  const [record] = await db
+    .select()
+    .from(tags)
+    .where(
+      and(
+        eq(tags.orgId, orgId),
+        sql`lower(${tags.name}) = lower(${name})`,
+        excludeId != null ? ne(tags.id, excludeId) : undefined
+      )
+    )
+    .limit(1);
+  return record ? toTagDto(record) : null;
+}
+
 export async function getValidTagIdsByOrg(orgId: number, tagIds: number[]): Promise<number[]> {
   if (!tagIds.length) return [];
   const records = await db
@@ -48,30 +63,6 @@ export async function getValidTagIdsByOrg(orgId: number, tagIds: number[]): Prom
     .from(tags)
     .where(and(inArray(tags.id, tagIds), eq(tags.orgId, orgId)));
   return records.map((r) => r.id);
-}
-
-export async function getTagIdsForTransactions(transactionIds: number[]): Promise<Map<number, number[]>> {
-  const map = new Map<number, number[]>();
-  if (!transactionIds.length) return map;
-
-  const records = await db
-    .select({
-      transactionId: transactionTags.transactionId,
-      tagId: transactionTags.tagId,
-    })
-    .from(transactionTags)
-    .where(inArray(transactionTags.transactionId, transactionIds));
-
-  for (const record of records) {
-    const existing = map.get(record.transactionId);
-    if (existing) {
-      existing.push(record.tagId);
-    } else {
-      map.set(record.transactionId, [record.tagId]);
-    }
-  }
-
-  return map;
 }
 
 export async function setTransactionTags(transactionId: number, tagIds: number[]) {

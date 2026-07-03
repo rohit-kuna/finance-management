@@ -10,7 +10,9 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const expenses = await getExpensesByOrg(data.currentUser.orgId);
+  // Exports must cover every transaction, not the UI's default page size —
+  // pass an explicit no-op limit rather than relying on getExpensesByOrg's default cap.
+  const expenses = await getExpensesByOrg(data.currentUser.orgId, Number.MAX_SAFE_INTEGER);
   const tagNameById = new Map(data.tags.map((tag) => [tag.id, tag.name]));
   const workbook = buildExpenseExportWorkbook(
     expenses.map((expense) => ({

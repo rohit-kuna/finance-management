@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { counterParty } from "@/db/schema";
 import type { CounterpartyRecordDto } from "@/app/lib/finance.types";
@@ -31,6 +31,21 @@ export async function counterpartyExistsInOrg(id: number, orgId: number): Promis
     .where(and(eq(counterParty.id, id), eq(counterParty.orgId, orgId)))
     .limit(1);
   return Boolean(record);
+}
+
+export async function getCounterpartyByOrgAndName(orgId: number, name: string, excludeId?: number) {
+  const [record] = await db
+    .select()
+    .from(counterParty)
+    .where(
+      and(
+        eq(counterParty.orgId, orgId),
+        sql`lower(${counterParty.name}) = lower(${name})`,
+        excludeId != null ? ne(counterParty.id, excludeId) : undefined
+      )
+    )
+    .limit(1);
+  return record ? toCounterpartyDto(record) : null;
 }
 
 export async function getCounterpartyById(id: number) {
