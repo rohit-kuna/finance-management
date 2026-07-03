@@ -13,6 +13,13 @@ if (!databaseUrl || typeof databaseUrl !== "string") {
 const pool = new Pool({
   connectionString: databaseUrl,
   ssl: databaseUrl.includes("supabase.com") ? { rejectUnauthorized: false } : false,
+  // Each serverless function instance gets its own pool sitting in front of
+  // Supabase's pgbouncer transaction pooler — keep max low so many concurrent
+  // instances don't collectively exhaust the pooler's connection budget, and
+  // fail fast on exhaustion instead of hanging (pg's default is 0 = forever).
+  max: 5,
+  idleTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 5_000,
 });
 
 export const db = drizzle(pool, { schema });

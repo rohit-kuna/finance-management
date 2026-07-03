@@ -1,6 +1,6 @@
 "use server";
 
-import { aliasedTable, and, desc, eq } from "drizzle-orm";
+import { aliasedTable, and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   categories,
@@ -8,9 +8,9 @@ import {
   financeTransactions,
   subcategories,
   transactionModes,
+  transactionTags,
   users,
 } from "@/db/schema";
-import { getTagIdsForTransactions } from "@/app/actions/tables/tags.table.actions";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
 import type { ExpenseType, TransferStatus } from "@/db/schema";
 
@@ -79,6 +79,12 @@ function expenseSelectShape() {
     transactionTimestamp: financeTransactions.transactionTimestamp,
     createdAt: financeTransactions.createdAt,
     updatedAt: financeTransactions.updatedAt,
+    tagIds: sql<number[]>`coalesce(
+      (select array_agg(${transactionTags.tagId})
+       from ${transactionTags}
+       where ${transactionTags.transactionId} = ${financeTransactions.id}),
+      '{}'
+    )`.as("tag_ids"),
   } as const;
 }
 
@@ -102,9 +108,7 @@ export async function getExpensesByOrg(orgId: number, limit = 500, userId?: stri
     .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt))
     .limit(limit);
 
-  const tagIdsByTransaction = await getTagIdsForTransactions(records.map((record) => record.id));
-
-  return records.map((record) => toExpenseDto({ ...record, tagIds: tagIdsByTransaction.get(record.id) ?? [] }));
+  return records.map((record) => toExpenseDto(record));
 }
 
 export async function getExpenseOwnershipRow(id: number): Promise<{
@@ -147,9 +151,7 @@ export async function getExpenseById(id: number): Promise<ExpenseRecordDto | nul
 
   if (!record) return null;
 
-  const tagIdsByTransaction = await getTagIdsForTransactions([record.id]);
-
-  return toExpenseDto({ ...record, tagIds: tagIdsByTransaction.get(record.id) ?? [] });
+  return toExpenseDto(record);
 }
 
 export async function formatExpenseRecordSummary(expense: ExpenseRecordDto) {

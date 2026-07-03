@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { AlertCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +20,15 @@ import {
   updateSubcategoryAction,
 } from "@/app/actions/auth-roles/subcategories.actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { CategoryHierarchyChart } from "@/components/features/admin/category-hierarchy-chart";
 import { ROUTES } from "@/app/lib/constants";
+
+const CategoryHierarchyChart = dynamic(
+  () => import("@/components/features/admin/category-hierarchy-chart").then((mod) => mod.CategoryHierarchyChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 w-full animate-pulse rounded-2xl border bg-muted/20" />,
+  }
+);
 
 function ActionError({ message }: { message: string | null }) {
   if (!message) return null;

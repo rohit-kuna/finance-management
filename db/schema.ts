@@ -193,14 +193,12 @@ export const financeTransactions = pgTable(
       sql`coalesce(${table.note}, '')`,
       table.transactionTimestamp
     ),
-    orgIdx: index("finance_transactions_org_id_idx").on(table.orgId),
-    userIdx: index("finance_transactions_user_id_idx").on(table.userId),
     categoryIdx: index("finance_transactions_category_id_idx").on(table.categoryId),
-    counterPartyIdx: index("finance_transactions_counter_party_id_idx").on(table.counterPartyId),
-    transactionModeIdx: index("finance_transactions_transaction_mode_id_idx").on(table.transactionModeId),
-    subcategoryIdx: index("finance_transactions_subcategory_id_idx").on(table.subcategoryId),
-    transferStatusIdx: index("finance_transactions_transfer_status_idx").on(table.transferStatus),
-    occurredAtIdx: index("finance_transactions_occurred_at_idx").on(table.transactionTimestamp),
+    orgTimestampIdx: index("finance_transactions_org_id_transaction_timestamp_idx").on(
+      table.orgId,
+      table.transactionTimestamp.desc()
+    ),
+    orgUserIdx: index("finance_transactions_org_id_user_id_idx").on(table.orgId, table.userId),
   })
 );
 

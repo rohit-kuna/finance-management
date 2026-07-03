@@ -1,6 +1,6 @@
 "use server";
 
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { budget, categories, financeTransactions, type CategoryType } from "@/db/schema";
 import type { CategoryRecordDto } from "@/app/lib/finance.types";
@@ -24,6 +24,21 @@ export async function getCategoriesByOrg(orgId: number): Promise<CategoryRecordD
     .where(eq(categories.orgId, orgId))
     .orderBy(desc(categories.createdAt));
   return records.map(toCategoryDto);
+}
+
+export async function getCategoryByOrgAndName(orgId: number, name: string, excludeId?: number) {
+  const [record] = await db
+    .select()
+    .from(categories)
+    .where(
+      and(
+        eq(categories.orgId, orgId),
+        sql`lower(${categories.name}) = lower(${name})`,
+        excludeId != null ? ne(categories.id, excludeId) : undefined
+      )
+    )
+    .limit(1);
+  return record ? toCategoryDto(record) : null;
 }
 
 export async function getCategoryById(id: number) {

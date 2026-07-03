@@ -11,7 +11,10 @@ import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.tabl
 import { formatExpenseRecordSummary, getExpensesByOrg } from "@/app/actions/tables/expenses.table.actions";
 import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
 import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
-import { getTransactionModesByUser } from "@/app/actions/tables/transaction-modes.table.actions";
+import {
+  getTransactionModesByUser,
+  getTransactionModesByUsers,
+} from "@/app/actions/tables/transaction-modes.table.actions";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
 import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import type {
@@ -430,16 +433,16 @@ async function importUserScopedExpensesFromWorkbookAction(
 
   const orgId = currentUser.orgId;
 
-  const [orgCategories, orgCounterparties, orgSubcategories, orgTags, existingExpenses, userTransactionModes] = await Promise.all([
-    getCategoriesByOrg(orgId),
-    getCounterpartiesByOrg(orgId),
-    getSubcategoriesByOrg(orgId),
-    getTagsByOrg(orgId),
-    getExpensesByOrg(orgId),
-    getTransactionModesByUser(orgId, currentUser.id),
-  ]);
-
-  const existingUserExpenses = existingExpenses.filter((expense) => expense.userId === currentUser.id);
+  const [orgCategories, orgCounterparties, orgSubcategories, orgTags, existingUserExpenses, userTransactionModes] =
+    await Promise.all([
+      getCategoriesByOrg(orgId),
+      getCounterpartiesByOrg(orgId),
+      getSubcategoriesByOrg(orgId),
+      getTagsByOrg(orgId),
+      // Dedup correctness requires every existing transaction, not the UI's default page size.
+      getExpensesByOrg(orgId, Number.MAX_SAFE_INTEGER, currentUser.id),
+      getTransactionModesByUser(orgId, currentUser.id),
+    ]);
   const headerIndex = buildWorkbookHeaderIndex(payload.headers);
 
   const categoryMap = new Map<string, { id: number; name: string; type: string }>(
@@ -1037,10 +1040,10 @@ export async function getManageImportExportOrgData(): Promise<ManageImportExport
     getOrganizationMembers(orgId),
   ]);
 
-  const memberTransactionModes = await Promise.all(
-    members.map((member) => getTransactionModesByUser(orgId, member.id))
+  const transactionModes = await getTransactionModesByUsers(
+    orgId,
+    members.map((member) => member.id)
   );
-  const transactionModes = memberTransactionModes.flat();
 
   return {
     scope: "organization",
@@ -1153,14 +1156,15 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
     getCounterpartiesByOrg(orgId),
     getSubcategoriesByOrg(orgId),
     getTagsByOrg(orgId),
-    getExpensesByOrg(orgId),
+    // Dedup correctness requires every existing transaction, not the UI's default page size.
+    getExpensesByOrg(orgId, Number.MAX_SAFE_INTEGER),
     getOrganizationMembers(orgId),
   ]);
 
-  const memberTransactionModes = await Promise.all(
-    members.map((member) => getTransactionModesByUser(orgId, member.id))
+  const orgTransactionModes = await getTransactionModesByUsers(
+    orgId,
+    members.map((member) => member.id)
   );
-  const orgTransactionModes = memberTransactionModes.flat();
 
   const headerIndex = buildWorkbookHeaderIndex(payload.headers);
   const memberById = new Map(members.map((member) => [member.id, member]));
@@ -1168,9 +1172,20 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
   const transactionModeById = new Map<number, { id: number; name: string; userId: string }>(
     orgTransactionModes.map((mode) => [mode.id, { id: mode.id, name: mode.name, userId: mode.userId }])
   );
+
+  const modesByUserId = new Map<string, typeof orgTransactionModes>();
+  for (const mode of orgTransactionModes) {
+    const existing = modesByUserId.get(mode.userId);
+    if (existing) {
+      existing.push(mode);
+    } else {
+      modesByUserId.set(mode.userId, [mode]);
+    }
+  }
+
   const defaultTransactionModeByUserId = new Map<string, { id: number; name: string; userId: string } | null>(
-    members.map((member, index) => {
-      const memberModes = memberTransactionModes[index] ?? [];
+    members.map((member) => {
+      const memberModes = modesByUserId.get(member.id) ?? [];
       const defaultMode = memberModes.find((mode) => mode.isDefault) ?? memberModes[0] ?? null;
       return [member.id, defaultMode ? { id: defaultMode.id, name: defaultMode.name, userId: defaultMode.userId } : null];
     })
@@ -1178,8 +1193,8 @@ async function importOrganizationScopedExpensesFromWorkbookAction(
 
   // Per-user mode lookup: userId → Map<normalizedModeName, modeId>
   const modeByUserAndName = new Map<string, Map<string, number>>();
-  members.forEach((member, index) => {
-    const userModes = memberTransactionModes[index] ?? [];
+  members.forEach((member) => {
+    const userModes = modesByUserId.get(member.id) ?? [];
     modeByUserAndName.set(
       member.id,
       new Map(userModes.map((m) => [normalizeWorkbookName(m.name), m.id]))

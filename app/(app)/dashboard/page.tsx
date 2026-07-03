@@ -1,12 +1,12 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentDbUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getOrganizationsForUser } from "@/app/actions/tables/organization-members.table.actions";
-import { getExpensesDashboardData } from "@/app/actions/auth-roles/expense.actions";
+import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { OnboardingDashboard } from "@/components/features/onboarding/onboarding-dashboard";
-import { ExpenseFormCard } from "@/components/features/expenses/expense-management";
-import { ExpenseActivityChart } from "@/components/features/activity/activity-dashboard";
+import { DashboardContent, DashboardContentSkeleton } from "@/app/(app)/dashboard/dashboard-content";
 
 export default async function DashboardPage() {
   const user = await getCurrentDbUser();
@@ -37,11 +37,11 @@ export default async function DashboardPage() {
     );
   }
 
-  const data = await getExpensesDashboardData();
-  const greetingName = data.currentUser.name || "there";
-  const organizationName = data.organization?.name ?? "your organization";
-  const ownExpenses = data.expenses.filter((expense) => expense.userId === data.currentUser.id);
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  // Cheap, React-cache-deduped lookups — enough to render the shell without
+  // waiting on the heavy 7-query dashboard fetch (streamed below via Suspense).
+  const organization = await getOrganizationById(user.orgId);
+  const greetingName = user.name || "there";
+  const organizationName = organization?.name ?? "your organization";
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
@@ -59,16 +59,9 @@ export default async function DashboardPage() {
         </CardHeader>
       </Card>
 
-      <ExpenseFormCard
-        categories={data.categories}
-        counterparties={data.counterparties}
-        transactionModes={data.transactionModes}
-        subcategories={data.subcategories}
-        tags={data.tags}
-        editingExpense={null}
-      />
-
-      <ExpenseActivityChart expenses={ownExpenses} monthStart={currentMonth} monthEnd={currentMonth} />
+      <Suspense fallback={<DashboardContentSkeleton />}>
+        <DashboardContent />
+      </Suspense>
     </main>
   );
 }

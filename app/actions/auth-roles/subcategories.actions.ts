@@ -8,7 +8,7 @@ import { getCategoryById } from "@/app/actions/tables/categories.table.actions";
 import {
   createSubcategoryRecord,
   deleteSubcategoryRecord,
-  getSubcategoriesByOrg,
+  getSubcategoryByOrgCategoryAndName,
   getSubcategoryById,
   updateSubcategoryRecord,
 } from "@/app/actions/tables/subcategories.table.actions";
@@ -23,25 +23,6 @@ const subcategorySchema = z.object({
 const subcategoryIdSchema = z.object({
   subcategoryId: z.coerce.number().int().positive(),
 });
-
-function normalizeSubcategoryName(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function findDuplicateSubcategory(
-  existingSubcategories: SubcategoryRecordDto[],
-  categoryId: number,
-  name: string,
-  excludeSubcategoryId?: number
-) {
-  const normalizedName = normalizeSubcategoryName(name);
-  return existingSubcategories.find(
-    (subcategory) =>
-      subcategory.id !== excludeSubcategoryId &&
-      subcategory.categoryId === categoryId &&
-      normalizeSubcategoryName(subcategory.name) === normalizedName
-  );
-}
 
 function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
   if (!currentUser.orgId) {
@@ -76,8 +57,7 @@ export async function createSubcategoryAction(
     return { error: "Category does not belong to your organization" };
   }
 
-  const existingSubcategories = await getSubcategoriesByOrg(orgId);
-  if (findDuplicateSubcategory(existingSubcategories, parsed.data.categoryId, parsed.data.name)) {
+  if (await getSubcategoryByOrgCategoryAndName(orgId, parsed.data.categoryId, parsed.data.name)) {
     return { error: "Subcategory already exists for this category" };
   }
 
@@ -108,8 +88,7 @@ export async function createSubcategoryInline(
     return { error: "Category does not belong to your organization" };
   }
 
-  const existingSubcategories = await getSubcategoriesByOrg(orgId);
-  const existingSubcategory = findDuplicateSubcategory(existingSubcategories, parsed.data.categoryId, parsed.data.name);
+  const existingSubcategory = await getSubcategoryByOrgCategoryAndName(orgId, parsed.data.categoryId, parsed.data.name);
 
   if (existingSubcategory) {
     return { subcategory: existingSubcategory };
@@ -176,8 +155,9 @@ export async function updateSubcategoryAction(
     return { error: "Category does not belong to your organization" };
   }
 
-  const existingSubcategories = await getSubcategoriesByOrg(orgId);
-  if (findDuplicateSubcategory(existingSubcategories, parsed.data.categoryId, parsed.data.name, subcategory.id)) {
+  if (
+    await getSubcategoryByOrgCategoryAndName(orgId, parsed.data.categoryId, parsed.data.name, subcategory.id)
+  ) {
     return { error: "Subcategory already exists for this category" };
   }
 

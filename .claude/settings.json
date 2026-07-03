@@ -7,7 +7,18 @@
       "Bash(*)",
       "Bash(node -e ' *)",
       "Bash(getent ahosts *)",
-      "Bash(curl -s -6 -m 3 https://ifconfig.co)"
+      "Bash(curl -s -6 -m 3 https://ifconfig.co)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(timeout 180 npm run build)",
+      "Bash(curl -s -o /dev/null -w \"root: %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"sign-in: %{http_code}\\\\n\" http://localhost:3000/sign-in)",
+      "Bash(curl -sI http://localhost:3000/dashboard)",
+      "Bash(npx tsx *)",
+      "Bash(node -e \"require\\('dotenv/config'\\); console.log\\(process.env.DATABASE_URL\\)\")",
+      "Bash(npm run *)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(kill 48224)",
+      "Bash(kill 49434)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getActivityDashboardData } from "@/app/actions/auth-roles/activity.actions";
 import { ROUTES } from "@/app/lib/constants";
-import { ActivityDashboard } from "@/components/features/activity/activity-dashboard";
+import { ActivityDashboard } from "@/components/features/activity/activity-dashboard-dynamic";
 
 export default async function AnalyticsPage() {
   const data = await getActivityDashboardData();

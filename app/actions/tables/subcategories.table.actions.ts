@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { subcategories } from "@/db/schema";
 import type { SubcategoryRecordDto } from "@/app/lib/finance.types";
@@ -37,6 +37,27 @@ export async function getSubcategoryByIdAndCategory(
     .where(and(eq(subcategories.id, id), eq(subcategories.orgId, orgId), eq(subcategories.categoryId, categoryId)))
     .limit(1);
   return record ?? null;
+}
+
+export async function getSubcategoryByOrgCategoryAndName(
+  orgId: number,
+  categoryId: number,
+  name: string,
+  excludeId?: number
+): Promise<SubcategoryRecordDto | null> {
+  const [record] = await db
+    .select()
+    .from(subcategories)
+    .where(
+      and(
+        eq(subcategories.orgId, orgId),
+        eq(subcategories.categoryId, categoryId),
+        sql`lower(${subcategories.name}) = lower(${name})`,
+        excludeId != null ? ne(subcategories.id, excludeId) : undefined
+      )
+    )
+    .limit(1);
+  return record ? toSubcategoryDto(record) : null;
 }
 
 export async function getSubcategoryById(id: number) {

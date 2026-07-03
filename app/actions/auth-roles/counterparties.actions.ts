@@ -9,6 +9,7 @@ import {
   createCounterpartyRecord,
   deleteCounterpartyRecord,
   getCounterpartiesByOrg,
+  getCounterpartyByOrgAndName,
   getCounterpartyById,
   updateCounterpartyRecord,
 } from "@/app/actions/tables/counterparties.table.actions";
@@ -87,9 +88,8 @@ export async function createCounterpartyAction(
   }
 
   const orgId = assertOrgId(currentUser);
-  const existingCounterparties = await getCounterpartiesByOrg(orgId);
 
-  if (existingCounterparties.some((counterparty) => counterparty.name.toLowerCase() === parsed.data.name.toLowerCase())) {
+  if (await getCounterpartyByOrgAndName(orgId, parsed.data.name)) {
     return { error: "Counterparty already exists" };
   }
 
@@ -128,14 +128,7 @@ export async function updateCounterpartyAction(
     return { error: "Counterparty does not belong to your organization" };
   }
 
-  const existingCounterparties = await getCounterpartiesByOrg(orgId);
-  if (
-    existingCounterparties.some(
-      (existing) =>
-        existing.id !== counterparty.id &&
-        existing.name.toLowerCase() === parsed.data.name.toLowerCase()
-    )
-  ) {
+  if (await getCounterpartyByOrgAndName(orgId, parsed.data.name, counterparty.id)) {
     return { error: "Counterparty already exists" };
   }
 
