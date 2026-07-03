@@ -4,7 +4,10 @@
       "Bash(npx tsc *)",
       "Bash(npx eslint *)",
       "Bash(git stash *)",
-      "Bash(*)"
+      "Bash(*)",
+      "Bash(node -e ' *)",
+      "Bash(getent ahosts *)",
+      "Bash(curl -s -6 -m 3 https://ifconfig.co)"
     ]
   }
 }
