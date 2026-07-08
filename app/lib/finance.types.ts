@@ -92,6 +92,7 @@ export type OrganizationFinanceDataDto = {
     id: number;
     name: string;
     createdBy: string;
+    isPersonal: boolean;
     createdAt: string;
     updatedAt: string;
   } | null;

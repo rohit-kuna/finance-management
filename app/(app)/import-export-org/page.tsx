@@ -5,10 +5,7 @@ import { getManageImportExportOrgData } from "@/app/actions/auth-roles/manage-im
 import { ManageImportExport } from "@/components/features/manage-import-export/manage-import-export";
 
 export default async function ManageImportExportOrgPage() {
-  const currentUser = await requireUser();
-  if (currentUser.scope !== "shared") {
-    redirect(ROUTES.MANAGE_IMPORT_EXPORT);
-  }
+  await requireUser();
 
   const data = await getManageImportExportOrgData();
 

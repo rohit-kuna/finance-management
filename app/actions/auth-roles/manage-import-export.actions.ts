@@ -65,6 +65,7 @@ function toManageImportExportOrganizationDto(organization: Awaited<ReturnType<ty
     id: organization.id,
     name: organization.name,
     createdBy: organization.createdBy,
+    isPersonal: organization.isPersonal,
     createdAt: organization.createdAt.toISOString(),
     updatedAt: organization.updatedAt.toISOString(),
   };

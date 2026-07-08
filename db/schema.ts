@@ -32,9 +32,15 @@ export const organizations = pgTable("organizations", {
   name: varchar("name", { length: 255 }).notNull(),
   inviteCode: varchar("invite_code", { length: 64 }).notNull().unique(),
   createdBy: uuid("created_by").notNull().references((): AnyPgColumn => users.id),
+  isPersonal: boolean("is_personal").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+},
+(table) => ({
+  personalCreatedByUnique: uniqueIndex("organizations_personal_created_by_unique")
+    .on(table.createdBy)
+    .where(sql`${table.isPersonal}`),
+}));
 
 export const users = pgTable(
   "users",

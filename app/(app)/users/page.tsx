@@ -5,10 +5,7 @@ import { getAdminDashboardData } from "@/app/actions/auth-roles/admin.actions";
 import { MemberManagement } from "@/components/features/admin/member-management";
 
 export default async function UsersPage() {
-  const currentUser = await requireUser();
-  if (currentUser.scope !== "shared") {
-    redirect(ROUTES.DASHBOARD);
-  }
+  await requireUser();
 
   const data = await getAdminDashboardData();
 

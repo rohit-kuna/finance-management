@@ -35,7 +35,7 @@ export default async function ApplicationLayout({
     <>
       <AuthHeader
         role={user.role ?? ROLES.USER}
-        scope={user.scope}
+        isPersonalSpace={organization?.isPersonal ?? false}
         hasOrganization={Boolean(user.orgId)}
         organizationName={organization?.name ?? null}
         displayName={displayName}

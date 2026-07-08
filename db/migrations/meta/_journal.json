@@ -127,6 +127,20 @@
       "when": 1783365104742,
       "tag": "0019_colossal_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783468800000,
+      "tag": "0020_one_personal_space",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783527047698,
+      "tag": "0021_acoustic_scalphunter",
+      "breakpoints": true
     }
   ]
 }

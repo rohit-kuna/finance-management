@@ -10,6 +10,7 @@ import { buildInviteCode } from "@/app/lib/invite-code";
 import {
   createOrganizationRecord,
   getOrganizationByInviteCode,
+  getPersonalOrganizationForUser,
 } from "@/app/actions/tables/organizations.table.actions";
 import {
   addOrganizationMember,
@@ -98,6 +99,7 @@ export async function createOrganizationFromOnboardingAction(
     name: parsed.data.name,
     inviteCode: buildInviteCode(),
     createdBy: currentUser.id,
+    isPersonal: false,
   });
 
   if (!organization) {
@@ -128,11 +130,17 @@ export async function createOrganizationFromOnboardingAction(
 export async function createPersonalSpaceAction() {
   const currentUser = await requireUser();
   const memberships = await getOrganizationsForUser(currentUser.id);
+  const existingPersonalOrganization = await getPersonalOrganizationForUser(currentUser.id);
+
+  if (existingPersonalOrganization) {
+    throw new Error("You already have a personal space. Create a shared space instead.");
+  }
 
   const organization = await createOrganizationRecord({
     name: "My Space",
     inviteCode: buildInviteCode(),
     createdBy: currentUser.id,
+    isPersonal: true,
   });
 
   if (!organization) {
@@ -169,6 +177,7 @@ export async function choosePersonalScopeAction() {
     name: "My Space",
     inviteCode: buildInviteCode(),
     createdBy: currentUser.id,
+    isPersonal: true,
   });
 
   if (!organization) {

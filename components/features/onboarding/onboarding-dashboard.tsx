@@ -26,6 +26,7 @@ import { onboardingInitialState } from "@/app/actions/auth-roles/onboarding.type
 export type OnboardingOrganization = {
   orgId: number;
   orgName: string;
+  isPersonal: boolean;
   role: string;
   isDefault: boolean;
 };
@@ -57,8 +58,10 @@ function ActionError({ message }: { message: string | null }) {
 
 export function OnboardingDashboard({
   organizations = [],
+  hasPersonalOrganization = false,
 }: {
   organizations?: OnboardingOrganization[];
+  hasPersonalOrganization?: boolean;
 }) {
   const [joinState, joinAction, joinPending] = useActionState(
     joinOrganizationByInviteCodeAction,
@@ -69,6 +72,8 @@ export function OnboardingDashboard({
     onboardingInitialState
   );
   const [createSpaceType, setCreateSpaceType] = useState<"personal" | "shared">("shared");
+  const canCreatePersonalSpace = !hasPersonalOrganization;
+  const effectiveCreateSpaceType = canCreatePersonalSpace ? createSpaceType : "shared";
 
   return (
     <div className="space-y-6">
@@ -93,6 +98,9 @@ export function OnboardingDashboard({
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{org.orgName}</p>
+                    <Badge variant={org.isPersonal ? "outline" : "secondary"}>
+                      {org.isPersonal ? "Personal" : "Shared"}
+                    </Badge>
                     <Badge variant="secondary">{org.role}</Badge>
                     {org.isDefault && (
                       <Badge variant="success" className="gap-1">
@@ -124,113 +132,115 @@ export function OnboardingDashboard({
       )}
 
       <section className="grid gap-6 lg:grid-cols-2">
-      <Card className="py-2">
-        <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <KeyRound className="size-5" />
-          </div>
-          <CardTitle className="text-2xl tracking-tight">Join a space</CardTitle>
-          <CardDescription>
-            Enter an invite code to join an existing team and open the shared dashboard.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
-          <form action={joinAction} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="inviteCode">Invite code</Label>
-              <Input
-                id="inviteCode"
-                name="inviteCode"
-                placeholder="Paste invite code here"
-                autoComplete="off"
-                required
-              />
+        <Card className="py-2">
+          <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <KeyRound className="size-5" />
             </div>
-            <ActionError message={joinState.error} />
-            <SubmitButton pending={joinPending}>
-              {joinPending ? "Joining..." : "Join space"}
-            </SubmitButton>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card className="py-2">
-        <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <ShieldPlus className="size-5" />
-          </div>
-          <CardTitle className="text-2xl tracking-tight">
-            Create a new space
-          </CardTitle>
-          <CardDescription>
-            Start from scratch and become the admin.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
-          <div className="inline-flex rounded-lg border bg-muted/20 p-1">
-            <button
-              type="button"
-              onClick={() => setCreateSpaceType("personal")}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                createSpaceType === "personal"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground"
-              )}
-            >
-              Personal
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreateSpaceType("shared")}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                createSpaceType === "shared"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground"
-              )}
-            >
-              Shared
-            </button>
-          </div>
-
-          {createSpaceType === "personal" ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                A solo space called “My Space” — just for you, no invites needed.
-              </p>
-              <form action={createPersonalSpaceAction}>
-                <Button type="submit" className="w-full sm:w-auto">
-                  Create personal space
-                </Button>
-              </form>
-            </>
-          ) : (
-            <>
-              <form action={createAction} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Space name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="Acme Finance"
-                    autoComplete="organization"
-                    required
-                  />
-                </div>
-                <ActionError message={createState.error} />
-                <SubmitButton pending={createPending}>
-                  {createPending ? "Creating..." : "Create shared space"}
-                </SubmitButton>
-              </form>
-              <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-                After creation, you’ll land in the admin dashboard where you can manage members,
-                regenerate invite codes, and share the invite link.
+            <CardTitle className="text-2xl tracking-tight">Join a space</CardTitle>
+            <CardDescription>
+              Enter an invite code to join an existing team and open the shared dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
+            <form action={joinAction} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="inviteCode">Invite code</Label>
+                <Input
+                  id="inviteCode"
+                  name="inviteCode"
+                  placeholder="Paste invite code here"
+                  autoComplete="off"
+                  required
+                />
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              <ActionError message={joinState.error} />
+              <SubmitButton pending={joinPending}>
+                {joinPending ? "Joining..." : "Join space"}
+              </SubmitButton>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="py-2">
+          <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <ShieldPlus className="size-5" />
+            </div>
+            <CardTitle className="text-2xl tracking-tight">Create a new space</CardTitle>
+            <CardDescription>
+              {canCreatePersonalSpace
+                ? "Start from scratch and choose whether this one is personal or shared."
+                : "You already have a personal space, so any new space you create will be shared."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
+            {canCreatePersonalSpace ? (
+              <div className="inline-flex rounded-lg border bg-muted/20 p-1">
+                <button
+                  type="button"
+                  onClick={() => setCreateSpaceType("personal")}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    createSpaceType === "personal"
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  Personal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateSpaceType("shared")}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    createSpaceType === "shared"
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  Shared
+                </button>
+              </div>
+            ) : null}
+
+            {effectiveCreateSpaceType === "personal" ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  A solo space called “My Space” — just for you, no invites needed.
+                </p>
+                <form action={createPersonalSpaceAction}>
+                  <Button type="submit" className="w-full sm:w-auto">
+                    Create personal space
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <>
+                <form action={createAction} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Space name</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      placeholder="Acme Finance"
+                      autoComplete="organization"
+                      required
+                    />
+                  </div>
+                  <ActionError message={createState.error} />
+                  <SubmitButton pending={createPending}>
+                    {createPending ? "Creating..." : "Create shared space"}
+                  </SubmitButton>
+                </form>
+                <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                  After creation, you’ll land in the admin dashboard where you can manage members,
+                  regenerate invite codes, and share the invite link.
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

@@ -26,6 +26,7 @@ export default async function DashboardPage() {
 
   if (!user.orgId) {
     const organizations = await getOrganizationsForUser(user.id);
+    const hasPersonalOrganization = organizations.some((organization) => organization.isPersonal);
 
     return (
       <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">
@@ -36,14 +37,17 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-semibold tracking-tight">
             Welcome — let’s get your space set up
           </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Join an existing space with an invite code, or create a new one and become
-            its admin.
-          </p>
-        </div>
-        <OnboardingDashboard organizations={organizations} />
-      </main>
-    );
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Join an existing space with an invite code, or create a new one and become
+          its admin.
+        </p>
+      </div>
+      <OnboardingDashboard
+        organizations={organizations}
+        hasPersonalOrganization={hasPersonalOrganization}
+      />
+    </main>
+  );
   }
 
   // Cheap, React-cache-deduped lookups — enough to render the shell without

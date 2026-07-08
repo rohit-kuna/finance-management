@@ -15,6 +15,7 @@ function toOrganizationDto(organization: Awaited<ReturnType<typeof getOrganizati
     id: organization.id,
     name: organization.name,
     createdBy: organization.createdBy,
+    isPersonal: organization.isPersonal,
     createdAt: organization.createdAt.toISOString(),
     updatedAt: organization.updatedAt.toISOString(),
   };
@@ -34,7 +35,6 @@ export async function getActivityDashboardData(): Promise<ActivityDashboardDataD
         id: currentUser.id,
         role: currentUser.role,
         orgId: null,
-        scope: currentUser.scope,
       },
     };
   }
@@ -65,7 +65,6 @@ export async function getActivityDashboardData(): Promise<ActivityDashboardDataD
       id: currentUser.id,
       role: currentUser.role,
       orgId: currentUser.orgId,
-      scope: currentUser.scope,
     },
   };
 }

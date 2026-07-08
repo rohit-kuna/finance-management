@@ -16,7 +16,8 @@ export default async function BudgetsPage() {
       <BudgetManagement
         data={data}
         showFamilyBudgetSection={
-          data.currentUser.role === ROLES.ADMIN && data.currentUser.scope === "shared"
+          Boolean(data.organization && !data.organization.isPersonal) &&
+          data.currentUser.role === ROLES.ADMIN
         }
       />
     </main>

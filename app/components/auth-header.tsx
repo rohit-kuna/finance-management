@@ -5,7 +5,6 @@ import { useClerk } from "@clerk/nextjs";
 import { Menu } from "lucide-react";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES, type AppRole } from "@/app/lib/roles";
-import type { UserScope } from "@/db/schema";
 import { AppLogo } from "@/app/components/app-logo";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/ui/mode-toggle";
@@ -29,7 +28,7 @@ import {
 
 type AuthHeaderProps = {
   role: AppRole;
-  scope: UserScope | null;
+  isPersonalSpace: boolean;
   hasOrganization: boolean;
   organizationName?: string | null;
   displayName: string;
@@ -80,26 +79,6 @@ const adminSettingsGroups: HeaderNavGroup[] = [
   },
 ];
 
-const personalAdminSettingsGroups: HeaderNavGroup[] = [
-  {
-    label: "Settings",
-    items: [
-      { label: "Space", href: ROUTES.ORGANIZATION },
-      { label: "Categories", href: ROUTES.CATEGORIES },
-      { label: "Tags", href: ROUTES.TAGS },
-      { label: "Modes", href: ROUTES.TRANSACTION_MODES },
-      { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
-      { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
-    ],
-  },
-];
-
 const userTopNavItems: HeaderNavItem[] = [
   { label: "Transactions", href: ROUTES.TRANSACTIONS },
   { label: "Analytics", href: ROUTES.ANALYTICS },
@@ -112,6 +91,7 @@ const userSettingsGroups: HeaderNavGroup[] = [
     label: "Settings",
     items: [
       { label: "Subcategories", href: ROUTES.SUBCATEGORIES },
+      { label: "Tags", href: ROUTES.TAGS },
       { label: "Modes", href: ROUTES.TRANSACTION_MODES },
       { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
     ],
@@ -128,7 +108,7 @@ const userSettingsGroups: HeaderNavGroup[] = [
 function getNavConfig(
   role: AppRole,
   hasOrganization: boolean,
-  scope: UserScope | null
+  isPersonalSpace: boolean
 ): HeaderNavConfig {
   if (!hasOrganization) {
     return { topItems: [], settingsGroups: [] };
@@ -137,7 +117,7 @@ function getNavConfig(
   if (role === ROLES.ADMIN) {
     return {
       topItems: adminTopNavItems,
-      settingsGroups: scope === "shared" ? adminSettingsGroups : personalAdminSettingsGroups,
+      settingsGroups: adminSettingsGroups,
     };
   }
 
@@ -200,14 +180,14 @@ function SettingsMenu({ groups }: { groups: HeaderNavGroup[] }) {
 
 export function AuthHeader({
   role,
-  scope,
+  isPersonalSpace,
   hasOrganization,
   organizationName,
   displayName,
   initials,
 }: AuthHeaderProps) {
   const { signOut } = useClerk();
-  const { topItems, settingsGroups } = getNavConfig(role, hasOrganization, scope);
+  const { topItems, settingsGroups } = getNavConfig(role, hasOrganization, isPersonalSpace);
   const hasSettingsItems = settingsGroups.some((group) => group.items.length);
   const logoHref = ROUTES.DASHBOARD;
 

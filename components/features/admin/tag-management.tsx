@@ -69,7 +69,13 @@ function TagRow({ tag }: { tag: TagRecordDto }) {
   );
 }
 
-export function TagManagement({ tags }: { tags: TagRecordDto[] }) {
+export function TagManagement({
+  tags,
+  canManageTags = false,
+}: {
+  tags: TagRecordDto[];
+  canManageTags?: boolean;
+}) {
   const [createState, createAction, createPending] = useActionState(createTagAction, financeInitialState);
   const [query, setQuery] = useState("");
 
@@ -98,7 +104,7 @@ export function TagManagement({ tags }: { tags: TagRecordDto[] }) {
             </Button>
           </form>
           <p className="text-sm text-muted-foreground">
-            Only admin users can create, rename, or delete organization tags.
+            Anyone in the space can create tags. Admins can also rename or delete them.
           </p>
         </CardContent>
       </Card>
@@ -121,9 +127,13 @@ export function TagManagement({ tags }: { tags: TagRecordDto[] }) {
               </div>
               {filteredTags.length ? (
                 <div className="grid gap-3">
-                  {filteredTags.map((tag) => (
-                    <TagRow key={tag.id} tag={tag} />
-                  ))}
+                  {filteredTags.map((tag) =>
+                    canManageTags ? <TagRow key={tag.id} tag={tag} /> : (
+                      <div key={tag.id} className="rounded-lg border bg-muted/20 p-4">
+                        <p className="font-medium">{tag.name}</p>
+                      </div>
+                    )
+                  )}
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">

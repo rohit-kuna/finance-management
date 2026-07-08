@@ -1380,7 +1380,7 @@ export function ActivityDashboard({
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [chartQuery, setChartQuery] = useState("");
   const isAdmin = data.currentUser.role === "ADMIN";
-  const isPersonalScope = data.currentUser.scope !== "shared";
+  const isPersonalSpace = Boolean(data.organization?.isPersonal);
 
   const matchesChartQuery = (title: string) => {
     const loweredQuery = chartQuery.trim().toLowerCase();
@@ -1414,7 +1414,9 @@ export function ActivityDashboard({
         <CardHeader className="space-y-3 px-4 pt-6 sm:px-8 sm:pt-8">
           <CardTitle className="text-3xl tracking-tight">Analytics</CardTitle>
           <p className="max-w-4xl text-sm text-muted-foreground">
-            Visualize spending, income, and budget health with one shared set of filters.
+            {isPersonalSpace
+              ? "Visualize spending, income, and budget health for this personal space."
+              : "Visualize spending, income, and budget health with one shared set of filters."}
             {visibleData.organization ? ` Current workspace: ${visibleData.organization.name}.` : ""}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -1434,7 +1436,7 @@ export function ActivityDashboard({
           />
 
           <div className="grid gap-4 md:grid-cols-3 md:items-end">
-            {isPersonalScope ? null : (
+            {isPersonalSpace ? null : (
               <div className="space-y-2">
                 <Label htmlFor="activity-audience">Audience</Label>
                 <select

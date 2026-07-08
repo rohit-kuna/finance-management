@@ -80,6 +80,7 @@ export async function createOrganizationAction(formData: FormData) {
     name: parsed.data.name,
     inviteCode: buildInviteCode(),
     createdBy: currentUser.id,
+    isPersonal: false,
   });
 
   if (!organization) {
