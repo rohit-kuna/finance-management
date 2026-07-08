@@ -110,7 +110,7 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
   ]);
   const allocationSummaries = buildBudgetAllocationSummaries(budgets);
   const visibleBudgets = budgets.filter(
-    (budget) => budget.scope === "family" || (budget.scope === "personal" && budget.userId === currentUser.id)
+    (budget) => budget.scope === "shared" || (budget.scope === "personal" && budget.userId === currentUser.id)
   );
 
   return {
@@ -287,10 +287,10 @@ async function ensurePersonalBudgetOwnership(budgetId: number, currentUserId: st
   return budget;
 }
 
-async function ensureFamilyBudgetAdminAccess(budgetId: number, orgId: number) {
+async function ensureSharedBudgetAdminAccess(budgetId: number, orgId: number) {
   const budget = await getBudgetById(budgetId);
 
-  if (!budget || budget.orgId !== orgId || budget.scope !== "family") {
+  if (!budget || budget.orgId !== orgId || budget.scope !== "shared") {
     return null;
   }
 
@@ -337,7 +337,7 @@ export async function createPersonalBudgetAction(
   redirect(ROUTES.BUDGETS);
 }
 
-export async function createFamilyBudgetAction(
+export async function createSharedBudgetAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
@@ -350,7 +350,7 @@ export async function createFamilyBudgetAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to create family budget" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to create shared budget" };
   }
 
   const category = await getCategoryById(parsed.data.categoryId);
@@ -367,7 +367,7 @@ export async function createFamilyBudgetAction(
     orgId,
     userId: null,
     categoryId: parsed.data.categoryId,
-    scope: "family",
+    scope: "shared",
     amount: toMoneyString(parsed.data.amount),
     periodFrom: bounds.periodFrom,
     periodTo: bounds.periodTo,
@@ -425,7 +425,7 @@ export async function updatePersonalBudgetAction(
   redirect(ROUTES.BUDGETS);
 }
 
-export async function updateFamilyBudgetAction(
+export async function updateSharedBudgetAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
@@ -441,7 +441,7 @@ export async function updateFamilyBudgetAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to update family budget" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to update shared budget" };
   }
 
   if (!budgetIdResult.success) {
@@ -458,9 +458,9 @@ export async function updateFamilyBudgetAction(
 
   const bounds = getBudgetMonthBounds(parsed.data.month);
 
-  const budget = await ensureFamilyBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
+  const budget = await ensureSharedBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
   if (!budget) {
-    return { error: "Family budget does not belong to your organization" };
+    return { error: "Shared budget does not belong to your organization" };
   }
 
   await updateBudgetRecord(budget.id, {
@@ -496,7 +496,7 @@ export async function deletePersonalBudgetAction(
   redirect(ROUTES.BUDGETS);
 }
 
-export async function deleteFamilyBudgetAction(
+export async function deleteSharedBudgetAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
@@ -510,9 +510,9 @@ export async function deleteFamilyBudgetAction(
     return { error: "Budget is required" };
   }
 
-  const budget = await ensureFamilyBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
+  const budget = await ensureSharedBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
   if (!budget) {
-    return { error: "Family budget does not belong to your organization" };
+    return { error: "Shared budget does not belong to your organization" };
   }
 
   await deleteBudgetRecord(budget.id);

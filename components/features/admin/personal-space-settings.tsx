@@ -20,7 +20,7 @@ export function PersonalSpaceSettings({ data }: PersonalSpaceSettingsProps) {
       <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
         <p className="mb-4 text-sm text-muted-foreground">
           This is your personal space. Shared-space features like invite links, member
-          management, and family budgets stay hidden here.
+          management, and shared budgets stay hidden here.
         </p>
         <form action={updateOrganizationNameAction} className="space-y-3 rounded-lg border bg-muted/20 p-4">
           <div className="space-y-2">

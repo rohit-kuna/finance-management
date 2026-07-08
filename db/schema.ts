@@ -20,8 +20,8 @@ import {
 import { sql } from "drizzle-orm";
 import type { AppRole } from "@/app/lib/roles";
 
-export type BudgetScope = "personal" | "family";
 export type UserScope = "personal" | "shared";
+export type BudgetScope = UserScope;
 export type ExpenseType = "expense" | "income";
 export type CategoryType = ExpenseType;
 export type TransferStatus = "open" | "settled" | "closed";

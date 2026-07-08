@@ -35,7 +35,7 @@ export type BudgetAllocationSummaryDto = {
   monthLabel: string;
   periodFrom: string;
   periodTo: string;
-  familyBudget: BudgetRecordDto | null;
+  sharedBudget: BudgetRecordDto | null;
   personalBudgets: BudgetRecordDto[];
   personalTotal: string;
   availableCapacityAmount: string | null;

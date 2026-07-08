@@ -17,11 +17,11 @@ import type {
 } from "@/app/lib/finance.types";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
 import {
-  createFamilyBudgetAction,
+  createSharedBudgetAction,
   createPersonalBudgetAction,
-  deleteFamilyBudgetAction,
+  deleteSharedBudgetAction,
   deletePersonalBudgetAction,
-  updateFamilyBudgetAction,
+  updateSharedBudgetAction,
   updatePersonalBudgetAction,
 } from "@/app/actions/auth-roles/organization-finance.actions";
 
@@ -46,12 +46,12 @@ function formatMoney(amount: string) {
   return moneyFormatter.format(Number(amount));
 }
 
-function formatBudgetShare(amount: string, familyAmount: string) {
-  const familyValue = Number(familyAmount);
-  if (!familyValue) return "—";
+function formatBudgetShare(amount: string, sharedAmount: string) {
+  const sharedValue = Number(sharedAmount);
+  if (!sharedValue) return "—";
 
-  const sharePercent = Number(((Number(amount) / familyValue) * 100).toFixed(0));
-  return `${sharePercent}% of family budget`;
+  const sharePercent = Number(((Number(amount) / sharedValue) * 100).toFixed(0));
+  return `${sharePercent}% of shared budget`;
 }
 
 function getMemberName(memberLookup: Map<string, string>, userId: string | null) {
@@ -171,7 +171,7 @@ function PersonalBudgetRow({
   );
 }
 
-function FamilyBudgetRow({
+function SharedBudgetRow({
   budget,
   categories,
 }: {
@@ -179,11 +179,11 @@ function FamilyBudgetRow({
   categories: CategoryRecordDto[];
 }) {
   const [updateState, updateAction, updatePending] = useActionState(
-    updateFamilyBudgetAction,
+    updateSharedBudgetAction,
     financeInitialState
   );
   const [deleteState, deleteAction, deletePending] = useActionState(
-    deleteFamilyBudgetAction,
+    deleteSharedBudgetAction,
     financeInitialState
   );
 
@@ -247,7 +247,7 @@ function AllocationSummaryPanel({
   if (!summaries.length) {
     return (
       <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-        Add a family budget to see allocation summaries and overage warnings.
+        Add a shared budget to see allocation summaries and overage warnings.
       </div>
     );
   }
@@ -347,7 +347,7 @@ function PersonalBudgetSection({
   );
 }
 
-function FamilyBudgetSection({
+function SharedBudgetSection({
   categories,
   budgets,
 }: {
@@ -355,7 +355,7 @@ function FamilyBudgetSection({
   budgets: BudgetRecordDto[];
 }) {
   const [createState, createAction, createPending] = useActionState(
-    createFamilyBudgetAction,
+    createSharedBudgetAction,
     financeInitialState
   );
 
@@ -363,11 +363,11 @@ function FamilyBudgetSection({
     return (
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Family budgets</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">Shared budgets</CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            Create expense categories before adding family budgets.
+            Create expense categories before adding shared budgets.
           </div>
         </CardContent>
       </Card>
@@ -377,7 +377,7 @@ function FamilyBudgetSection({
   return (
     <Card className="py-2">
       <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-        <CardTitle className="text-2xl tracking-tight">Family budgets</CardTitle>
+        <CardTitle className="text-2xl tracking-tight">Shared budgets</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
         <form action={createAction} className="grid gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
@@ -386,17 +386,17 @@ function FamilyBudgetSection({
             <CategorySelect categories={categories} name="categoryId" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="family-amount">Amount</Label>
-            <Input id="family-amount" name="amount" type="number" min="1" step="0.01" placeholder="15000" required />
+            <Label htmlFor="shared-amount">Amount</Label>
+            <Input id="shared-amount" name="amount" type="number" min="1" step="0.01" placeholder="15000" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="family-month">Budget month</Label>
-            <MonthInput id="family-month" name="month" required />
+            <Label htmlFor="shared-month">Budget month</Label>
+            <MonthInput id="shared-month" name="month" required />
           </div>
           <div className="sm:col-span-2">
             <ActionError message={createState.error} />
             <Button type="submit" disabled={createPending} className="w-full sm:w-auto">
-              {createPending ? "Creating..." : "Create family budget"}
+              {createPending ? "Creating..." : "Create shared budget"}
             </Button>
           </div>
         </form>
@@ -404,11 +404,11 @@ function FamilyBudgetSection({
         <div className="grid gap-3">
           {budgets.length ? (
             budgets.map((budget) => (
-              <FamilyBudgetRow key={budget.id} budget={budget} categories={categories} />
+              <SharedBudgetRow key={budget.id} budget={budget} categories={categories} />
             ))
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-              No family budgets yet. Admins can add one for the organization.
+              No shared budgets yet. Admins can add one for the organization.
             </div>
           )}
         </div>
@@ -446,9 +446,9 @@ function SummaryCard({
       <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           <div className="rounded-lg border bg-muted/30 p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Family Budget</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Shared Budget</p>
             <p className="mt-2 text-lg font-semibold">
-              {summary.familyBudget ? formatMoney(summary.familyBudget.amount) : "—"}
+              {summary.sharedBudget ? formatMoney(summary.sharedBudget.amount) : "—"}
             </p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-4">
@@ -468,13 +468,13 @@ function SummaryCard({
         </div>
         {isOverBudget ? (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
-            ⚠ Family {summary.categoryName} budget exceeded by {formatMoney(summary.overageAmount ?? "0")}
+            ⚠ Shared {summary.categoryName} budget exceeded by {formatMoney(summary.overageAmount ?? "0")}
           </div>
         ) : null}
 
         <div className="rounded-lg border bg-muted/20 p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium">Family allocation details</p>
+            <p className="text-sm font-medium">Shared allocation details</p>
             <Badge variant="outline">{summary.personalBudgets.length} user(s)</Badge>
           </div>
           {summary.personalBudgets.length ? (
@@ -490,13 +490,13 @@ function SummaryCard({
                   </div>
                   <div className="text-sm text-muted-foreground sm:text-right">
                     <p className="font-medium text-foreground">{formatMoney(budget.amount)}</p>
-                    <p>{formatBudgetShare(budget.amount, summary.familyBudget?.amount ?? "0")}</p>
+                    <p>{formatBudgetShare(budget.amount, summary.sharedBudget?.amount ?? "0")}</p>
                   </div>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-3 text-sm text-muted-foreground">No personal budgets have been assigned to this family budget yet.</p>
+            <p className="mt-3 text-sm text-muted-foreground">No personal budgets have been assigned to this shared budget yet.</p>
           )}
         </div>
       </CardContent>
@@ -506,25 +506,25 @@ function SummaryCard({
 
 export function BudgetManagement({
   data,
-  showFamilyBudgetSection = true,
+  showSharedBudgetSection = true,
 }: {
   data: OrganizationFinanceDataDto;
-  showFamilyBudgetSection?: boolean;
+  showSharedBudgetSection?: boolean;
 }) {
   const expenseCategories = data.categories.filter((category) => category.type === "expense");
   const personalBudgets = data.budgets.filter(
     (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
   );
-  const familyBudgets = data.budgets.filter((budget) => budget.scope === "family");
+  const sharedBudgets = data.budgets.filter((budget) => budget.scope === "shared");
 
   return (
     <section className="space-y-6">
-      {showFamilyBudgetSection ? (
+      {showSharedBudgetSection ? (
         <Card className="py-2">
           <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
             <CardTitle className="text-3xl tracking-tight">Budgets & allocation</CardTitle>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Manage personal and family budgets here. Family budgets are soft constraints, so we always allow saving even when personal goals total more than the family target.
+              Manage personal and shared budgets here. Shared budgets are soft constraints, so we always allow saving even when personal goals total more than the shared target.
             </p>
           </CardHeader>
           <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
@@ -544,8 +544,8 @@ export function BudgetManagement({
 
       <PersonalBudgetSection categories={expenseCategories} budgets={personalBudgets} />
 
-      {showFamilyBudgetSection ? (
-        <FamilyBudgetSection categories={expenseCategories} budgets={familyBudgets} />
+      {showSharedBudgetSection ? (
+        <SharedBudgetSection categories={expenseCategories} budgets={sharedBudgets} />
       ) : null}
 
       {!expenseCategories.length ? (

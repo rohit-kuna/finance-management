@@ -70,7 +70,7 @@ const trendLegendItems = [
 ] as const;
 
 type NecessityScore = 1 | 2 | 3 | 4 | 5;
-type ActivityAudience = "personal" | "family" | `member:${string}`;
+type ActivityAudience = "personal" | "shared" | `member:${string}`;
 
 const necessityLabels: Record<NecessityScore, string> = {
   1: "Optional",
@@ -174,10 +174,10 @@ function FilterChip({
 }
 
 function getScopedActivityData(data: ActivityDashboardDataDto, audience: ActivityAudience) {
-  if (audience === "family") {
+  if (audience === "shared") {
     return {
       ...data,
-      budgets: data.budgets.filter((budget) => budget.scope === "family"),
+      budgets: data.budgets.filter((budget) => budget.scope === "shared"),
       expenses: data.expenses,
     };
   }
@@ -630,10 +630,10 @@ function BudgetVsActualChart({
                   content={
                     <OrderedLegend
                       items={
-                        audience === "family"
+                        audience === "shared"
                           ? [
-                              { label: "Family budget", color: "var(--color-chart-4)" },
-                              { label: "Family spend", color: "var(--color-chart-1)" },
+                              { label: "Shared budget", color: "var(--color-chart-4)" },
+                              { label: "Shared spend", color: "var(--color-chart-1)" },
                             ]
                           : budgetVsActualLegendItems
                       }
@@ -1446,9 +1446,9 @@ export function ActivityDashboard({
                   className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="personal">Personal</option>
-                  <option value="family">Family</option>
+                  <option value="shared">Shared</option>
                   {isAdmin ? (
-                    <optgroup label="Family members">
+                    <optgroup label="Shared members">
                       {data.members.map((member) => (
                         <option key={member.id} value={`member:${member.id}`}>
                           {member.id === data.currentUser.id ? `${member.name} (You)` : member.name}

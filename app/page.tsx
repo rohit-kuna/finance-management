@@ -113,7 +113,7 @@ export default async function HomePage() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                { label: "Budgets", value: "Plan monthly and family spend" },
+                { label: "Budgets", value: "Plan monthly and shared spend" },
                 { label: "Transactions", value: "Log and review every payment" },
                 { label: "Transfers", value: "Track settled and open balances" },
               ].map((item) => (
