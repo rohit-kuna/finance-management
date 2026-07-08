@@ -10,7 +10,6 @@ import {
   regenerateOrganizationInviteAction,
 } from "@/app/actions/auth-roles/admin.actions";
 import type { AdminDashboardData } from "@/app/lib/admin-dashboard.types";
-import { ROUTES } from "@/app/lib/constants";
 
 type OrganizationSettingsProps = {
   data: AdminDashboardData;
@@ -52,11 +51,11 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
                     Save name
                   </Button>
                 </div>
-              <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   This updates the space title shown in the header and dashboard.
-              </p>
-            </form>
-          </div>
+                </p>
+              </form>
+            </div>
           ) : (
             <form action={createOrganizationAction} className="space-y-4">
               <div className="space-y-2">
@@ -103,24 +102,6 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
               Create a space first to generate a shareable invite link.
             </div>
           )}
-          <Button asChild variant="ghost" className="px-0">
-            <Link href={ROUTES.SIGN_IN}>Review auth flow</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="py-2 lg:col-span-2">
-        <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Switch space</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
-          <p className="text-sm text-muted-foreground">
-            Belong to more than one space? Open a different space, join one with an
-            invite code, or create a new space.
-          </p>
-          <Button asChild className="mt-4 w-full sm:w-auto">
-            <Link href={ROUTES.SWITCH_ORGANIZATION}>Switch space</Link>
-          </Button>
         </CardContent>
       </Card>
     </section>
