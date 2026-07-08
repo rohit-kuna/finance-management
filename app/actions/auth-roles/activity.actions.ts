@@ -34,6 +34,7 @@ export async function getActivityDashboardData(): Promise<ActivityDashboardDataD
         id: currentUser.id,
         role: currentUser.role,
         orgId: null,
+        scope: currentUser.scope,
       },
     };
   }
@@ -64,6 +65,7 @@ export async function getActivityDashboardData(): Promise<ActivityDashboardDataD
       id: currentUser.id,
       role: currentUser.role,
       orgId: currentUser.orgId,
+      scope: currentUser.scope,
     },
   };
 }

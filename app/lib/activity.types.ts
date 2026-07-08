@@ -1,6 +1,7 @@
 import type { CategoryRecordDto, BudgetRecordDto } from "@/app/lib/finance.types";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
 import type { AppRole } from "@/app/lib/roles";
+import type { UserScope } from "@/db/schema";
 
 export type ActivityMemberDto = {
   id: string;
@@ -25,5 +26,6 @@ export type ActivityDashboardDataDto = {
     id: string;
     role: AppRole | null;
     orgId: number | null;
+    scope: UserScope | null;
   };
 };

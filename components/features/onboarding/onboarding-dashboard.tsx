@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, KeyRound, ShieldPlus, Star, Users } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   createOrganizationFromOnboardingAction,
+  createPersonalSpaceAction,
   joinOrganizationByInviteCodeAction,
   openOrganizationAction,
   setDefaultOrganizationAction,
@@ -66,6 +68,7 @@ export function OnboardingDashboard({
     createOrganizationFromOnboardingAction,
     onboardingInitialState
   );
+  const [createSpaceType, setCreateSpaceType] = useState<"personal" | "shared">("shared");
 
   return (
     <div className="space-y-6">
@@ -75,10 +78,10 @@ export function OnboardingDashboard({
             <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Users className="size-5" />
             </div>
-            <CardTitle className="text-2xl tracking-tight">Your organizations</CardTitle>
+            <CardTitle className="text-2xl tracking-tight">Your spaces</CardTitle>
             <CardDescription>
-              Open one of your existing organizations, or set one as your default landing
-              workspace.
+              Open one of your existing spaces, or set one as your default landing
+              space.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-6 sm:px-8 sm:pb-8">
@@ -126,7 +129,7 @@ export function OnboardingDashboard({
           <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
             <KeyRound className="size-5" />
           </div>
-          <CardTitle className="text-2xl tracking-tight">Join an organization</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">Join a space</CardTitle>
           <CardDescription>
             Enter an invite code to join an existing team and open the shared dashboard.
           </CardDescription>
@@ -145,7 +148,7 @@ export function OnboardingDashboard({
             </div>
             <ActionError message={joinState.error} />
             <SubmitButton pending={joinPending}>
-              {joinPending ? "Joining..." : "Join organization"}
+              {joinPending ? "Joining..." : "Join space"}
             </SubmitButton>
           </form>
         </CardContent>
@@ -157,33 +160,75 @@ export function OnboardingDashboard({
             <ShieldPlus className="size-5" />
           </div>
           <CardTitle className="text-2xl tracking-tight">
-            Create a new organization
+            Create a new space
           </CardTitle>
           <CardDescription>
-            Start from scratch, become the admin, and manage members from the admin dashboard.
+            Start from scratch and become the admin.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
-          <form action={createAction} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Organization name</Label>
-              <Input
-                id="name"
-                name="name"
-                placeholder="Acme Finance"
-                autoComplete="organization"
-                required
-              />
-            </div>
-            <ActionError message={createState.error} />
-            <SubmitButton pending={createPending}>
-              {createPending ? "Creating..." : "Create organization"}
-            </SubmitButton>
-          </form>
-          <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-            After creation, you’ll land in the admin dashboard where you can manage members,
-            regenerate invite codes, and share the invite link.
+          <div className="inline-flex rounded-lg border bg-muted/20 p-1">
+            <button
+              type="button"
+              onClick={() => setCreateSpaceType("personal")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                createSpaceType === "personal"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground"
+              )}
+            >
+              Personal
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateSpaceType("shared")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                createSpaceType === "shared"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground"
+              )}
+            >
+              Shared
+            </button>
           </div>
+
+          {createSpaceType === "personal" ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                A solo space called “My Space” — just for you, no invites needed.
+              </p>
+              <form action={createPersonalSpaceAction}>
+                <Button type="submit" className="w-full sm:w-auto">
+                  Create personal space
+                </Button>
+              </form>
+            </>
+          ) : (
+            <>
+              <form action={createAction} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Space name</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    placeholder="Acme Finance"
+                    autoComplete="organization"
+                    required
+                  />
+                </div>
+                <ActionError message={createState.error} />
+                <SubmitButton pending={createPending}>
+                  {createPending ? "Creating..." : "Create shared space"}
+                </SubmitButton>
+              </form>
+              <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                After creation, you’ll land in the admin dashboard where you can manage members,
+                regenerate invite codes, and share the invite link.
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
       </section>

@@ -105,7 +105,7 @@ export function TagManagement({ tags }: { tags: TagRecordDto[] }) {
 
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Organization tags</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">Space tags</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-4 pb-6 sm:px-8 sm:pb-8">
           {tags.length ? (

@@ -1,7 +1,15 @@
+import { redirect } from "next/navigation";
+import { requireUser } from "@/app/lib/auth";
+import { ROUTES } from "@/app/lib/constants";
 import { getAdminDashboardData } from "@/app/actions/auth-roles/admin.actions";
 import { MemberManagement } from "@/components/features/admin/member-management";
 
 export default async function UsersPage() {
+  const currentUser = await requireUser();
+  if (currentUser.scope !== "shared") {
+    redirect(ROUTES.DASHBOARD);
+  }
+
   const data = await getAdminDashboardData();
 
   return (

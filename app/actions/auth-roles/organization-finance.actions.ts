@@ -94,6 +94,7 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
         id: currentUser.id,
         role: currentUser.role,
         orgId: null,
+        scope: currentUser.scope,
       },
     };
   }
@@ -128,6 +129,7 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
       id: currentUser.id,
       role: currentUser.role,
       orgId: currentUser.orgId,
+      scope: currentUser.scope,
     },
   };
 }

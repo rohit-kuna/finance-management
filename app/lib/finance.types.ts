@@ -1,4 +1,4 @@
-import type { BudgetScope, CategoryType } from "@/db/schema";
+import type { BudgetScope, CategoryType, UserScope } from "@/db/schema";
 import type { AppRole } from "@/app/lib/roles";
 
 export type CategoryRecordDto = {
@@ -105,5 +105,6 @@ export type OrganizationFinanceDataDto = {
     id: string;
     role: AppRole | null;
     orgId: number | null;
+    scope: UserScope | null;
   };
 };

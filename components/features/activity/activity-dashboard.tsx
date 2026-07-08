@@ -1380,6 +1380,7 @@ export function ActivityDashboard({
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [chartQuery, setChartQuery] = useState("");
   const isAdmin = data.currentUser.role === "ADMIN";
+  const isPersonalScope = data.currentUser.scope !== "shared";
 
   const matchesChartQuery = (title: string) => {
     const loweredQuery = chartQuery.trim().toLowerCase();
@@ -1433,27 +1434,29 @@ export function ActivityDashboard({
           />
 
           <div className="grid gap-4 md:grid-cols-3 md:items-end">
-            <div className="space-y-2">
-              <Label htmlFor="activity-audience">Audience</Label>
-              <select
-                id="activity-audience"
-                value={audience}
-                onChange={(event) => setAudience(event.target.value as ActivityAudience)}
-                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="personal">Personal</option>
-                <option value="family">Family</option>
-                {isAdmin ? (
-                  <optgroup label="Family members">
-                    {data.members.map((member) => (
-                      <option key={member.id} value={`member:${member.id}`}>
-                        {member.id === data.currentUser.id ? `${member.name} (You)` : member.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-              </select>
-            </div>
+            {isPersonalScope ? null : (
+              <div className="space-y-2">
+                <Label htmlFor="activity-audience">Audience</Label>
+                <select
+                  id="activity-audience"
+                  value={audience}
+                  onChange={(event) => setAudience(event.target.value as ActivityAudience)}
+                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="personal">Personal</option>
+                  <option value="family">Family</option>
+                  {isAdmin ? (
+                    <optgroup label="Family members">
+                      {data.members.map((member) => (
+                        <option key={member.id} value={`member:${member.id}`}>
+                          {member.id === data.currentUser.id ? `${member.name} (You)` : member.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="activity-month-start">Month start</Label>

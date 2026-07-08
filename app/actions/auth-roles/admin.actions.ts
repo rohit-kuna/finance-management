@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin, requireUser, setActiveOrgCookie } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
-import { getUserById } from "@/app/actions/tables/users.table.actions";
+import { getUserById, setUserScope } from "@/app/actions/tables/users.table.actions";
 import {
   createOrganizationRecord,
   getOrganizationById,
@@ -194,6 +194,10 @@ export async function acceptOrganizationInvite(inviteCode: string) {
       isDefault: memberships.length === 0,
     });
     revalidatePath(ROUTES.DASHBOARD, "layout");
+  }
+
+  if (!currentUser.scope) {
+    await setUserScope(currentUser.id, "shared");
   }
 
   await setActiveOrgCookie(organization.id);

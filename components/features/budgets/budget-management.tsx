@@ -519,19 +519,28 @@ export function BudgetManagement({
 
   return (
     <section className="space-y-6">
-      <Card className="py-2">
-        <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-3xl tracking-tight">Budgets & allocation</CardTitle>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            {showFamilyBudgetSection
-              ? "Manage personal and family budgets here. Family budgets are soft constraints, so we always allow saving even when personal goals total more than the family target."
-              : "Manage your personal budgets here and keep an eye on shared allocation summaries."}
-          </p>
-        </CardHeader>
-        <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
-          <AllocationSummaryPanel summaries={data.allocationSummaries} members={data.members} />
-        </CardContent>
-      </Card>
+      {showFamilyBudgetSection ? (
+        <Card className="py-2">
+          <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
+            <CardTitle className="text-3xl tracking-tight">Budgets & allocation</CardTitle>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Manage personal and family budgets here. Family budgets are soft constraints, so we always allow saving even when personal goals total more than the family target.
+            </p>
+          </CardHeader>
+          <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
+            <AllocationSummaryPanel summaries={data.allocationSummaries} members={data.members} />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="py-2">
+          <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
+            <CardTitle className="text-3xl tracking-tight">Budgets</CardTitle>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Manage your personal budgets here.
+            </p>
+          </CardHeader>
+        </Card>
+      )}
 
       <PersonalBudgetSection categories={expenseCategories} budgets={personalBudgets} />
 

@@ -21,6 +21,7 @@ import { sql } from "drizzle-orm";
 import type { AppRole } from "@/app/lib/roles";
 
 export type BudgetScope = "personal" | "family";
+export type UserScope = "personal" | "shared";
 export type ExpenseType = "expense" | "income";
 export type CategoryType = ExpenseType;
 export type TransferStatus = "open" | "settled" | "closed";
@@ -42,11 +43,13 @@ export const users = pgTable(
     clerkUserId: varchar("clerk_user_id", { length: 255 }).notNull().unique(),
     email: varchar("email", { length: 255 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
+    scope: varchar("scope", { length: 10 }).$type<UserScope>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
     clerkUserIdx: index("users_clerk_user_id_idx").on(table.clerkUserId),
+    scopeCheck: check("users_scope_check", sql`${table.scope} IN ('personal', 'shared')`),
   })
 );
 

@@ -16,13 +16,13 @@ export function OrganizationOverview({ data }: OrganizationOverviewProps) {
       <Card className="py-2">
         <CardHeader className="space-y-3 px-4 pt-6 sm:px-8 sm:pt-8">
           <Badge variant="secondary" className="w-fit">
-            Organization
+            Space
           </Badge>
           <CardTitle className="text-3xl tracking-tight">
-            Manage your organization
+            Manage your space
           </CardTitle>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Create an organization, share invite codes, and keep roles aligned with the team
+            Create a space, share invite codes, and keep roles aligned with the team
             structure.
           </p>
         </CardHeader>
@@ -31,7 +31,7 @@ export function OrganizationOverview({ data }: OrganizationOverviewProps) {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Organization
+                  Space
                 </p>
                 <p className="mt-2 text-lg font-semibold">{data.organization.name}</p>
               </div>
@@ -46,9 +46,9 @@ export function OrganizationOverview({ data }: OrganizationOverviewProps) {
             </div>
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-6">
-              <p className="font-medium">No organization yet</p>
+              <p className="font-medium">No space yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Create the first organization to start sharing invite codes and managing access.
+                Create the first space to start sharing invite codes and managing access.
               </p>
             </div>
           )}

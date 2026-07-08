@@ -23,17 +23,17 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
     <section className="grid gap-6 lg:grid-cols-2">
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Organization setup</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">Space setup</CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           {data.organization ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Your organization is ready. Use the invite link below to add new members.
+                Your space is ready. Use the invite link below to add new members.
               </p>
               <form action={updateOrganizationNameAction} className="space-y-3 rounded-lg border bg-muted/20 p-4">
                 <div className="space-y-2">
-                  <Label htmlFor="organizationName">Organization name</Label>
+                  <Label htmlFor="organizationName">Space name</Label>
                   <Input
                     id="organizationName"
                     name="name"
@@ -55,7 +55,7 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
           ) : (
             <form action={createOrganizationAction} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Organization name</Label>
+                <Label htmlFor="name">Space name</Label>
                 <Input
                   id="name"
                   name="name"
@@ -64,7 +64,7 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
                   required
                 />
               </div>
-              <Button type="submit">Create organization</Button>
+              <Button type="submit">Create space</Button>
             </form>
           )}
         </CardContent>
@@ -90,12 +90,12 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
               </div>
               <p className="text-sm text-muted-foreground">
                 Share this link with teammates. When they sign in with Google or email through
-                Clerk, they will be attached to this organization.
+                Clerk, they will be attached to this space.
               </p>
             </>
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-              Create an organization first to generate a shareable invite link.
+              Create a space first to generate a shareable invite link.
             </div>
           )}
           <Button asChild variant="ghost" className="px-0">
@@ -106,15 +106,15 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
 
       <Card className="py-2 lg:col-span-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Switch organization</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">Switch space</CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           <p className="text-sm text-muted-foreground">
-            Belong to more than one organization? Open a different workspace, join one with an
-            invite code, or create a new organization.
+            Belong to more than one space? Open a different space, join one with an
+            invite code, or create a new space.
           </p>
           <Button asChild className="mt-4 w-full sm:w-auto">
-            <Link href={ROUTES.SWITCH_ORGANIZATION}>Switch organization</Link>
+            <Link href={ROUTES.SWITCH_ORGANIZATION}>Switch space</Link>
           </Button>
         </CardContent>
       </Card>

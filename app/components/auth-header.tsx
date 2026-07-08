@@ -5,6 +5,7 @@ import { useClerk } from "@clerk/nextjs";
 import { Menu } from "lucide-react";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES, type AppRole } from "@/app/lib/roles";
+import type { UserScope } from "@/db/schema";
 import { AppLogo } from "@/app/components/app-logo";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/ui/mode-toggle";
@@ -28,6 +29,7 @@ import {
 
 type AuthHeaderProps = {
   role: AppRole;
+  scope: UserScope | null;
   hasOrganization: boolean;
   organizationName?: string | null;
   displayName: string;
@@ -60,7 +62,7 @@ const adminSettingsGroups: HeaderNavGroup[] = [
   {
     label: "Settings",
     items: [
-      { label: "Organization", href: ROUTES.ORGANIZATION },
+      { label: "Space", href: ROUTES.ORGANIZATION },
       { label: "Users", href: ROUTES.USERS },
       { label: "Categories", href: ROUTES.CATEGORIES },
       { label: "Tags", href: ROUTES.TAGS },
@@ -72,8 +74,28 @@ const adminSettingsGroups: HeaderNavGroup[] = [
     label: "Tools",
     items: [
       { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
-      { label: "Import Export (Org)", href: ROUTES.MANAGE_IMPORT_EXPORT_ORG },
-      { label: "Switch organization", href: ROUTES.SWITCH_ORGANIZATION },
+      { label: "Import Export (Space)", href: ROUTES.MANAGE_IMPORT_EXPORT_ORG },
+      { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
+    ],
+  },
+];
+
+const personalAdminSettingsGroups: HeaderNavGroup[] = [
+  {
+    label: "Settings",
+    items: [
+      { label: "Space", href: ROUTES.ORGANIZATION },
+      { label: "Categories", href: ROUTES.CATEGORIES },
+      { label: "Tags", href: ROUTES.TAGS },
+      { label: "Modes", href: ROUTES.TRANSACTION_MODES },
+      { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
+      { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
+      { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
     ],
   },
 ];
@@ -98,19 +120,28 @@ const userSettingsGroups: HeaderNavGroup[] = [
     label: "Tools",
     items: [
       { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
-      { label: "Switch organization", href: ROUTES.SWITCH_ORGANIZATION },
+      { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
     ],
   },
 ];
 
-function getNavConfig(role: AppRole, hasOrganization: boolean): HeaderNavConfig {
+function getNavConfig(
+  role: AppRole,
+  hasOrganization: boolean,
+  scope: UserScope | null
+): HeaderNavConfig {
   if (!hasOrganization) {
     return { topItems: [], settingsGroups: [] };
   }
 
-  return role === ROLES.ADMIN
-    ? { topItems: adminTopNavItems, settingsGroups: adminSettingsGroups }
-    : { topItems: userTopNavItems, settingsGroups: userSettingsGroups };
+  if (role === ROLES.ADMIN) {
+    return {
+      topItems: adminTopNavItems,
+      settingsGroups: scope === "shared" ? adminSettingsGroups : personalAdminSettingsGroups,
+    };
+  }
+
+  return { topItems: userTopNavItems, settingsGroups: userSettingsGroups };
 }
 
 function NavLinkItem({ item }: { item: HeaderNavItem }) {
@@ -169,13 +200,14 @@ function SettingsMenu({ groups }: { groups: HeaderNavGroup[] }) {
 
 export function AuthHeader({
   role,
+  scope,
   hasOrganization,
   organizationName,
   displayName,
   initials,
 }: AuthHeaderProps) {
   const { signOut } = useClerk();
-  const { topItems, settingsGroups } = getNavConfig(role, hasOrganization);
+  const { topItems, settingsGroups } = getNavConfig(role, hasOrganization, scope);
   const hasSettingsItems = settingsGroups.some((group) => group.items.length);
   const logoHref = ROUTES.DASHBOARD;
 
