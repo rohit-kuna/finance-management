@@ -142,7 +142,7 @@ export function AddCategoryRow() {
           <ActionError message={state.error} />
 
           <Button type="submit" disabled={pending}>
-            {pending ? "Creating..." : "Create category"}
+            {pending ? "Creating..." : "Create"}
           </Button>
         </form>
       </CardContent>

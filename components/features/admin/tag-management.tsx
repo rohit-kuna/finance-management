@@ -1,70 +1,117 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState } from "react";
-import { AlertCircle, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  type Column,
+  type ColumnDef,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table";
+import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
+import type { TagRecordDto } from "@/app/lib/finance.types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { TagRecordDto } from "@/app/lib/finance.types";
-import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
-import { createTagAction, deleteTagAction, updateTagAction } from "@/app/actions/auth-roles/tags.actions";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AddTagRow } from "@/components/features/tags/add-tag-row";
+import { TagRow } from "@/components/features/tags/tag-row";
 
-function ActionError({ message }: { message: string | null }) {
-  if (!message) return null;
+function SortableHeader({ column, title }: { column: Column<TagRecordDto, unknown>; title: string }) {
+  const sortState = column.getIsSorted();
+  const Icon = sortState === "asc" ? ArrowUp : sortState === "desc" ? ArrowDown : ArrowUpDown;
 
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-      <AlertCircle className="mt-0.5 size-4 shrink-0" />
-      <span>{message}</span>
-    </div>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={column.getToggleSortingHandler()}
+      className="-ml-3 h-8 gap-1 px-2 text-xs font-semibold uppercase tracking-wide"
+    >
+      {title}
+      <Icon className="size-3.5" />
+    </Button>
   );
 }
 
-function TagRow({ tag }: { tag: TagRecordDto }) {
-  const [updateState, updateAction, updatePending] = useActionState(updateTagAction, financeInitialState);
-  const [deleteState, deleteAction, deletePending] = useActionState(deleteTagAction, financeInitialState);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const deleteFormRef = useRef<HTMLFormElement>(null);
+function TagTable({
+  tags,
+  canManageTags,
+  editingTagId,
+  onStartEdit,
+  onCancelEdit,
+}: {
+  tags: TagRecordDto[];
+  canManageTags: boolean;
+  editingTagId: number | null;
+  onStartEdit: (tagId: number) => void;
+  onCancelEdit: () => void;
+}) {
+  const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
+
+  const columns = useMemo<ColumnDef<TagRecordDto>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => <SortableHeader column={column} title="Tag" />,
+      },
+      {
+        id: "actions",
+        header: "",
+      },
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: tags,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  if (!tags.length) {
+    return (
+      <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+        No tags match your search.
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-4">
-      <form action={updateAction} className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="tagId" value={tag.id} />
-        <div className="flex-1 space-y-1">
-          <Label htmlFor={`tag-name-${tag.id}`} className="text-xs">
-            Tag name
-          </Label>
-          <Input id={`tag-name-${tag.id}`} name="name" defaultValue={tag.name} required />
-        </div>
-        <Button type="submit" size="sm" disabled={updatePending}>
-          {updatePending ? "Saving..." : "Save"}
-        </Button>
-      </form>
-      <ActionError message={updateState.error} />
-
-      <form ref={deleteFormRef} action={deleteAction} className="mt-3">
-        <input type="hidden" name="tagId" value={tag.id} />
-        <ActionError message={deleteState.error} />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={deletePending}
-          onClick={() => setConfirmOpen(true)}
-        >
-          <Trash2 className="mr-2 size-4" />
-          {deletePending ? "Deleting..." : "Delete"}
-        </Button>
-      </form>
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Delete tag"
-        description={`Are you sure you want to delete "${tag.name}"? This cannot be undone.`}
-        onConfirm={() => deleteFormRef.current?.requestSubmit()}
-      />
+    <div className="overflow-x-auto rounded-lg border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id}>
+                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TagRow
+              key={row.original.id}
+              tag={row.original}
+              isEditing={editingTagId === row.original.id}
+              onStartEdit={() => onStartEdit(row.original.id)}
+              onCancelEdit={onCancelEdit}
+              canManageTags={canManageTags}
+            />
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -76,71 +123,62 @@ export function TagManagement({
   tags: TagRecordDto[];
   canManageTags?: boolean;
 }) {
-  const [createState, createAction, createPending] = useActionState(createTagAction, financeInitialState);
   const [query, setQuery] = useState("");
+  const [editingTagId, setEditingTagId] = useState<number | null>(null);
 
   const filteredTags = useMemo(() => {
     const loweredQuery = query.trim().toLowerCase();
     if (!loweredQuery) return tags;
-
     return tags.filter((tag) => tag.name.toLowerCase().includes(loweredQuery));
   }, [tags, query]);
 
   return (
-    <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-      <Card className="border-primary/20 bg-primary/5 py-2">
+    <section className="space-y-6">
+      <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Create tag</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
-          <form action={createAction} className="space-y-4 rounded-lg border border-primary/20 bg-background/80 p-4">
-            <div className="space-y-2">
-              <Label htmlFor="tagName">Tag name</Label>
-              <Input id="tagName" name="name" placeholder="Travel" required />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-3xl tracking-tight">Manage Tags</CardTitle>
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                {canManageTags
+                  ? "Create tags and rename or remove existing ones."
+                  : "Anyone in the space can create tags. Admins manage renames and deletions."}
+              </p>
             </div>
-            <ActionError message={createState.error} />
-            <Button type="submit" disabled={createPending} className="w-full sm:w-auto">
-              {createPending ? "Creating..." : "Create tag"}
-            </Button>
-          </form>
-          <p className="text-sm text-muted-foreground">
-            Anyone in the space can create tags. Admins can also rename or delete them.
-          </p>
-        </CardContent>
+            <Badge variant="secondary">{filteredTags.length} records</Badge>
+          </div>
+        </CardHeader>
       </Card>
+
+      <AddTagRow />
 
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Space tags</CardTitle>
+          <CardTitle className="text-xl tracking-tight">Tags</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 px-4 pb-6 sm:px-8 sm:pb-8">
+        <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
+          <div className="space-y-2">
+            <Label htmlFor="tag-search">Search</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="tag-search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by name..."
+                className="pl-9"
+              />
+            </div>
+          </div>
+
           {tags.length ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="tag-search">Search</Label>
-                <Input
-                  id="tag-search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search by name..."
-                />
-              </div>
-              {filteredTags.length ? (
-                <div className="grid gap-3">
-                  {filteredTags.map((tag) =>
-                    canManageTags ? <TagRow key={tag.id} tag={tag} /> : (
-                      <div key={tag.id} className="rounded-lg border bg-muted/20 p-4">
-                        <p className="font-medium">{tag.name}</p>
-                      </div>
-                    )
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-                  No tags match your search.
-                </div>
-              )}
-            </>
+            <TagTable
+              tags={filteredTags}
+              canManageTags={canManageTags}
+              editingTagId={editingTagId}
+              onStartEdit={setEditingTagId}
+              onCancelEdit={() => setEditingTagId(null)}
+            />
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
               No tags yet. Create the first tag to start labeling transactions.
