@@ -3,6 +3,10 @@ import type {
   BudgetRecordDto,
 } from "@/app/lib/finance.types";
 
+function normalizeBudgetScope(scope: string): BudgetRecordDto["scope"] {
+  return scope === "family" ? "shared" : (scope as BudgetRecordDto["scope"]);
+}
+
 export function buildBudgetAllocationSummaries(
   budgets: BudgetRecordDto[]
 ): BudgetAllocationSummaryDto[] {
@@ -20,7 +24,7 @@ export function buildBudgetAllocationSummaries(
         monthLabel: item.monthLabel,
         periodFrom: item.periodFrom,
         periodTo: item.periodTo,
-        familyBudget: item.scope === "family" ? item : null,
+        sharedBudget: normalizeBudgetScope(item.scope) === "shared" ? item : null,
         personalBudgets: item.scope === "personal" ? [item] : [],
         personalTotal: item.scope === "personal" ? item.amount : "0",
         availableCapacityAmount: null,
@@ -30,8 +34,8 @@ export function buildBudgetAllocationSummaries(
       continue;
     }
 
-    if (item.scope === "family") {
-      existing.familyBudget = item;
+    if (normalizeBudgetScope(item.scope) === "shared") {
+      existing.sharedBudget = item;
     } else {
       existing.personalBudgets.push(item);
       existing.personalTotal = (
@@ -41,21 +45,21 @@ export function buildBudgetAllocationSummaries(
   }
 
   for (const summary of groups.values()) {
-    if (!summary.familyBudget) continue;
+    if (!summary.sharedBudget) continue;
 
-    const familyAmount = Number(summary.familyBudget.amount);
+    const sharedAmount = Number(summary.sharedBudget.amount);
     const personalTotal = Number(summary.personalTotal);
-    const availableCapacity = Math.max(familyAmount - personalTotal, 0);
+    const availableCapacity = Math.max(sharedAmount - personalTotal, 0);
 
     summary.availableCapacityAmount = availableCapacity.toFixed(2);
     summary.availableCapacityPercent =
-      familyAmount > 0 ? Number(((availableCapacity / familyAmount) * 100).toFixed(0)) : null;
+      sharedAmount > 0 ? Number(((availableCapacity / sharedAmount) * 100).toFixed(0)) : null;
     summary.overageAmount =
-      personalTotal > familyAmount ? (personalTotal - familyAmount).toFixed(2) : null;
+      personalTotal > sharedAmount ? (personalTotal - sharedAmount).toFixed(2) : null;
   }
 
   return Array.from(groups.values())
-    .filter((summary) => Boolean(summary.familyBudget))
+    .filter((summary) => Boolean(summary.sharedBudget))
     .sort((left, right) => {
       const leftKey = `${left.month}:${left.categoryName}`;
       const rightKey = `${right.month}:${right.categoryName}`;

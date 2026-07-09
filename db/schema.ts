@@ -20,7 +20,8 @@ import {
 import { sql } from "drizzle-orm";
 import type { AppRole } from "@/app/lib/roles";
 
-export type BudgetScope = "personal" | "family";
+export type UserScope = "personal" | "shared";
+export type BudgetScope = UserScope;
 export type ExpenseType = "expense" | "income";
 export type CategoryType = ExpenseType;
 export type TransferStatus = "open" | "settled" | "closed";
@@ -31,9 +32,15 @@ export const organizations = pgTable("organizations", {
   name: varchar("name", { length: 255 }).notNull(),
   inviteCode: varchar("invite_code", { length: 64 }).notNull().unique(),
   createdBy: uuid("created_by").notNull().references((): AnyPgColumn => users.id),
+  isPersonal: boolean("is_personal").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+},
+(table) => ({
+  personalCreatedByUnique: uniqueIndex("organizations_personal_created_by_unique")
+    .on(table.createdBy)
+    .where(sql`${table.isPersonal}`),
+}));
 
 export const users = pgTable(
   "users",
@@ -42,11 +49,13 @@ export const users = pgTable(
     clerkUserId: varchar("clerk_user_id", { length: 255 }).notNull().unique(),
     email: varchar("email", { length: 255 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
+    scope: varchar("scope", { length: 10 }).$type<UserScope>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
     clerkUserIdx: index("users_clerk_user_id_idx").on(table.clerkUserId),
+    scopeCheck: check("users_scope_check", sql`${table.scope} IN ('personal', 'shared')`),
   })
 );
 

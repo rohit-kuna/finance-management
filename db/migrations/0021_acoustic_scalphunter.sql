@@ -1,0 +1,2 @@
+ALTER TABLE "organizations" ADD COLUMN "is_personal" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "organizations_personal_created_by_unique" ON "organizations" USING btree ("created_by") WHERE "organizations"."is_personal";

@@ -20,7 +20,7 @@ const workflowSteps = [
   {
     step: "1",
     title: "Set up the workspace",
-    description: "Join with an invite or create a new organization and become admin.",
+    description: "Join with an invite or create a new space and become admin.",
   },
   {
     step: "2",
@@ -113,7 +113,7 @@ export default async function HomePage() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                { label: "Budgets", value: "Plan monthly and family spend" },
+                { label: "Budgets", value: "Plan monthly and shared spend" },
                 { label: "Transactions", value: "Log and review every payment" },
                 { label: "Transfers", value: "Track settled and open balances" },
               ].map((item) => (
@@ -206,7 +206,7 @@ export default async function HomePage() {
         <div id="features" className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
             {
-              title: "Shared organization view",
+              title: "Shared space view",
               description: "All members can contribute to a single finance workspace.",
             },
             {

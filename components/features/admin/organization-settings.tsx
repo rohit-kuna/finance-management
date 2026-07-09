@@ -10,7 +10,6 @@ import {
   regenerateOrganizationInviteAction,
 } from "@/app/actions/auth-roles/admin.actions";
 import type { AdminDashboardData } from "@/app/lib/admin-dashboard.types";
-import { ROUTES } from "@/app/lib/constants";
 
 type OrganizationSettingsProps = {
   data: AdminDashboardData;
@@ -18,22 +17,27 @@ type OrganizationSettingsProps = {
 
 export function OrganizationSettings({ data }: OrganizationSettingsProps) {
   const inviteLink = data.inviteLink;
+  const isPersonalSpace = Boolean(data.organization?.isPersonal);
 
   return (
     <section className="grid gap-6 lg:grid-cols-2">
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Organization setup</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">
+            {isPersonalSpace ? "Personal space setup" : "Shared space setup"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           {data.organization ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Your organization is ready. Use the invite link below to add new members.
+                {isPersonalSpace
+                  ? "This space is private to you. Shared-space controls stay hidden here."
+                  : "Your space is ready. Use the invite link below to add new members."}
               </p>
               <form action={updateOrganizationNameAction} className="space-y-3 rounded-lg border bg-muted/20 p-4">
                 <div className="space-y-2">
-                  <Label htmlFor="organizationName">Organization name</Label>
+                  <Label htmlFor="organizationName">Space name</Label>
                   <Input
                     id="organizationName"
                     name="name"
@@ -48,14 +52,14 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  This updates the workspace title shown in the header and dashboard.
+                  This updates the space title shown in the header and dashboard.
                 </p>
               </form>
             </div>
           ) : (
             <form action={createOrganizationAction} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Organization name</Label>
+                <Label htmlFor="name">Space name</Label>
                 <Input
                   id="name"
                   name="name"
@@ -64,7 +68,7 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
                   required
                 />
               </div>
-              <Button type="submit">Create organization</Button>
+              <Button type="submit">Create space</Button>
             </form>
           )}
         </CardContent>
@@ -90,32 +94,14 @@ export function OrganizationSettings({ data }: OrganizationSettingsProps) {
               </div>
               <p className="text-sm text-muted-foreground">
                 Share this link with teammates. When they sign in with Google or email through
-                Clerk, they will be attached to this organization.
+                Clerk, they will be attached to this space.
               </p>
             </>
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-              Create an organization first to generate a shareable invite link.
+              Create a space first to generate a shareable invite link.
             </div>
           )}
-          <Button asChild variant="ghost" className="px-0">
-            <Link href={ROUTES.SIGN_IN}>Review auth flow</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="py-2 lg:col-span-2">
-        <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Switch organization</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
-          <p className="text-sm text-muted-foreground">
-            Belong to more than one organization? Open a different workspace, join one with an
-            invite code, or create a new organization.
-          </p>
-          <Button asChild className="mt-4 w-full sm:w-auto">
-            <Link href={ROUTES.SWITCH_ORGANIZATION}>Switch organization</Link>
-          </Button>
         </CardContent>
       </Card>
     </section>

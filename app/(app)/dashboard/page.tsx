@@ -6,6 +6,7 @@ import { getOrganizationsForUser } from "@/app/actions/tables/organization-membe
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { OnboardingDashboard } from "@/components/features/onboarding/onboarding-dashboard";
+import { ScopeSelector } from "@/components/features/onboarding/scope-selector";
 import { DashboardContent, DashboardContentSkeleton } from "@/app/(app)/dashboard/dashboard-content";
 
 export default async function DashboardPage() {
@@ -15,8 +16,17 @@ export default async function DashboardPage() {
     redirect(ROUTES.SIGN_IN);
   }
 
+  if (!user.scope) {
+    return (
+      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">
+        <ScopeSelector />
+      </main>
+    );
+  }
+
   if (!user.orgId) {
     const organizations = await getOrganizationsForUser(user.id);
+    const hasPersonalOrganization = organizations.some((organization) => organization.isPersonal);
 
     return (
       <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">
@@ -25,23 +35,26 @@ export default async function DashboardPage() {
             Onboarding
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">
-            Welcome — let’s get your workspace set up
+            Welcome — let’s get your space set up
           </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Join an existing organization with an invite code, or create a new one and become
-            its admin.
-          </p>
-        </div>
-        <OnboardingDashboard organizations={organizations} />
-      </main>
-    );
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Join an existing space with an invite code, or create a new one and become
+          its admin.
+        </p>
+      </div>
+      <OnboardingDashboard
+        organizations={organizations}
+        hasPersonalOrganization={hasPersonalOrganization}
+      />
+    </main>
+  );
   }
 
   // Cheap, React-cache-deduped lookups — enough to render the shell without
   // waiting on the heavy 7-query dashboard fetch (streamed below via Suspense).
   const organization = await getOrganizationById(user.orgId);
   const greetingName = user.name || "there";
-  const organizationName = organization?.name ?? "your organization";
+  const organizationName = organization?.name ?? "your space";
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">

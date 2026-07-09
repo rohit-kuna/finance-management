@@ -10,6 +10,7 @@ import { buildInviteCode } from "@/app/lib/invite-code";
 import {
   createOrganizationRecord,
   getOrganizationByInviteCode,
+  getPersonalOrganizationForUser,
 } from "@/app/actions/tables/organizations.table.actions";
 import {
   addOrganizationMember,
@@ -17,6 +18,7 @@ import {
   getOrganizationsForUser,
   setDefaultOrganizationForUser,
 } from "@/app/actions/tables/organization-members.table.actions";
+import { setUserScope } from "@/app/actions/tables/users.table.actions";
 import type { OnboardingActionState } from "@/app/actions/auth-roles/onboarding.types";
 
 const joinOrganizationSchema = z.object({
@@ -68,6 +70,10 @@ export async function joinOrganizationByInviteCodeAction(
     revalidatePath(ROUTES.DASHBOARD, "layout");
   }
 
+  if (!currentUser.scope) {
+    await setUserScope(currentUser.id, "shared");
+  }
+
   await setActiveOrgCookie(organization.id);
   redirect(ROUTES.DASHBOARD);
 }
@@ -93,6 +99,7 @@ export async function createOrganizationFromOnboardingAction(
     name: parsed.data.name,
     inviteCode: buildInviteCode(),
     createdBy: currentUser.id,
+    isPersonal: false,
   });
 
   if (!organization) {
@@ -110,6 +117,97 @@ export async function createOrganizationFromOnboardingAction(
   await setActiveOrgCookie(organization.id);
   revalidatePath(ROUTES.DASHBOARD, "layout");
 
+  redirect(ROUTES.DASHBOARD);
+}
+
+/**
+ * Creates an additional solo space from the switch-space screen — for a user
+ * who already has an account-level scope (personal or shared) but wants a
+ * second, single-owner space alongside whatever else they belong to. Unlike
+ * choosePersonalScopeAction, this never touches the account's scope
+ * preference, since that only drives the one-time onboarding choice.
+ */
+export async function createPersonalSpaceAction() {
+  const currentUser = await requireUser();
+  const memberships = await getOrganizationsForUser(currentUser.id);
+  const existingPersonalOrganization = await getPersonalOrganizationForUser(currentUser.id);
+
+  if (existingPersonalOrganization) {
+    throw new Error("You already have a personal space. Create a shared space instead.");
+  }
+
+  const organization = await createOrganizationRecord({
+    name: "My Space",
+    inviteCode: buildInviteCode(),
+    createdBy: currentUser.id,
+    isPersonal: true,
+  });
+
+  if (!organization) {
+    throw new Error("Unable to create your space");
+  }
+
+  await addOrganizationMember({
+    orgId: organization.id,
+    userId: currentUser.id,
+    role: ROLES.ADMIN,
+    isDefault: memberships.length === 0,
+  });
+  await setActiveOrgCookie(organization.id);
+  revalidatePath(ROUTES.DASHBOARD, "layout");
+  redirect(ROUTES.DASHBOARD);
+}
+
+/**
+ * Personal mode: skips the create/join UI entirely. Auto-creates a solo
+ * space, makes the user its admin, and lands them straight on the dashboard.
+ * The invite code generated here is never surfaced anywhere for a personal
+ * space.
+ */
+export async function choosePersonalScopeAction() {
+  const currentUser = await requireUser();
+
+  if (currentUser.scope) {
+    redirect(ROUTES.DASHBOARD);
+  }
+
+  await setUserScope(currentUser.id, "personal");
+
+  const organization = await createOrganizationRecord({
+    name: "My Space",
+    inviteCode: buildInviteCode(),
+    createdBy: currentUser.id,
+    isPersonal: true,
+  });
+
+  if (!organization) {
+    throw new Error("Unable to create your space");
+  }
+
+  await addOrganizationMember({
+    orgId: organization.id,
+    userId: currentUser.id,
+    role: ROLES.ADMIN,
+    isDefault: true,
+  });
+  await setActiveOrgCookie(organization.id);
+  revalidatePath(ROUTES.DASHBOARD, "layout");
+  redirect(ROUTES.DASHBOARD);
+}
+
+/**
+ * Shared mode: just records the preference. The dashboard will then render
+ * the existing create/join-a-space UI on the next render.
+ */
+export async function chooseSharedScopeAction() {
+  const currentUser = await requireUser();
+
+  if (currentUser.scope) {
+    redirect(ROUTES.DASHBOARD);
+  }
+
+  await setUserScope(currentUser.id, "shared");
+  revalidatePath(ROUTES.DASHBOARD, "layout");
   redirect(ROUTES.DASHBOARD);
 }
 

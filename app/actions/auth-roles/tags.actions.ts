@@ -32,7 +32,7 @@ function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
 }
 
 export async function getOrganizationTagsForAdmin() {
-  const currentUser = await requireAdmin();
+  const currentUser = await requireUser();
 
   if (!currentUser.orgId) {
     return { tags: [] };
@@ -46,7 +46,7 @@ export async function createTagAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
-  const currentUser = await requireAdmin();
+  const currentUser = await requireUser();
   const parsed = tagSchema.safeParse({ name: formData.get("name") });
 
   if (!parsed.success) {

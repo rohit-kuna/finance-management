@@ -1,4 +1,4 @@
-import type { BudgetScope, CategoryType } from "@/db/schema";
+import type { BudgetScope, CategoryType, UserScope } from "@/db/schema";
 import type { AppRole } from "@/app/lib/roles";
 
 export type CategoryRecordDto = {
@@ -35,7 +35,7 @@ export type BudgetAllocationSummaryDto = {
   monthLabel: string;
   periodFrom: string;
   periodTo: string;
-  familyBudget: BudgetRecordDto | null;
+  sharedBudget: BudgetRecordDto | null;
   personalBudgets: BudgetRecordDto[];
   personalTotal: string;
   availableCapacityAmount: string | null;
@@ -92,10 +92,12 @@ export type OrganizationFinanceDataDto = {
     id: number;
     name: string;
     createdBy: string;
+    isPersonal: boolean;
     createdAt: string;
     updatedAt: string;
   } | null;
   categories: CategoryRecordDto[];
+  subcategories: SubcategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   members: FinanceMemberDto[];
@@ -105,5 +107,6 @@ export type OrganizationFinanceDataDto = {
     id: string;
     role: AppRole | null;
     orgId: number | null;
+    scope: UserScope | null;
   };
 };

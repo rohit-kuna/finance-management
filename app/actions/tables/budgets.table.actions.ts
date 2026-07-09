@@ -7,6 +7,10 @@ import { formatBudgetMonth, getBudgetMonthFromDate } from "@/app/lib/budget-mont
 import type { BudgetRecordDto } from "@/app/lib/finance.types";
 import type { BudgetScope } from "@/db/schema";
 
+function normalizeBudgetScope(scope: string): BudgetScope {
+  return scope === "family" ? "shared" : (scope as BudgetScope);
+}
+
 function toBudgetDto(
   record: typeof budget.$inferSelect & { categoryName: string }
 ): BudgetRecordDto {
@@ -18,7 +22,7 @@ function toBudgetDto(
     userId: record.userId,
     categoryId: record.categoryId,
     categoryName: record.categoryName,
-    scope: record.scope as BudgetScope,
+    scope: normalizeBudgetScope(record.scope),
     amount: record.amount.toString(),
     month,
     monthLabel: formatBudgetMonth(month),

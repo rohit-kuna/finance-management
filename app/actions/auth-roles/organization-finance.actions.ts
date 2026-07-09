@@ -24,7 +24,7 @@ import {
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
 import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import { ensureDefaultTransactionModesForUser } from "@/app/actions/tables/transaction-modes.table.actions";
-import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
+import { createSubcategoryRecord, getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
 import { buildBudgetAllocationSummaries } from "@/app/lib/budget-utils";
 import { getBudgetMonthBounds, isValidBudgetMonth } from "@/app/lib/budget-month";
 import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
@@ -73,6 +73,7 @@ function toOrganizationDto(organization: Awaited<ReturnType<typeof getOrganizati
     id: organization.id,
     name: organization.name,
     createdBy: organization.createdBy,
+    isPersonal: organization.isPersonal,
     createdAt: organization.createdAt.toISOString(),
     updatedAt: organization.updatedAt.toISOString(),
   };
@@ -85,6 +86,7 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
     return {
       organization: null,
       categories: [],
+      subcategories: [],
       counterparties: [],
       transactionModes: [],
       members: [],
@@ -94,13 +96,15 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
         id: currentUser.id,
         role: currentUser.role,
         orgId: null,
+        scope: currentUser.scope,
       },
     };
   }
 
-  const [organization, categories, counterparties, budgets, members, transactionModes] = await Promise.all([
+  const [organization, categories, subcategories, counterparties, budgets, members, transactionModes] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
+    getSubcategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getBudgetsByOrg(currentUser.orgId),
     getOrganizationMembers(currentUser.orgId),
@@ -108,12 +112,13 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
   ]);
   const allocationSummaries = buildBudgetAllocationSummaries(budgets);
   const visibleBudgets = budgets.filter(
-    (budget) => budget.scope === "family" || (budget.scope === "personal" && budget.userId === currentUser.id)
+    (budget) => budget.scope === "shared" || (budget.scope === "personal" && budget.userId === currentUser.id)
   );
 
   return {
     organization: toOrganizationDto(organization),
     categories,
+    subcategories,
     counterparties,
     transactionModes,
     members: members.map((member) => ({
@@ -128,6 +133,7 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
       id: currentUser.id,
       role: currentUser.role,
       orgId: currentUser.orgId,
+      scope: currentUser.scope,
     },
   };
 }
@@ -199,6 +205,60 @@ export async function createCategoryAction(
     type: parsed.data.type,
     createdBy: currentUser.id,
   });
+
+  redirect(ROUTES.CATEGORIES);
+}
+
+export async function createCategoryWithSubcategoriesAction(
+  _previousState: FinanceActionState,
+  formData: FormData
+): Promise<FinanceActionState> {
+  const currentUser = await requireAdmin();
+  const parsed = categorySchema.safeParse({
+    name: formData.get("name"),
+    type: formData.get("type"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Unable to create category" };
+  }
+
+  const orgId = assertOrgId(currentUser);
+
+  if (await getCategoryByOrgAndName(orgId, parsed.data.name)) {
+    return { error: "Category already exists" };
+  }
+
+  const subcategoryNames: string[] = [];
+  const seen = new Set<string>();
+  for (const value of formData.getAll("subcategoryNames")) {
+    const name = typeof value === "string" ? value.trim() : "";
+    if (name.length < 2) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    subcategoryNames.push(name);
+  }
+
+  const category = await createCategoryRecord({
+    orgId,
+    name: parsed.data.name,
+    type: parsed.data.type,
+    createdBy: currentUser.id,
+  });
+
+  if (!category) {
+    return { error: "Unable to create category" };
+  }
+
+  for (const name of subcategoryNames) {
+    await createSubcategoryRecord({
+      orgId,
+      categoryId: category.id,
+      name,
+      createdBy: currentUser.id,
+    });
+  }
 
   redirect(ROUTES.CATEGORIES);
 }
@@ -284,10 +344,10 @@ async function ensurePersonalBudgetOwnership(budgetId: number, currentUserId: st
   return budget;
 }
 
-async function ensureFamilyBudgetAdminAccess(budgetId: number, orgId: number) {
+async function ensureSharedBudgetAdminAccess(budgetId: number, orgId: number) {
   const budget = await getBudgetById(budgetId);
 
-  if (!budget || budget.orgId !== orgId || budget.scope !== "family") {
+  if (!budget || budget.orgId !== orgId || budget.scope !== "shared") {
     return null;
   }
 
@@ -334,7 +394,7 @@ export async function createPersonalBudgetAction(
   redirect(ROUTES.BUDGETS);
 }
 
-export async function createFamilyBudgetAction(
+export async function createSharedBudgetAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
@@ -347,7 +407,7 @@ export async function createFamilyBudgetAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to create family budget" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to create shared budget" };
   }
 
   const category = await getCategoryById(parsed.data.categoryId);
@@ -364,7 +424,7 @@ export async function createFamilyBudgetAction(
     orgId,
     userId: null,
     categoryId: parsed.data.categoryId,
-    scope: "family",
+    scope: "shared",
     amount: toMoneyString(parsed.data.amount),
     periodFrom: bounds.periodFrom,
     periodTo: bounds.periodTo,
@@ -422,7 +482,7 @@ export async function updatePersonalBudgetAction(
   redirect(ROUTES.BUDGETS);
 }
 
-export async function updateFamilyBudgetAction(
+export async function updateSharedBudgetAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
@@ -438,7 +498,7 @@ export async function updateFamilyBudgetAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to update family budget" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to update shared budget" };
   }
 
   if (!budgetIdResult.success) {
@@ -455,9 +515,9 @@ export async function updateFamilyBudgetAction(
 
   const bounds = getBudgetMonthBounds(parsed.data.month);
 
-  const budget = await ensureFamilyBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
+  const budget = await ensureSharedBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
   if (!budget) {
-    return { error: "Family budget does not belong to your organization" };
+    return { error: "Shared budget does not belong to your organization" };
   }
 
   await updateBudgetRecord(budget.id, {
@@ -493,7 +553,7 @@ export async function deletePersonalBudgetAction(
   redirect(ROUTES.BUDGETS);
 }
 
-export async function deleteFamilyBudgetAction(
+export async function deleteSharedBudgetAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
@@ -507,9 +567,9 @@ export async function deleteFamilyBudgetAction(
     return { error: "Budget is required" };
   }
 
-  const budget = await ensureFamilyBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
+  const budget = await ensureSharedBudgetAdminAccess(budgetIdResult.data.budgetId, orgId);
   if (!budget) {
-    return { error: "Family budget does not belong to your organization" };
+    return { error: "Shared budget does not belong to your organization" };
   }
 
   await deleteBudgetRecord(budget.id);

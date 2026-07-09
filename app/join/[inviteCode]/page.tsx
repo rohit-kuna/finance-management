@@ -40,7 +40,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
         </CardHeader>
         <CardContent className="space-y-4 px-4 sm:px-8">
           <p className="text-sm text-muted-foreground">
-            Sign in with Google or your email to accept the invite and join the organization.
+            Sign in with Google or your email to accept the invite and join the space.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button asChild className="w-full sm:w-auto">

@@ -23,6 +23,7 @@ export async function getOrganizationsForUser(userId: string) {
     .select({
       orgId: organizationMembers.orgId,
       orgName: organizations.name,
+      isPersonal: organizations.isPersonal,
       role: organizationMembers.role,
       isDefault: organizationMembers.isDefault,
       isActive: organizationMembers.isActive,
@@ -32,6 +33,17 @@ export async function getOrganizationsForUser(userId: string) {
     .innerJoin(organizations, eq(organizations.id, organizationMembers.orgId))
     .where(eq(organizationMembers.userId, userId))
     .orderBy(asc(organizationMembers.joinedAt));
+}
+
+export async function hasPersonalOrganizationForUser(userId: string) {
+  const [record] = await db
+    .select({ orgId: organizationMembers.orgId })
+    .from(organizationMembers)
+    .innerJoin(organizations, eq(organizations.id, organizationMembers.orgId))
+    .where(and(eq(organizationMembers.userId, userId), eq(organizations.isPersonal, true)))
+    .limit(1);
+
+  return Boolean(record);
 }
 
 export async function addOrganizationMember(input: {

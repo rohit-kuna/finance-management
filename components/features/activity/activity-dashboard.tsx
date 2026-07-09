@@ -70,7 +70,7 @@ const trendLegendItems = [
 ] as const;
 
 type NecessityScore = 1 | 2 | 3 | 4 | 5;
-type ActivityAudience = "personal" | "family" | `member:${string}`;
+type ActivityAudience = "personal" | "shared" | `member:${string}`;
 
 const necessityLabels: Record<NecessityScore, string> = {
   1: "Optional",
@@ -174,10 +174,10 @@ function FilterChip({
 }
 
 function getScopedActivityData(data: ActivityDashboardDataDto, audience: ActivityAudience) {
-  if (audience === "family") {
+  if (audience === "shared") {
     return {
       ...data,
-      budgets: data.budgets.filter((budget) => budget.scope === "family"),
+      budgets: data.budgets.filter((budget) => budget.scope === "shared"),
       expenses: data.expenses,
     };
   }
@@ -630,10 +630,10 @@ function BudgetVsActualChart({
                   content={
                     <OrderedLegend
                       items={
-                        audience === "family"
+                        audience === "shared"
                           ? [
-                              { label: "Family budget", color: "var(--color-chart-4)" },
-                              { label: "Family spend", color: "var(--color-chart-1)" },
+                              { label: "Shared budget", color: "var(--color-chart-4)" },
+                              { label: "Shared spend", color: "var(--color-chart-1)" },
                             ]
                           : budgetVsActualLegendItems
                       }
@@ -1380,6 +1380,7 @@ export function ActivityDashboard({
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [chartQuery, setChartQuery] = useState("");
   const isAdmin = data.currentUser.role === "ADMIN";
+  const isPersonalSpace = Boolean(data.organization?.isPersonal);
 
   const matchesChartQuery = (title: string) => {
     const loweredQuery = chartQuery.trim().toLowerCase();
@@ -1413,7 +1414,9 @@ export function ActivityDashboard({
         <CardHeader className="space-y-3 px-4 pt-6 sm:px-8 sm:pt-8">
           <CardTitle className="text-3xl tracking-tight">Analytics</CardTitle>
           <p className="max-w-4xl text-sm text-muted-foreground">
-            Visualize spending, income, and budget health with one shared set of filters.
+            {isPersonalSpace
+              ? "Visualize spending, income, and budget health for this personal space."
+              : "Visualize spending, income, and budget health with one shared set of filters."}
             {visibleData.organization ? ` Current workspace: ${visibleData.organization.name}.` : ""}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -1433,27 +1436,29 @@ export function ActivityDashboard({
           />
 
           <div className="grid gap-4 md:grid-cols-3 md:items-end">
-            <div className="space-y-2">
-              <Label htmlFor="activity-audience">Audience</Label>
-              <select
-                id="activity-audience"
-                value={audience}
-                onChange={(event) => setAudience(event.target.value as ActivityAudience)}
-                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="personal">Personal</option>
-                <option value="family">Family</option>
-                {isAdmin ? (
-                  <optgroup label="Family members">
-                    {data.members.map((member) => (
-                      <option key={member.id} value={`member:${member.id}`}>
-                        {member.id === data.currentUser.id ? `${member.name} (You)` : member.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-              </select>
-            </div>
+            {isPersonalSpace ? null : (
+              <div className="space-y-2">
+                <Label htmlFor="activity-audience">Audience</Label>
+                <select
+                  id="activity-audience"
+                  value={audience}
+                  onChange={(event) => setAudience(event.target.value as ActivityAudience)}
+                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="personal">Personal</option>
+                  <option value="shared">Shared</option>
+                  {isAdmin ? (
+                    <optgroup label="Shared members">
+                      {data.members.map((member) => (
+                        <option key={member.id} value={`member:${member.id}`}>
+                          {member.id === data.currentUser.id ? `${member.name} (You)` : member.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="activity-month-start">Month start</Label>

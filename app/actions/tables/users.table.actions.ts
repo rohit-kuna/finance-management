@@ -1,12 +1,13 @@
 "use server";
 
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, type UserScope } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 type UpdateUserInput = Partial<{
   email: string;
   name: string;
+  scope: UserScope;
 }>;
 
 export async function getUserById(id: string) {
@@ -34,4 +35,8 @@ export async function updateUserById(id: string, input: UpdateUserInput) {
     .returning();
 
   return updatedUser ?? null;
+}
+
+export async function setUserScope(id: string, scope: UserScope) {
+  return updateUserById(id, { scope });
 }

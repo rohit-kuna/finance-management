@@ -38,6 +38,7 @@ export type TransferDashboardDataDto = {
     id: number;
     name: string;
     createdBy: string;
+    isPersonal: boolean;
     createdAt: string;
     updatedAt: string;
   } | null;
@@ -58,6 +59,7 @@ export type ExpensesDashboardDataDto = {
     id: number;
     name: string;
     createdBy: string;
+    isPersonal: boolean;
     createdAt: string;
     updatedAt: string;
   } | null;

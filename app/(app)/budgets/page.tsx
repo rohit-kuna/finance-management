@@ -15,7 +15,10 @@ export default async function BudgetsPage() {
     <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">
       <BudgetManagement
         data={data}
-        showFamilyBudgetSection={data.currentUser.role === ROLES.ADMIN}
+        showSharedBudgetSection={
+          Boolean(data.organization && !data.organization.isPersonal) &&
+          data.currentUser.role === ROLES.ADMIN
+        }
       />
     </main>
   );
