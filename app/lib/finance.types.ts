@@ -97,6 +97,7 @@ export type OrganizationFinanceDataDto = {
     updatedAt: string;
   } | null;
   categories: CategoryRecordDto[];
+  subcategories: SubcategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   members: FinanceMemberDto[];

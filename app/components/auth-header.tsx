@@ -90,7 +90,7 @@ const userSettingsGroups: HeaderNavGroup[] = [
   {
     label: "Settings",
     items: [
-      { label: "Subcategories", href: ROUTES.SUBCATEGORIES },
+      { label: "Categories", href: ROUTES.CATEGORIES },
       { label: "Tags", href: ROUTES.TAGS },
       { label: "Modes", href: ROUTES.TRANSACTION_MODES },
       { label: "Counterparties", href: ROUTES.COUNTERPARTIES },

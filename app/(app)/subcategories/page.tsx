@@ -1,16 +1,6 @@
-import { SubcategoryManagement } from "@/components/features/subcategories/subcategory-management";
-import { getOrganizationCategoriesForUser } from "@/app/actions/auth-roles/organization-finance.actions";
+import { redirect } from "next/navigation";
+import { ROUTES } from "@/app/lib/constants";
 
-export default async function SubcategoriesPage() {
-  const financeData = await getOrganizationCategoriesForUser();
-
-  return (
-    <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">
-      <SubcategoryManagement
-        categories={financeData.categories}
-        subcategories={financeData.subcategories}
-        currentUserId={financeData.currentUserId}
-      />
-    </main>
-  );
+export default function SubcategoriesPage() {
+  redirect(ROUTES.CATEGORIES);
 }

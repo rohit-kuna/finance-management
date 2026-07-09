@@ -24,7 +24,7 @@ import {
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
 import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import { ensureDefaultTransactionModesForUser } from "@/app/actions/tables/transaction-modes.table.actions";
-import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
+import { createSubcategoryRecord, getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
 import { buildBudgetAllocationSummaries } from "@/app/lib/budget-utils";
 import { getBudgetMonthBounds, isValidBudgetMonth } from "@/app/lib/budget-month";
 import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
@@ -86,6 +86,7 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
     return {
       organization: null,
       categories: [],
+      subcategories: [],
       counterparties: [],
       transactionModes: [],
       members: [],
@@ -100,9 +101,10 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
     };
   }
 
-  const [organization, categories, counterparties, budgets, members, transactionModes] = await Promise.all([
+  const [organization, categories, subcategories, counterparties, budgets, members, transactionModes] = await Promise.all([
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
+    getSubcategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getBudgetsByOrg(currentUser.orgId),
     getOrganizationMembers(currentUser.orgId),
@@ -116,6 +118,7 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
   return {
     organization: toOrganizationDto(organization),
     categories,
+    subcategories,
     counterparties,
     transactionModes,
     members: members.map((member) => ({
@@ -202,6 +205,60 @@ export async function createCategoryAction(
     type: parsed.data.type,
     createdBy: currentUser.id,
   });
+
+  redirect(ROUTES.CATEGORIES);
+}
+
+export async function createCategoryWithSubcategoriesAction(
+  _previousState: FinanceActionState,
+  formData: FormData
+): Promise<FinanceActionState> {
+  const currentUser = await requireAdmin();
+  const parsed = categorySchema.safeParse({
+    name: formData.get("name"),
+    type: formData.get("type"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Unable to create category" };
+  }
+
+  const orgId = assertOrgId(currentUser);
+
+  if (await getCategoryByOrgAndName(orgId, parsed.data.name)) {
+    return { error: "Category already exists" };
+  }
+
+  const subcategoryNames: string[] = [];
+  const seen = new Set<string>();
+  for (const value of formData.getAll("subcategoryNames")) {
+    const name = typeof value === "string" ? value.trim() : "";
+    if (name.length < 2) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    subcategoryNames.push(name);
+  }
+
+  const category = await createCategoryRecord({
+    orgId,
+    name: parsed.data.name,
+    type: parsed.data.type,
+    createdBy: currentUser.id,
+  });
+
+  if (!category) {
+    return { error: "Unable to create category" };
+  }
+
+  for (const name of subcategoryNames) {
+    await createSubcategoryRecord({
+      orgId,
+      categoryId: category.id,
+      name,
+      createdBy: currentUser.id,
+    });
+  }
 
   redirect(ROUTES.CATEGORIES);
 }
