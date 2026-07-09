@@ -1,91 +1,124 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import { AlertCircle, Trash2 } from "lucide-react";
-import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
+import { useMemo, useState } from "react";
 import {
-  createTransactionModeAction,
-  deleteTransactionModeAction,
-  setDefaultTransactionModeAction,
-  updateTransactionModeAction,
-} from "@/app/actions/auth-roles/transaction-modes.actions";
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  type Column,
+  type ColumnDef,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table";
+import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
 import type { TransactionModeRecordDto } from "@/app/lib/finance.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AddTransactionModeRow } from "@/components/features/transaction-modes/add-transaction-mode-row";
+import { TransactionModeRow } from "@/components/features/transaction-modes/transaction-mode-row";
 
-function ActionError({ message }: { message: string | null }) {
-  if (!message) return null;
+function SortableHeader({
+  column,
+  title,
+}: {
+  column: Column<TransactionModeRecordDto, unknown>;
+  title: string;
+}) {
+  const sortState = column.getIsSorted();
+  const Icon = sortState === "asc" ? ArrowUp : sortState === "desc" ? ArrowDown : ArrowUpDown;
 
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-      <AlertCircle className="mt-0.5 size-4 shrink-0" />
-      <span>{message}</span>
-    </div>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={column.getToggleSortingHandler()}
+      className="-ml-3 h-8 gap-1 px-2 text-xs font-semibold uppercase tracking-wide"
+    >
+      {title}
+      <Icon className="size-3.5" />
+    </Button>
   );
 }
 
-function TransactionModeRow({ transactionMode }: { transactionMode: TransactionModeRecordDto }) {
-  const [updateState, updateAction, updatePending] = useActionState(
-    updateTransactionModeAction,
-    financeInitialState
+function TransactionModeTable({
+  transactionModes,
+  editingModeId,
+  onStartEdit,
+  onCancelEdit,
+}: {
+  transactionModes: TransactionModeRecordDto[];
+  editingModeId: number | null;
+  onStartEdit: (modeId: number) => void;
+  onCancelEdit: () => void;
+}) {
+  const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
+
+  const columns = useMemo<ColumnDef<TransactionModeRecordDto>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => <SortableHeader column={column} title="Name" />,
+      },
+      {
+        id: "default",
+        header: "Default",
+      },
+      {
+        id: "actions",
+        header: "",
+      },
+    ],
+    []
   );
-  const [defaultState, defaultAction, defaultPending] = useActionState(
-    setDefaultTransactionModeAction,
-    financeInitialState
-  );
-  const [deleteState, deleteAction, deletePending] = useActionState(
-    deleteTransactionModeAction,
-    financeInitialState
-  );
+
+  const table = useReactTable({
+    data: transactionModes,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  if (!transactionModes.length) {
+    return (
+      <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+        No transaction modes match your search.
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <p className="font-medium">{transactionMode.name}</p>
-        </div>
-        {transactionMode.isDefault ? <Badge>Default</Badge> : null}
-      </div>
-      <div className="space-y-3">
-        <form action={updateAction} className="space-y-3">
-          <input type="hidden" name="transactionModeId" value={transactionMode.id} />
-          <div className="space-y-2">
-            <Label htmlFor={`transaction-mode-${transactionMode.id}`}>Name</Label>
-            <Input
-              id={`transaction-mode-${transactionMode.id}`}
-              name="name"
-              defaultValue={transactionMode.name}
-              required
+    <div className="overflow-x-auto rounded-lg border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id}>
+                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TransactionModeRow
+              key={row.original.id}
+              transactionMode={row.original}
+              isEditing={editingModeId === row.original.id}
+              onStartEdit={() => onStartEdit(row.original.id)}
+              onCancelEdit={onCancelEdit}
             />
-          </div>
-          <ActionError message={updateState.error} />
-          <Button type="submit" disabled={updatePending}>
-            {updatePending ? "Saving..." : "Save"}
-          </Button>
-        </form>
-
-        {!transactionMode.isDefault ? (
-          <form action={defaultAction} className="space-y-2">
-            <input type="hidden" name="transactionModeId" value={transactionMode.id} />
-            <ActionError message={defaultState.error} />
-            <Button type="submit" variant="outline" disabled={defaultPending}>
-              {defaultPending ? "Setting..." : "Make default"}
-            </Button>
-          </form>
-        ) : null}
-
-        <form action={deleteAction}>
-          <input type="hidden" name="transactionModeId" value={transactionMode.id} />
-          <ActionError message={deleteState.error} />
-          <Button type="submit" variant="outline" className="mt-2" disabled={deletePending}>
-            <Trash2 className="mr-2 size-4" />
-            {deletePending ? "Deleting..." : "Delete"}
-          </Button>
-        </form>
-      </div>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -95,11 +128,8 @@ export function TransactionModeManagement({
 }: {
   transactionModes: TransactionModeRecordDto[];
 }) {
-  const [createState, createAction, createPending] = useActionState(
-    createTransactionModeAction,
-    financeInitialState
-  );
   const [query, setQuery] = useState("");
+  const [editingModeId, setEditingModeId] = useState<number | null>(null);
 
   const filteredTransactionModes = useMemo(() => {
     const loweredQuery = query.trim().toLowerCase();
@@ -108,57 +138,49 @@ export function TransactionModeManagement({
   }, [transactionModes, query]);
 
   return (
-    <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-      <Card className="border-primary/20 bg-primary/5 py-2">
+    <section className="space-y-6">
+      <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Create transaction mode</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
-          <form action={createAction} className="space-y-4 rounded-lg border border-primary/20 bg-background/80 p-4">
-            <div className="space-y-2">
-              <Label htmlFor="transactionModeName">Name</Label>
-              <Input id="transactionModeName" name="name" placeholder="Online" required />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-3xl tracking-tight">Manage Transaction Modes</CardTitle>
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                Create your payment methods and mark one as default for new expenses.
+              </p>
             </div>
-            <ActionError message={createState.error} />
-            <Button type="submit" disabled={createPending} className="w-full sm:w-auto">
-              {createPending ? "Creating..." : "Create transaction mode"}
-            </Button>
-          </form>
-          <p className="text-sm text-muted-foreground">
-            Add the payment methods you use most, then pick them when recording expenses. Mark one as the default so
-            new expenses prefill it automatically.
-          </p>
-        </CardContent>
+            <Badge variant="secondary">{filteredTransactionModes.length} records</Badge>
+          </div>
+        </CardHeader>
       </Card>
+
+      <AddTransactionModeRow />
 
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-2xl tracking-tight">Your transaction modes</CardTitle>
+          <CardTitle className="text-xl tracking-tight">Your transaction modes</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 px-4 pb-6 sm:px-8 sm:pb-8">
+        <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
+          <div className="space-y-2">
+            <Label htmlFor="transaction-mode-search">Search</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="transaction-mode-search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by transaction mode name..."
+                className="pl-9"
+              />
+            </div>
+          </div>
+
           {transactionModes.length ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="transaction-mode-search">Search</Label>
-                <Input
-                  id="transaction-mode-search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search by transaction mode name..."
-                />
-              </div>
-              {filteredTransactionModes.length ? (
-                <div className="grid gap-3">
-                  {filteredTransactionModes.map((transactionMode) => (
-                    <TransactionModeRow key={transactionMode.id} transactionMode={transactionMode} />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-                  No transaction modes match your search.
-                </div>
-              )}
-            </>
+            <TransactionModeTable
+              transactionModes={filteredTransactionModes}
+              editingModeId={editingModeId}
+              onStartEdit={setEditingModeId}
+              onCancelEdit={() => setEditingModeId(null)}
+            />
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
               No transaction modes yet. Create one to use it on expenses.
