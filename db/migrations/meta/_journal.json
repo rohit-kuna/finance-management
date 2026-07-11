@@ -141,6 +141,20 @@
       "when": 1783527047698,
       "tag": "0021_acoustic_scalphunter",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783625958518,
+      "tag": "0022_bright_snowbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783705652987,
+      "tag": "0023_worried_matthew_murdock",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,9 @@ import {
   categories,
   counterParty,
   financeTransactions,
+  organizationMembers,
   subcategories,
+  subcategorySpaceMappings,
   transactionModes,
   transactionTags,
   users,
@@ -15,6 +17,8 @@ import type { ExpenseRecordDto } from "@/app/lib/expense.types";
 import type { ExpenseType, TransferStatus } from "@/db/schema";
 
 const transactionModeOwner = aliasedTable(users, "transactionModeOwner");
+const mappedCategory = aliasedTable(categories, "mappedCategory");
+const othersCategory = aliasedTable(categories, "othersCategory");
 
 function toExpenseDto(
   record: typeof financeTransactions.$inferSelect & {
@@ -111,6 +115,85 @@ export async function getExpensesByOrg(orgId: number, limit = 500, userId?: stri
   return records.map((record) => toExpenseDto(record));
 }
 
+/**
+ * Transaction listing for a shared space ("space is a lens"): visibility is
+ * membership-only (every active member's transactions show up here, never
+ * filtered by financeTransactions.orgId — that's always the owner's personal
+ * org now). The displayed category is resolved per-row from this space's
+ * mapping for that transaction's subcategory, falling back to the space's
+ * "Others" category (matched by transaction type) when no explicit mapping
+ * exists — never the transaction's own (personal) categoryId.
+ */
+export async function getExpensesForSharedSpace(sharedOrgId: number, limit = 500): Promise<ExpenseRecordDto[]> {
+  const records = await db
+    .select({
+      id: financeTransactions.id,
+      orgId: financeTransactions.orgId,
+      userId: financeTransactions.userId,
+      userName: users.name,
+      userEmail: users.email,
+      categoryId: sql<number>`coalesce(${subcategorySpaceMappings.categoryId}, ${othersCategory.id})`,
+      categoryName: sql<string>`coalesce(${mappedCategory.name}, ${othersCategory.name})`,
+      counterPartyId: financeTransactions.counterPartyId,
+      counterPartyName: counterParty.name,
+      transactionModeId: financeTransactions.transactionModeId,
+      transactionModeName: transactionModes.name,
+      transactionModeOwnerName: transactionModeOwner.name,
+      amount: financeTransactions.amount,
+      type: financeTransactions.type,
+      transferStatus: financeTransactions.transferStatus,
+      necessityScore: financeTransactions.necessityScore,
+      note: financeTransactions.note,
+      subcategoryId: financeTransactions.subcategoryId,
+      subcategoryName: subcategories.name,
+      transactionTimestamp: financeTransactions.transactionTimestamp,
+      createdAt: financeTransactions.createdAt,
+      updatedAt: financeTransactions.updatedAt,
+      tagIds: sql<number[]>`coalesce(
+        (select array_agg(${transactionTags.tagId})
+         from ${transactionTags}
+         where ${transactionTags.transactionId} = ${financeTransactions.id}),
+        '{}'
+      )`.as("tag_ids"),
+    })
+    .from(financeTransactions)
+    // Visibility: every active member's transactions are visible here,
+    // regardless of mapping — mapping only ever affects grouping.
+    .innerJoin(
+      organizationMembers,
+      and(
+        eq(organizationMembers.userId, financeTransactions.userId),
+        eq(organizationMembers.orgId, sharedOrgId),
+        eq(organizationMembers.isActive, true)
+      )
+    )
+    .innerJoin(users, eq(users.id, financeTransactions.userId))
+    .leftJoin(counterParty, eq(counterParty.id, financeTransactions.counterPartyId))
+    .leftJoin(transactionModes, eq(transactionModes.id, financeTransactions.transactionModeId))
+    .leftJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
+    .leftJoin(subcategories, eq(subcategories.id, financeTransactions.subcategoryId))
+    .leftJoin(
+      subcategorySpaceMappings,
+      and(
+        eq(subcategorySpaceMappings.subcategoryId, financeTransactions.subcategoryId),
+        eq(subcategorySpaceMappings.targetOrgId, sharedOrgId)
+      )
+    )
+    .leftJoin(mappedCategory, eq(mappedCategory.id, subcategorySpaceMappings.categoryId))
+    .leftJoin(
+      othersCategory,
+      and(
+        eq(othersCategory.orgId, sharedOrgId),
+        eq(othersCategory.type, financeTransactions.type),
+        eq(othersCategory.isSystemDefault, true)
+      )
+    )
+    .orderBy(desc(financeTransactions.transactionTimestamp), desc(financeTransactions.createdAt))
+    .limit(limit);
+
+  return records.map((record) => toExpenseDto(record as ExpenseJoinRow));
+}
+
 export async function getExpenseOwnershipRow(id: number): Promise<{
   id: number;
   orgId: number;
@@ -183,7 +266,7 @@ export async function createExpenseRecord(input: {
   categoryId: number;
   counterPartyId: number | null;
   transactionModeId: number | null;
-  subcategoryId: number | null;
+  subcategoryId: number;
   transferStatus: TransferStatus | null;
   amount: string;
   type: ExpenseType;
@@ -207,7 +290,7 @@ export async function updateExpenseRecord(
     categoryId: number;
     counterPartyId: number | null;
     transactionModeId: number | null;
-    subcategoryId: number | null;
+    subcategoryId: number;
     transferStatus: TransferStatus | null;
     amount: string;
     type: ExpenseType;

@@ -1,13 +1,10 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { AlertCircle, Download, FileUp, RefreshCw, ShieldAlert } from "lucide-react";
 import {
   importExpensesFromWorkbookAction,
-  importExpensesFromWorkbookOrgAction,
   parseImportWorkbookAction,
-  parseImportWorkbookOrgAction,
 } from "@/app/actions/auth-roles/manage-import-export.actions";
 import {
   IMPORT_WORKBOOK_FIELD_CONFIGS,
@@ -211,17 +208,15 @@ function collectDistinctTagNames(rows: Array<{ values: Record<ImportWorkbookFiel
 }
 
 export function ManageImportExport({ data }: { data: ManageImportExportDataDto }) {
-  const isOrganizationScope = data.scope === "organization";
   const [parseState, parseAction, parsePending] = useActionState(
-    isOrganizationScope ? parseImportWorkbookOrgAction : parseImportWorkbookAction,
+    parseImportWorkbookAction,
     manageImportExportInitialState
   );
   const [importState, importAction, importPending] = useActionState(
-    isOrganizationScope ? importExpensesFromWorkbookOrgAction : importExpensesFromWorkbookAction,
+    importExpensesFromWorkbookAction,
     manageImportExportInitialState
   );
   const [columnSelections, setColumnSelections] = useState<ColumnSelections>({});
-  const [userSelections, setUserSelections] = useState<ValueSelectionMap>({});
   const [counterpartySelections, setCounterpartySelections] = useState<ValueSelectionMap>({});
   const [categorySelections, setCategorySelections] = useState<ValueSelectionMap>({});
   const [modeSelections, setModeSelections] = useState<ValueSelectionMap>({});
@@ -230,7 +225,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   const preview = importState.preview ?? parseState.preview;
   const payloadJson = preview ? JSON.stringify(preview) : "";
   const fieldList = preview?.fields ?? IMPORT_WORKBOOK_FIELDS_BY_SCOPE[data.scope];
-  const exportHref = isOrganizationScope ? "/import-export-org/export" : "/import-export/export";
+  const exportHref = "/import-export/export";
 
   useEffect(() => {
     const nextKey = buildPreviewKey(preview);
@@ -246,7 +241,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       }
 
       setColumnSelections(nextColumnSelections);
-      setUserSelections({});
       setCounterpartySelections({});
       setCategorySelections({});
       setModeSelections({});
@@ -310,12 +304,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     () => data.counterparties.slice().sort(sortByName),
     [data.counterparties]
   );
-  const membersSorted = useMemo(() => data.members.slice().sort(sortByName), [data.members]);
-  const memberById = useMemo(
-    () => new Map(data.members.map((member) => [member.id, member] as const)),
-    [data.members]
-  );
-
   const resolvedRows = useMemo(() => {
     if (!preview) return [];
 
@@ -375,20 +363,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       const resolvedMode = selectedModeValue
         ? modeById.get(selectedModeValue) ?? null
         : null;
-      const normalizedUserName = normalizeWorkbookName(resolvedValues.user_name);
-      const hasUserValue = resolvedValues.user_name.trim().length > 0;
-      const userMatch = findUniqueNormalizedMatch(data.members, resolvedValues.user_name);
-      const selectedUserValue =
-        userSelections[normalizedUserName] ??
-        (hasUserValue
-          ? userMatch.match
-            ? userMatch.match.id
-            : ""
-          : "");
-      const resolvedUser = selectedUserValue ? memberById.get(selectedUserValue) ?? null : null;
-      const resolvedUserName = isOrganizationScope
-        ? resolvedUser?.name ?? (resolvedValues.user_name.trim() || "—")
-        : data.currentUser.name;
+      const resolvedUserName = data.currentUser.name;
 
       const displayValues: Record<ImportWorkbookField, string> = {
         amount: resolvedValues.amount,
@@ -417,7 +392,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     preview,
     selectedColumns,
     headerIndex,
-    userSelections,
     categorySelections,
     counterpartySelections,
     modeSelections,
@@ -427,19 +401,12 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     data.categories,
     data.counterparties,
     data.transactionModes,
-    data.members,
-    memberById,
     defaultTransactionMode,
     data.currentUser.id,
     data.currentUser.name,
     fieldList,
-    isOrganizationScope,
   ]);
 
-  const distinctUserNames = useMemo(
-    () => (isOrganizationScope ? collectDistinctValues(resolvedRows, "user_name") : []),
-    [resolvedRows, isOrganizationScope]
-  );
   const distinctCategoryNames = useMemo(
     () => collectDistinctValues(resolvedRows, "category"),
     [resolvedRows]
@@ -451,22 +418,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   const distinctModeNames = useMemo(() => collectDistinctValues(resolvedRows, "mode"), [resolvedRows]);
   const distinctSubcategoryNames = useMemo(() => collectDistinctSubcategoryNames(resolvedRows), [resolvedRows]);
   const distinctTagNames = useMemo(() => collectDistinctTagNames(resolvedRows), [resolvedRows]);
-
-  const userMappings = useMemo(() => {
-    if (!isOrganizationScope) {
-      return [];
-    }
-
-    return distinctUserNames.map((sheetValue) => {
-      const match = findUniqueNormalizedMatch(data.members, sheetValue);
-      return {
-        sheetValue,
-        defaultValue: match.match ? match.match.id : "",
-        isAmbiguous: match.isAmbiguous,
-        hasMatch: Boolean(match.match),
-      };
-    });
-  }, [data.members, distinctUserNames, isOrganizationScope]);
 
   const counterpartyMappings = useMemo(() => {
     return distinctCounterpartyNames.map((sheetValue) => {
@@ -550,25 +501,20 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     });
   }, [data.tags, distinctTagNames]);
 
-  const unresolvedUsers = isOrganizationScope ? userMappings.filter((mapping) => !mapping.hasMatch).length : 0;
   const unresolvedCounterparties = counterpartyMappings.filter((mapping) => !mapping.hasMatch).length;
   const unresolvedCategories = categoryChecks.filter((check) => !check.hasMatch).length;
   const unresolvedModes = modeChecks.filter((check) => !check.hasMatch).length;
-  // Org import: modes are auto-resolved per user, so unresolved modes don't block import.
-  const hasUnresolvedLookups =
-    unresolvedCategories > 0 ||
-    unresolvedCounterparties > 0 ||
-    (!isOrganizationScope && unresolvedModes > 0);
+  const hasUnresolvedLookups = unresolvedCategories > 0 || unresolvedCounterparties > 0 || unresolvedModes > 0;
 
   const modeColumnMapped = Boolean(selectedColumns.mode);
   const subcategoryColumnMapped = Boolean(selectedColumns.subcategories);
   const tagColumnMapped = Boolean(selectedColumns.tags);
-  const categoryStepLabel = isOrganizationScope ? "Step 2" : "Step 1";
-  const counterpartyStepLabel = isOrganizationScope ? "Step 3" : "Step 2";
-  const modeStepLabel = isOrganizationScope ? "" : "Step 3";
-  const subcategoryStepLabel = isOrganizationScope ? "Step 4" : "Step 4";
-  const tagStepLabel = isOrganizationScope ? "Step 5" : "Step 5";
-  const previewStepLabel = isOrganizationScope ? "Step 6" : "Step 6";
+  const categoryStepLabel = "Step 1";
+  const counterpartyStepLabel = "Step 2";
+  const modeStepLabel = "Step 3";
+  const subcategoryStepLabel = "Step 4";
+  const tagStepLabel = "Step 5";
+  const previewStepLabel = "Step 6";
 
   const resolvedPreviewRows = resolvedRows.slice(0, 10);
 
@@ -717,20 +663,11 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                 <CardTitle className="text-2xl tracking-tight">Coverage check</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
-                <div className={`grid gap-3 ${isOrganizationScope ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-                  {isOrganizationScope ? (
-                    <div className="rounded-lg border bg-muted/20 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Users</p>
-                      <p className="mt-2 text-sm font-medium">
-                        {unresolvedUsers === 0 ? "All mapped" : `${unresolvedUsers} need review`}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border bg-muted/20 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">User</p>
-                      <p className="mt-2 text-sm font-medium">{data.currentUser.name}</p>
-                    </div>
-                  )}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border bg-muted/20 p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">User</p>
+                    <p className="mt-2 text-sm font-medium">{data.currentUser.name}</p>
+                  </div>
                   <div className="rounded-lg border bg-muted/20 p-4">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Counterparties</p>
                     <p className="mt-2 text-sm font-medium">
@@ -882,69 +819,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   </div>
 
-                  {isOrganizationScope ? (
-                    <div className="space-y-4">
-                      <SectionTitle
-                        eyebrow="Step 1"
-                        title="Map users"
-                        description="Each distinct sheet user name must be linked to one existing DB user before import."
-                      />
-
-                      <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
-                        <div className="grid gap-3">
-                          {userMappings.map((mapping, index) => {
-                            const currentValue =
-                              userSelections[normalizeWorkbookName(mapping.sheetValue)] ?? mapping.defaultValue;
-
-                            return (
-                              <div
-                                key={mapping.sheetValue}
-                                className="grid gap-3 rounded-lg border bg-background/70 p-3 md:grid-cols-[1fr_1.5fr_auto]"
-                              >
-                                <div className="space-y-1">
-                                  <p className="text-sm font-medium">{mapping.sheetValue}</p>
-                                  <p className="text-xs text-muted-foreground">sheet user_name value</p>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor={`user_map_${index}`}>Map to DB user</Label>
-                                  <select
-                                    id={`user_map_${index}`}
-                                    name={`user_map_${index}`}
-                                    value={currentValue}
-                                    onChange={(event) => {
-                                      const value = event.target.value;
-                                      const key = normalizeWorkbookName(mapping.sheetValue);
-                                      setUserSelections((current) => ({
-                                        ...current,
-                                        [key]: value,
-                                      }));
-                                    }}
-                                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                    required
-                                  >
-                                    <option value="">Select a user</option>
-                                    {membersSorted.map((member) => (
-                                      <option key={member.id} value={member.id}>
-                                        {member.name} ({member.email})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div className="flex items-start">
-                                  <SuggestionBadge
-                                    match={mapping.hasMatch}
-                                    isAmbiguous={mapping.isAmbiguous}
-                                    fallbackLabel="Needs review"
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
                   <div className="space-y-4">
                     <SectionTitle
                       eyebrow={categoryStepLabel}
@@ -1066,21 +940,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   </div>
 
-                  {isOrganizationScope ? (
-                    modeColumnMapped ? (
-                      <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
-                        <p className="font-medium text-foreground">Modes are matched automatically per user.</p>
-                        <p className="mt-1">
-                          Each mode name in the sheet is matched to the corresponding user&apos;s existing mode.
-                          If a mode does not exist for a user, it will be created automatically during import.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
-                        No mode column is mapped — each row will use that user&apos;s default transaction mode.
-                      </div>
-                    )
-                  ) : modeColumnMapped ? (
+                  {modeColumnMapped ? (
                     <div className="space-y-4">
                     <SectionTitle
                       eyebrow={modeStepLabel}

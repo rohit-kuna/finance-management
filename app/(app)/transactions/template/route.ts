@@ -1,7 +1,7 @@
 import { buildExpenseExportWorkbook } from "@/app/lib/manage-import-export.workbook";
 
 export async function GET() {
-  const workbook = buildExpenseExportWorkbook([], "user");
+  const workbook = buildExpenseExportWorkbook([]);
 
   return new Response(workbook, {
     status: 200,

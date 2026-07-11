@@ -1,8 +1,8 @@
 "use server";
 
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { subcategories } from "@/db/schema";
+import { financeTransactions, subcategories } from "@/db/schema";
 import type { SubcategoryRecordDto } from "@/app/lib/finance.types";
 
 function toSubcategoryDto(record: typeof subcategories.$inferSelect): SubcategoryRecordDto {
@@ -85,6 +85,14 @@ export async function updateSubcategoryRecord(
 ) {
   const [record] = await db.update(subcategories).set(input).where(eq(subcategories.id, id)).returning();
   return record ?? null;
+}
+
+export async function getSubcategoryUsageCount(subcategoryId: number) {
+  const [record] = await db
+    .select({ count: count(financeTransactions.id) })
+    .from(financeTransactions)
+    .where(eq(financeTransactions.subcategoryId, subcategoryId));
+  return Number(record?.count ?? 0);
 }
 
 export async function deleteSubcategoryRecord(id: number) {

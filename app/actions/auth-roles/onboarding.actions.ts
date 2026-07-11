@@ -19,7 +19,40 @@ import {
   setDefaultOrganizationForUser,
 } from "@/app/actions/tables/organization-members.table.actions";
 import { setUserScope } from "@/app/actions/tables/users.table.actions";
+import { ensureSystemDefaultCategories } from "@/app/actions/tables/categories.table.actions";
 import type { OnboardingActionState } from "@/app/actions/auth-roles/onboarding.types";
+
+/**
+ * Personal space is the single source of truth for every transaction a user
+ * makes, so every user needs one as soon as they touch a shared space —
+ * regardless of whether they onboarded as "personal" or "shared" scope.
+ * Idempotent: returns the existing personal org if one is already there.
+ */
+async function ensurePersonalOrganizationForUser(userId: string) {
+  const existing = await getPersonalOrganizationForUser(userId);
+  if (existing) return existing;
+
+  const memberships = await getOrganizationsForUser(userId);
+  const organization = await createOrganizationRecord({
+    name: "My Space",
+    inviteCode: buildInviteCode(),
+    createdBy: userId,
+    isPersonal: true,
+  });
+
+  if (!organization) {
+    throw new Error("Unable to create your personal space");
+  }
+
+  await addOrganizationMember({
+    orgId: organization.id,
+    userId,
+    role: ROLES.ADMIN,
+    isDefault: memberships.length === 0,
+  });
+
+  return organization;
+}
 
 const joinOrganizationSchema = z.object({
   inviteCode: z.string().trim().min(1, "Invite code is required").max(64),
@@ -60,6 +93,7 @@ export async function joinOrganizationByInviteCodeAction(
   const existingMembership = await getOrganizationMembership(organization.id, currentUser.id);
 
   if (!existingMembership) {
+    await ensurePersonalOrganizationForUser(currentUser.id);
     const memberships = await getOrganizationsForUser(currentUser.id);
     await addOrganizationMember({
       orgId: organization.id,
@@ -93,6 +127,7 @@ export async function createOrganizationFromOnboardingAction(
     };
   }
 
+  await ensurePersonalOrganizationForUser(currentUser.id);
   const memberships = await getOrganizationsForUser(currentUser.id);
 
   const organization = await createOrganizationRecord({
@@ -108,6 +143,7 @@ export async function createOrganizationFromOnboardingAction(
     };
   }
 
+  await ensureSystemDefaultCategories(organization.id, currentUser.id);
   await addOrganizationMember({
     orgId: organization.id,
     userId: currentUser.id,

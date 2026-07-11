@@ -1,5 +1,4 @@
 import type { CategoryRecordDto, CounterpartyRecordDto, SubcategoryRecordDto, TagRecordDto, TransactionModeRecordDto } from "@/app/lib/finance.types";
-import type { OrganizationMemberRecord } from "@/app/lib/admin-dashboard.types";
 import type { AppRole } from "@/app/lib/roles";
 
 export const IMPORT_WORKBOOK_FIELDS = [
@@ -19,7 +18,9 @@ export const IMPORT_WORKBOOK_FIELDS = [
 export type ImportWorkbookField = (typeof IMPORT_WORKBOOK_FIELDS)[number];
 export type ImportWorkbookValueMapping = "user" | "category" | "counterparty" | "mode" | null;
 
-export type ManageImportExportScope = "organization" | "user";
+// Every transaction lives only in the owner's personal space now — an admin
+// has no write access to another member's data — so this is always "user".
+export type ManageImportExportScope = "user";
 
 export const IMPORT_WORKBOOK_FIELD_CONFIGS = [
   { key: "transactionTimestamp", label: "Transaction timestamp", required: true, valueMapping: null },
@@ -41,19 +42,6 @@ export const IMPORT_WORKBOOK_FIELD_CONFIGS = [
 }>;
 
 export const IMPORT_WORKBOOK_FIELDS_BY_SCOPE = {
-  organization: [
-    "transactionTimestamp",
-    "amount",
-    "type",
-    "category",
-    "subcategories",
-    "note",
-    "tags",
-    "mode",
-    "necessity_score",
-    "user_name",
-    "counter_party_name",
-  ],
   user: [
     "transactionTimestamp",
     "amount",
@@ -115,10 +103,6 @@ export type ManageImportExportDataDto = {
   subcategories: SubcategoryRecordDto[];
   tags: TagRecordDto[];
   transactionModes: TransactionModeRecordDto[];
-  members: Pick<
-    OrganizationMemberRecord,
-    "id" | "email" | "name" | "role" | "orgId" | "createdAt" | "updatedAt"
-  >[];
   currentUser: {
     id: string;
     name: string;

@@ -30,8 +30,7 @@ export async function GET(request: Request) {
       mode: expense.transactionModeName ?? "",
       subcategories: expense.subcategoryName ?? "",
       tags: expense.tagIds.map((tagId) => tagNameById.get(tagId)).filter(Boolean).join(", "),
-    })),
-    "user"
+    }))
   );
 
   const stamp = new Date().toISOString().slice(0, 10);

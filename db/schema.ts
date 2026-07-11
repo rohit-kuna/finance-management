@@ -87,12 +87,18 @@ export const categories = pgTable(
     orgId: integer("org_id").notNull().references(() => organizations.id),
     type: varchar("type", { length: 10 }).notNull().default("expense").$type<CategoryType>(),
     createdBy: uuid("created_by").notNull().references(() => users.id),
+    isSystemDefault: boolean("is_system_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
     uniqueNamePerOrg: unique("categories_name_org_unique").on(table.name, table.orgId),
     categoriesOrgIdx: index("categories_org_id_idx").on(table.orgId),
+    // one system-default ("Others") category per org per type (expense/income) —
+    // the implicit fallback grouping target for unmapped subcategories in shared spaces
+    orgTypeSystemDefaultUnique: uniqueIndex("categories_org_type_system_default_unique")
+      .on(table.orgId, table.type)
+      .where(sql`${table.isSystemDefault}`),
   })
 );
 
@@ -126,6 +132,37 @@ export const subcategories = pgTable(
     subcategoriesCategoryNameUnique: unique("subcategories_category_name_unique").on(table.categoryId, table.name),
     subcategoriesOrgIdx: index("subcategories_org_id_idx").on(table.orgId),
     subcategoriesCategoryIdx: index("subcategories_category_id_idx").on(table.categoryId),
+  })
+);
+
+// Maps a user's personal subcategory to a category "shell" in a shared space
+// (the target org). Absence of a row means the subcategory is unmapped and
+// falls back to that org's system-default ("Others") category at read time.
+export const subcategorySpaceMappings = pgTable(
+  "subcategory_space_mappings",
+  {
+    id: serial("id").primaryKey(),
+    subcategoryId: integer("subcategory_id")
+      .notNull()
+      .references(() => subcategories.id, { onDelete: "cascade" }),
+    targetOrgId: integer("target_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    updatedBy: uuid("updated_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueSubcategoryTargetOrg: uniqueIndex("subcategory_space_mappings_subcategory_target_org_unique").on(
+      table.subcategoryId,
+      table.targetOrgId
+    ),
+    targetOrgIdx: index("subcategory_space_mappings_target_org_id_idx").on(table.targetOrgId),
+    subcategoryIdx: index("subcategory_space_mappings_subcategory_id_idx").on(table.subcategoryId),
+    categoryIdx: index("subcategory_space_mappings_category_id_idx").on(table.categoryId),
   })
 );
 
@@ -178,9 +215,11 @@ export const financeTransactions = pgTable(
     transactionModeId: integer("transaction_mode_id").references(() => transactionModes.id, {
       onDelete: "set null",
     }),
-    subcategoryId: integer("subcategory_id").references(() => subcategories.id, {
-      onDelete: "set null",
-    }),
+    // Required — every transaction always carries a subcategory now (the
+    // owner's personal subcategory). Deleting an in-use subcategory is
+    // blocked at the app layer (getSubcategoryUsageCount), so this stays a
+    // plain FK rather than onDelete: "set null".
+    subcategoryId: integer("subcategory_id").notNull().references(() => subcategories.id),
     transferStatus: varchar("transfer_status", { length: 10 }).$type<TransferStatus>(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     type: varchar("type", { length: 10 }).notNull().default("expense").$type<ExpenseType>(),
@@ -203,6 +242,7 @@ export const financeTransactions = pgTable(
       table.transactionTimestamp
     ),
     categoryIdx: index("finance_transactions_category_id_idx").on(table.categoryId),
+    subcategoryIdx: index("finance_transactions_subcategory_id_idx").on(table.subcategoryId),
     orgTimestampIdx: index("finance_transactions_org_id_transaction_timestamp_idx").on(
       table.orgId,
       table.transactionTimestamp.desc()

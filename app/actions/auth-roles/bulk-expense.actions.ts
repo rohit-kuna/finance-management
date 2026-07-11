@@ -77,8 +77,10 @@ export async function parseBulkAddWorkbookAction(
 ): Promise<{ rows: BulkAddRowDto[]; error?: string }> {
   const currentUser = await requireUser();
   if (!currentUser.orgId) return { rows: [], error: "Join an organization first" };
+  if (!currentUser.personalOrgId) return { rows: [], error: "Set up your personal space first" };
 
   const orgId = currentUser.orgId;
+  const personalOrgId = currentUser.personalOrgId;
   const file = formData.get("file");
   if (!(file instanceof File) || !file.name.endsWith(".xlsx")) {
     return { rows: [], error: "Please upload a valid .xlsx file" };
@@ -93,8 +95,8 @@ export async function parseBulkAddWorkbookAction(
   }
 
   const [categories, subcategories, counterparties, tags, modes] = await Promise.all([
-    getCategoriesByOrg(orgId),
-    getSubcategoriesByOrg(orgId),
+    getCategoriesByOrg(personalOrgId),
+    getSubcategoriesByOrg(personalOrgId),
     getCounterpartiesByOrg(orgId),
     getTagsByOrg(orgId),
     ensureDefaultTransactionModesForUser(orgId, currentUser.id),
@@ -207,15 +209,17 @@ export async function bulkCreateExpenseAction(
 ): Promise<{ success: boolean; error?: string }> {
   const currentUser = await requireUser();
   if (!currentUser.orgId) return { success: false, error: "Join an organization first" };
+  if (!currentUser.personalOrgId) return { success: false, error: "Set up your personal space first" };
 
   const orgId = currentUser.orgId;
+  const personalOrgId = currentUser.personalOrgId;
 
   const [category, mode] = await Promise.all([
     getCategoryById(input.categoryId),
     getTransactionModeById(input.transactionModeId),
   ]);
 
-  if (!category || category.orgId !== orgId) return { success: false, error: "Category not found" };
+  if (!category || category.orgId !== personalOrgId) return { success: false, error: "Category not found" };
   if (!mode || mode.userId !== currentUser.id) return { success: false, error: "Transaction mode not found" };
 
   let counterPartyId: number | null = null;
@@ -226,17 +230,18 @@ export async function bulkCreateExpenseAction(
 
   let subcategoryId: number | null = null;
   if (input.subcategoryId) {
-    const subs = await getSubcategoriesByOrg(orgId);
+    const subs = await getSubcategoriesByOrg(personalOrgId);
     const sub = subs.find((s) => s.id === input.subcategoryId && s.categoryId === input.categoryId);
     if (sub) subcategoryId = sub.id;
   }
+  if (subcategoryId == null) return { success: false, error: "A subcategory is required" };
 
   const orgTags = await getTagsByOrg(orgId);
   const validTagIds = new Set(orgTags.map((t) => t.id));
   const tagIds = input.tagIds.filter((id) => validTagIds.has(id));
 
   const expense = await createExpenseRecord({
-    orgId,
+    orgId: personalOrgId,
     userId: currentUser.id,
     categoryId: input.categoryId,
     counterPartyId,

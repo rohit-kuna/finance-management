@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
 import type { CategoryRecordDto, SubcategoryRecordDto } from "@/app/lib/finance.types";
+import type { SubcategoryMappingRowDto } from "@/app/actions/auth-roles/subcategory-mapping.actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CategoryRow } from "@/components/features/categories/category-row";
 import { AddCategoryRow } from "@/components/features/categories/add-category-row";
+import { SpaceMappingChipCell } from "@/components/features/categories/space-mapping-chip-cell";
 
 function SortableHeader({
   column,
@@ -75,6 +77,9 @@ function CategoryTable({
   categoriesById,
   currentUserId,
   canManageCategories,
+  isPersonalSpace,
+  targetOrgId,
+  mappingRows,
   editingCategoryId,
   onStartEdit,
   onCancelEdit,
@@ -84,6 +89,9 @@ function CategoryTable({
   categoriesById: Map<number, CategoryRecordDto>;
   currentUserId: string;
   canManageCategories: boolean;
+  isPersonalSpace: boolean;
+  targetOrgId: number | null;
+  mappingRows: SubcategoryMappingRowDto[];
   editingCategoryId: number | null;
   onStartEdit: (categoryId: number) => void;
   onCancelEdit: () => void;
@@ -102,14 +110,14 @@ function CategoryTable({
       },
       {
         id: "subcategories",
-        header: "Subcategories",
+        header: isPersonalSpace ? "Subcategories" : "Your mapping",
       },
       {
         id: "actions",
         header: "",
       },
     ],
-    []
+    [isPersonalSpace]
   );
 
   const table = useReactTable({
@@ -157,6 +165,9 @@ function CategoryTable({
               categoriesById={categoriesById}
               currentUserId={currentUserId}
               isAdmin={canManageCategories}
+              isPersonalSpace={isPersonalSpace}
+              targetOrgId={targetOrgId}
+              mappingRows={mappingRows}
             />
           ))}
         </TableBody>
@@ -170,11 +181,17 @@ export function CategoryManagement({
   subcategories,
   currentUserId,
   canManageCategories,
+  isPersonalSpace,
+  targetOrgId,
+  mappingRows,
 }: {
   categories: CategoryRecordDto[];
   subcategories: SubcategoryRecordDto[];
   currentUserId: string;
   canManageCategories: boolean;
+  isPersonalSpace: boolean;
+  targetOrgId: number | null;
+  mappingRows: SubcategoryMappingRowDto[];
 }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -195,8 +212,19 @@ export function CategoryManagement({
       current.push(subcategory.name);
       map.set(subcategory.categoryId, current);
     }
+    for (const row of mappingRows) {
+      if (row.mappedCategoryId === null) continue;
+      const current = map.get(row.mappedCategoryId) ?? [];
+      current.push(row.subcategoryName);
+      map.set(row.mappedCategoryId, current);
+    }
     return map;
-  }, [subcategories]);
+  }, [subcategories, mappingRows]);
+
+  const uncategorizedMappingRows = useMemo(
+    () => mappingRows.filter((row) => row.mappedCategoryId === null),
+    [mappingRows]
+  );
 
   const filteredCategories = useMemo(() => {
     const loweredQuery = query.trim().toLowerCase();
@@ -222,9 +250,13 @@ export function CategoryManagement({
                 <span className="block">Manage Categories & Subcategories</span>
               </CardTitle>
               <p className="max-w-3xl text-sm text-muted-foreground">
-                {canManageCategories
-                  ? "Create and edit categories, and add subcategory chips inline. Type to find an existing subcategory or create a new one."
-                  : "Categories are managed by admins. You can add subcategory chips to any category and manage the ones you created."}
+                {isPersonalSpace
+                  ? canManageCategories
+                    ? "Create and edit categories, and add subcategory chips inline. Type to find an existing subcategory or create a new one."
+                    : "Categories are managed by admins. You can add subcategory chips to any category and manage the ones you created."
+                  : canManageCategories
+                    ? "This is a shared space — categories here are top-level only. Map your own personal subcategories into them using the chip cell on each category, or leave them in Uncategorized below."
+                    : "This is a shared space — categories here are managed by admins. Map your own personal subcategories into them using the chip cell on each category, or leave them in Uncategorized below."}
               </p>
             </div>
             <Badge variant="secondary">{filteredCategories.length} records</Badge>
@@ -233,6 +265,26 @@ export function CategoryManagement({
       </Card>
 
       {canManageCategories ? <AddCategoryRow /> : null}
+
+      {!isPersonalSpace && targetOrgId ? (
+        <Card className="py-2">
+          <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-xl tracking-tight">Uncategorized</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Your subcategories with no explicit mapping in this space. They still show up under
+                  &ldquo;Others&rdquo; in reports — map them to a category below to change that.
+                </p>
+              </div>
+              <Badge variant="secondary">{uncategorizedMappingRows.length} subcategories</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
+            <SpaceMappingChipCell category={null} targetOrgId={targetOrgId} myRows={mappingRows} categoriesById={categoriesById} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="py-2">
         <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
@@ -287,6 +339,9 @@ export function CategoryManagement({
               categoriesById={categoriesById}
               currentUserId={currentUserId}
               canManageCategories={canManageCategories}
+              isPersonalSpace={isPersonalSpace}
+              targetOrgId={targetOrgId}
+              mappingRows={mappingRows}
               editingCategoryId={editingCategoryId}
               onStartEdit={setEditingCategoryId}
               onCancelEdit={() => setEditingCategoryId(null)}

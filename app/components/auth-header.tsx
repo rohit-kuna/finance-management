@@ -73,7 +73,6 @@ const adminSettingsGroups: HeaderNavGroup[] = [
     label: "Tools",
     items: [
       { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
-      { label: "Import Export (Space)", href: ROUTES.MANAGE_IMPORT_EXPORT_ORG },
       { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
     ],
   },

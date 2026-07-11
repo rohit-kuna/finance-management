@@ -149,10 +149,12 @@ export async function getOrganizationCategoriesForAdmin() {
     };
   }
 
-  const [organization, categories, subcategories] = await Promise.all([
-    getOrganizationById(currentUser.orgId),
+  const organization = await getOrganizationById(currentUser.orgId);
+  const [categories, subcategories] = await Promise.all([
     getCategoriesByOrg(currentUser.orgId),
-    getSubcategoriesByOrg(currentUser.orgId),
+    // Shared spaces never have their own subcategories — only top-level
+    // "shell" categories that members map their personal subcategories into.
+    organization?.isPersonal ? getSubcategoriesByOrg(currentUser.orgId) : Promise.resolve([]),
   ]);
 
   return { organization, categories, subcategories };
@@ -170,10 +172,10 @@ export async function getOrganizationCategoriesForUser() {
     };
   }
 
-  const [organization, categories, subcategories] = await Promise.all([
-    getOrganizationById(currentUser.orgId),
+  const organization = await getOrganizationById(currentUser.orgId);
+  const [categories, subcategories] = await Promise.all([
     getCategoriesByOrg(currentUser.orgId),
-    getSubcategoriesByOrg(currentUser.orgId),
+    organization?.isPersonal ? getSubcategoriesByOrg(currentUser.orgId) : Promise.resolve([]),
   ]);
 
   return { organization, categories, subcategories, currentUserId: currentUser.id };
@@ -240,6 +242,11 @@ export async function createCategoryWithSubcategoriesAction(
     subcategoryNames.push(name);
   }
 
+  const organization = await getOrganizationById(orgId);
+  if (subcategoryNames.length > 0 && !organization?.isPersonal) {
+    return { error: "Shared spaces only have top-level categories — subcategories belong to your personal space" };
+  }
+
   const category = await createCategoryRecord({
     orgId,
     name: parsed.data.name,
@@ -289,6 +296,10 @@ export async function updateCategoryAction(
     return { error: "Category does not belong to your organization" };
   }
 
+  if (category.isSystemDefault && category.type !== parsed.data.type) {
+    return { error: "The default category's type cannot be changed" };
+  }
+
   if (category.type === "expense" && parsed.data.type === "income") {
     const usage = await getCategoryUsageCounts(category.id);
     if (usage.budgetCount > 0) {
@@ -323,10 +334,14 @@ export async function deleteCategoryAction(
     return { error: "Category does not belong to your organization" };
   }
 
+  if (category.isSystemDefault) {
+    return { error: "The default category cannot be deleted" };
+  }
+
   const usage = await getCategoryUsageCounts(category.id);
-  if (usage.budgetCount > 0 || usage.expenseCount > 0) {
+  if (usage.budgetCount > 0 || usage.expenseCount > 0 || usage.mappingCount > 0) {
     return {
-      error: "Category is in use by existing budgets or expenses and cannot be deleted",
+      error: "Category is in use by existing budgets, expenses, or space mappings and cannot be deleted",
     };
   }
 

@@ -10,6 +10,7 @@ import {
   deleteSubcategoryRecord,
   getSubcategoryByOrgCategoryAndName,
   getSubcategoryById,
+  getSubcategoryUsageCount,
   updateSubcategoryRecord,
 } from "@/app/actions/tables/subcategories.table.actions";
 import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
@@ -24,12 +25,15 @@ const subcategoryIdSchema = z.object({
   subcategoryId: z.coerce.number().int().positive(),
 });
 
-function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
-  if (!currentUser.orgId) {
-    throw new Error("Create or join an organization first");
+// Subcategories are always a personal-space, user-level attribute — never
+// space-specific — regardless of which space (personal or shared) is
+// currently active for navigation. Categories are the space-level attribute.
+function assertPersonalOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
+  if (!currentUser.personalOrgId) {
+    throw new Error("Set up your personal space first");
   }
 
-  return currentUser.orgId;
+  return currentUser.personalOrgId;
 }
 
 function resolveReturnTo(formData: FormData) {
@@ -51,10 +55,10 @@ export async function createSubcategoryAction(
     return { error: parsed.error.issues[0]?.message ?? "Unable to create subcategory" };
   }
 
-  const orgId = assertOrgId(currentUser);
+  const orgId = assertPersonalOrgId(currentUser);
   const category = await getCategoryById(parsed.data.categoryId);
   if (!category || category.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Category does not belong to your personal space" };
   }
 
   if (await getSubcategoryByOrgCategoryAndName(orgId, parsed.data.categoryId, parsed.data.name)) {
@@ -82,10 +86,10 @@ export async function createSubcategoryInline(
     return { error: parsed.error.issues[0]?.message ?? "Unable to create subcategory" };
   }
 
-  const orgId = assertOrgId(currentUser);
+  const orgId = assertPersonalOrgId(currentUser);
   const category = await getCategoryById(parsed.data.categoryId);
   if (!category || category.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Category does not belong to your personal space" };
   }
 
   const existingSubcategory = await getSubcategoryByOrgCategoryAndName(orgId, parsed.data.categoryId, parsed.data.name);
@@ -139,20 +143,16 @@ export async function updateSubcategoryAction(
     return { error: "Subcategory is required" };
   }
 
-  const orgId = assertOrgId(currentUser);
+  const orgId = assertPersonalOrgId(currentUser);
   const subcategory = await getSubcategoryById(subcategoryIdResult.data.subcategoryId);
 
-  if (!subcategory || subcategory.orgId !== orgId) {
-    return { error: "Subcategory does not belong to your organization" };
-  }
-
-  if (currentUser.role !== "ADMIN" && subcategory.createdBy !== currentUser.id) {
-    return { error: "You can only manage subcategories you created" };
+  if (!subcategory || subcategory.orgId !== orgId || subcategory.createdBy !== currentUser.id) {
+    return { error: "Subcategory does not belong to you" };
   }
 
   const category = await getCategoryById(parsed.data.categoryId);
   if (!category || category.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Category does not belong to your personal space" };
   }
 
   if (
@@ -183,15 +183,16 @@ export async function deleteSubcategoryAction(
     return { error: "Subcategory is required" };
   }
 
-  const orgId = assertOrgId(currentUser);
+  const orgId = assertPersonalOrgId(currentUser);
   const subcategory = await getSubcategoryById(subcategoryIdResult.data.subcategoryId);
 
-  if (!subcategory || subcategory.orgId !== orgId) {
-    return { error: "Subcategory does not belong to your organization" };
+  if (!subcategory || subcategory.orgId !== orgId || subcategory.createdBy !== currentUser.id) {
+    return { error: "Subcategory does not belong to you" };
   }
 
-  if (currentUser.role !== "ADMIN" && subcategory.createdBy !== currentUser.id) {
-    return { error: "You can only manage subcategories you created" };
+  const usageCount = await getSubcategoryUsageCount(subcategory.id);
+  if (usageCount > 0) {
+    return { error: "Subcategory is in use by existing transactions and cannot be deleted" };
   }
 
   await deleteSubcategoryRecord(subcategory.id);

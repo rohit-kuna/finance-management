@@ -10,20 +10,6 @@ import {
 } from "@/app/lib/manage-import-export.types";
 import { normalizeWorkbookHeaderName } from "@/app/lib/manage-import-export.shared";
 
-export const EXPORT_WORKBOOK_HEADERS = [
-  "transaction_timestamp",
-  "amount",
-  "type",
-  "category",
-  "subcategories",
-  "note",
-  "tags",
-  "mode",
-  "necessity_score",
-  "user_name",
-  "counter_party_name",
-] as const;
-
 export const USER_EXPORT_WORKBOOK_HEADERS = [
   "transaction_timestamp",
   "amount",
@@ -176,13 +162,11 @@ export function buildExpenseExportWorkbook(
     mode: string;
     subcategories: string;
     tags: string;
-  }>,
-  scope: ManageImportExportScope
+  }>
 ) {
   const workbook = utils.book_new();
-  const header = scope === "organization" ? EXPORT_WORKBOOK_HEADERS : USER_EXPORT_WORKBOOK_HEADERS;
   const sheet = utils.json_to_sheet(rows, {
-    header: [...header],
+    header: [...USER_EXPORT_WORKBOOK_HEADERS],
     skipHeader: false,
   });
 

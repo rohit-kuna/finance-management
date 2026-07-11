@@ -11,6 +11,7 @@ import {
   deleteExpenseRecord,
   getExpenseOwnershipRow,
   getExpensesByOrg,
+  getExpensesForSharedSpace,
   updateExpenseRecord,
 } from "@/app/actions/tables/expenses.table.actions";
 import {
@@ -68,6 +69,18 @@ function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
   return currentUser.orgId;
 }
 
+// Personal space is the single source of truth for every transaction: a
+// transaction's orgId/categoryId/subcategoryId always resolve against the
+// owner's personal org, regardless of which space (personal or shared) is
+// currently "active" for navigation/UI purposes.
+function assertPersonalOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
+  if (!currentUser.personalOrgId) {
+    throw new Error("Set up your personal space first");
+  }
+
+  return currentUser.personalOrgId;
+}
+
 function toMoneyString(amount: number) {
   return amount.toFixed(2);
 }
@@ -91,18 +104,14 @@ function toOrganizationDto(organization: Awaited<ReturnType<typeof getOrganizati
   };
 }
 
-async function ensureExpenseOwnershipOrAdmin(expenseId: number, currentUser: Awaited<ReturnType<typeof requireUser>>) {
+// Ownership is strictly personal now that transactions always live in the
+// owner's personal space — a shared-space admin no longer gets a bypass to
+// edit/delete another member's transaction (there's no "org's transaction"
+// concept anymore, only "my transaction, visible in spaces I map it into").
+async function ensureExpenseOwnership(expenseId: number, currentUser: Awaited<ReturnType<typeof requireUser>>) {
   const expense = await getExpenseOwnershipRow(expenseId);
 
-  if (!expense || expense.orgId !== currentUser.orgId) {
-    return null;
-  }
-
-  if (currentUser.role === "ADMIN") {
-    return expense;
-  }
-
-  if (expense.userId !== currentUser.id) {
+  if (!expense || expense.userId !== currentUser.id) {
     return null;
   }
 
@@ -122,12 +131,12 @@ async function resolveTagIds(orgId: number, tagIds: number[]) {
   return getValidTagIdsByOrg(orgId, tagIds);
 }
 
-async function resolveSubcategoryId(orgId: number, categoryId: number, subcategoryId: number | undefined) {
+async function resolveSubcategoryId(personalOrgId: number, categoryId: number, subcategoryId: number | undefined) {
   if (subcategoryId == null) {
     return null;
   }
 
-  const match = await getSubcategoryByIdAndCategory(subcategoryId, orgId, categoryId);
+  const match = await getSubcategoryByIdAndCategory(subcategoryId, personalOrgId, categoryId);
   return match ? subcategoryId : undefined;
 }
 
@@ -152,13 +161,24 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     };
   }
 
-  const [organization, categories, counterparties, subcategories, tags, expenses, transactionModes] = await Promise.all([
-    getOrganizationById(currentUser.orgId),
-    getCategoriesByOrg(currentUser.orgId),
+  // Category/subcategory selection always sources from the personal space —
+  // subcategories are user-specific, never space-specific — regardless of
+  // which space is currently active. Counterparty/mode stay tied to whichever
+  // space is active. Expense listing depends on which kind of space is
+  // active: personal orgs list the owner's own transactions directly; shared
+  // orgs are a lens — every active member's transactions are visible there,
+  // grouped by each subcategory's mapping (or "Others" if unmapped).
+  const personalOrgId = currentUser.personalOrgId ?? currentUser.orgId;
+  const organization = await getOrganizationById(currentUser.orgId);
+
+  const [categories, counterparties, subcategories, tags, expenses, transactionModes] = await Promise.all([
+    getCategoriesByOrg(personalOrgId),
     getCounterpartiesByOrg(currentUser.orgId),
-    getSubcategoriesByOrg(currentUser.orgId),
+    getSubcategoriesByOrg(personalOrgId),
     getTagsByOrg(currentUser.orgId),
-    getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
+    organization?.isPersonal ?? true
+      ? getExpensesByOrg(currentUser.orgId, 500, currentUser.id)
+      : getExpensesForSharedSpace(currentUser.orgId, 500),
     getTransactionModesByUser(currentUser.orgId, currentUser.id),
   ]);
 
@@ -198,11 +218,15 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
     };
   }
 
-  const [organization, categories, counterparties, expenses, transactionModes] = await Promise.all([
-    getOrganizationById(currentUser.orgId),
-    getCategoriesByOrg(currentUser.orgId),
+  const personalOrgId = currentUser.personalOrgId ?? currentUser.orgId;
+  const organization = await getOrganizationById(currentUser.orgId);
+
+  const [categories, counterparties, expenses, transactionModes] = await Promise.all([
+    getCategoriesByOrg(personalOrgId),
     getCounterpartiesByOrg(currentUser.orgId),
-    getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
+    organization?.isPersonal ?? true
+      ? getExpensesByOrg(currentUser.orgId, 500, currentUser.id)
+      : getExpensesForSharedSpace(currentUser.orgId, 500),
     getTransactionModesByUser(currentUser.orgId, currentUser.id),
   ]);
   const visibleTransfers = expenses.filter((expense) => expense.counterPartyId !== null);
@@ -229,6 +253,7 @@ export async function createExpenseAction(
   console.time("createExpenseAction");
   const currentUser = await requireUser();
   const orgId = assertOrgId(currentUser);
+  const personalOrgId = assertPersonalOrgId(currentUser);
 
   const parsed = expenseSchema.safeParse({
     categoryId: formData.get("categoryId"),
@@ -251,13 +276,13 @@ export async function createExpenseAction(
     getCategoryById(parsed.data.categoryId),
     resolveCounterpartyId(orgId, parsed.data.counterPartyId),
     getTransactionModeById(parsed.data.transactionModeId),
-    resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId),
+    resolveSubcategoryId(personalOrgId, parsed.data.categoryId, parsed.data.subcategoryId),
     resolveTagIds(orgId, parsed.data.tagIds),
   ]);
 
-  if (!category || category.orgId !== orgId) {
+  if (!category || category.orgId !== personalOrgId) {
     console.timeEnd("createExpenseAction");
-    return { error: "Category does not belong to your organization" };
+    return { error: "Category does not belong to your personal space" };
   }
   if (parsed.data.counterPartyId != null && !counterPartyId) {
     console.timeEnd("createExpenseAction");
@@ -267,16 +292,16 @@ export async function createExpenseAction(
     console.timeEnd("createExpenseAction");
     return { error: "Transaction mode does not exist" };
   }
-  if (subcategoryId === undefined) {
+  if (subcategoryId === undefined || subcategoryId === null) {
     console.timeEnd("createExpenseAction");
-    return { error: "Subcategory does not belong to the selected category" };
+    return { error: "A subcategory is required" };
   }
 
   const expenseType = category.type;
   const transferStatus = counterPartyId ? "open" : null;
 
   const expense = await createExpenseRecord({
-    orgId,
+    orgId: personalOrgId,
     userId: currentUser.id,
     categoryId: parsed.data.categoryId,
     counterPartyId,
@@ -305,6 +330,7 @@ export async function updateExpenseAction(
   console.time("updateExpenseAction");
   const currentUser = await requireUser();
   const orgId = assertOrgId(currentUser);
+  const personalOrgId = assertPersonalOrgId(currentUser);
 
   const parsed = expenseSchema.safeParse({
     categoryId: formData.get("categoryId"),
@@ -331,23 +357,23 @@ export async function updateExpenseAction(
     return { error: "Expense is required" };
   }
 
-  const expense = await ensureExpenseOwnershipOrAdmin(expenseIdResult.data.expenseId, currentUser);
+  const expense = await ensureExpenseOwnership(expenseIdResult.data.expenseId, currentUser);
   if (!expense) {
     console.timeEnd("updateExpenseAction");
-    return { error: "Expense does not belong to your organization" };
+    return { error: "Expense does not belong to you" };
   }
 
   const [category, counterPartyId, transactionMode, subcategoryId, tagIds] = await Promise.all([
     getCategoryById(parsed.data.categoryId),
     resolveCounterpartyId(orgId, parsed.data.counterPartyId),
     getTransactionModeById(parsed.data.transactionModeId),
-    resolveSubcategoryId(orgId, parsed.data.categoryId, parsed.data.subcategoryId),
+    resolveSubcategoryId(personalOrgId, parsed.data.categoryId, parsed.data.subcategoryId),
     resolveTagIds(orgId, parsed.data.tagIds),
   ]);
 
-  if (!category || category.orgId !== orgId) {
+  if (!category || category.orgId !== personalOrgId) {
     console.timeEnd("updateExpenseAction");
-    return { error: "Category does not belong to your organization" };
+    return { error: "Category does not belong to your personal space" };
   }
   if (parsed.data.counterPartyId != null && !counterPartyId) {
     console.timeEnd("updateExpenseAction");
@@ -357,9 +383,9 @@ export async function updateExpenseAction(
     console.timeEnd("updateExpenseAction");
     return { error: "Transaction mode does not exist" };
   }
-  if (subcategoryId === undefined) {
+  if (subcategoryId === undefined || subcategoryId === null) {
     console.timeEnd("updateExpenseAction");
-    return { error: "Subcategory does not belong to the selected category" };
+    return { error: "A subcategory is required" };
   }
 
   const expenseType = category.type;
@@ -390,7 +416,6 @@ export async function updateTransferStatusAction(
   formData: FormData
 ): Promise<FinanceActionState> {
   const currentUser = await requireUser();
-  const orgId = assertOrgId(currentUser);
   const parsed = transferStatusUpdateSchema.safeParse({
     expenseId: formData.get("expenseId"),
     transferStatus: formData.get("transferStatus"),
@@ -400,9 +425,9 @@ export async function updateTransferStatusAction(
     return { error: parsed.error.issues[0]?.message ?? "Unable to update transfer" };
   }
 
-  const expense = await ensureExpenseOwnershipOrAdmin(parsed.data.expenseId, currentUser);
-  if (!expense || expense.orgId !== orgId) {
-    return { error: "Transfer does not belong to your organization" };
+  const expense = await ensureExpenseOwnership(parsed.data.expenseId, currentUser);
+  if (!expense) {
+    return { error: "Transfer does not belong to you" };
   }
 
   if (expense.counterPartyId === null) {
@@ -422,7 +447,6 @@ export async function deleteExpenseAction(
   formData: FormData
 ): Promise<FinanceActionState> {
   const currentUser = await requireUser();
-  const orgId = assertOrgId(currentUser);
   const expenseIdResult = expenseIdSchema.safeParse({
     expenseId: formData.get("expenseId"),
   });
@@ -431,9 +455,9 @@ export async function deleteExpenseAction(
     return { error: "Expense is required" };
   }
 
-  const expense = await ensureExpenseOwnershipOrAdmin(expenseIdResult.data.expenseId, currentUser);
-  if (!expense || expense.orgId !== orgId) {
-    return { error: "Expense does not belong to your organization" };
+  const expense = await ensureExpenseOwnership(expenseIdResult.data.expenseId, currentUser);
+  if (!expense) {
+    return { error: "Expense does not belong to you" };
   }
 
   await deleteExpenseRecord(expense.id);

@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { SubcategoryChipCell } from "@/components/features/categories/subcategory-chip-cell";
+import { SpaceMappingChipCell } from "@/components/features/categories/space-mapping-chip-cell";
+import type { SubcategoryMappingRowDto } from "@/app/actions/auth-roles/subcategory-mapping.actions";
 
 function ActionError({ message }: { message: string | null }) {
   if (!message) return null;
@@ -54,6 +56,9 @@ export function CategoryRow({
   categoriesById,
   currentUserId,
   isAdmin,
+  isPersonalSpace,
+  targetOrgId,
+  mappingRows,
 }: {
   category: CategoryRecordDto;
   isEditing: boolean;
@@ -63,6 +68,9 @@ export function CategoryRow({
   categoriesById: Map<number, CategoryRecordDto>;
   currentUserId: string;
   isAdmin: boolean;
+  isPersonalSpace: boolean;
+  targetOrgId: number | null;
+  mappingRows: SubcategoryMappingRowDto[];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -114,14 +122,24 @@ export function CategoryRow({
           <CategoryTypeSelect id={`type-${category.id}`} defaultValue={category.type} selectRef={typeRef} />
         </TableCell>
         <TableCell className="align-top">
-          <SubcategoryChipCell
-            category={category}
-            allSubcategories={allSubcategories}
-            categoriesById={categoriesById}
-            currentUserId={currentUserId}
-            isAdmin={isAdmin}
-            disabled
-          />
+          {isPersonalSpace ? (
+            <SubcategoryChipCell
+              category={category}
+              allSubcategories={allSubcategories}
+              categoriesById={categoriesById}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+              disabled
+            />
+          ) : (
+            <SpaceMappingChipCell
+              category={category}
+              targetOrgId={targetOrgId ?? category.orgId}
+              myRows={mappingRows}
+              categoriesById={categoriesById}
+              readOnly
+            />
+          )}
         </TableCell>
         <TableCell className="align-top">
           <div className="flex items-center gap-2">
@@ -165,13 +183,22 @@ export function CategoryRow({
         <Badge variant={category.type === "income" ? "secondary" : "outline"}>{category.type}</Badge>
       </TableCell>
       <TableCell className="align-top">
-        <SubcategoryChipCell
-          category={category}
-          allSubcategories={allSubcategories}
-          categoriesById={categoriesById}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-        />
+        {isPersonalSpace ? (
+          <SubcategoryChipCell
+            category={category}
+            allSubcategories={allSubcategories}
+            categoriesById={categoriesById}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+          />
+        ) : (
+          <SpaceMappingChipCell
+            category={category}
+            targetOrgId={targetOrgId ?? category.orgId}
+            myRows={mappingRows}
+            categoriesById={categoriesById}
+          />
+        )}
       </TableCell>
       <TableCell className="align-top">
         {isAdmin ? (

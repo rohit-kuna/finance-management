@@ -6,6 +6,7 @@ import { syncUserWithDb } from "@/app/lib/user-sync";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
 import { getOrganizationsForUser } from "@/app/actions/tables/organization-members.table.actions";
+import { getPersonalOrganizationForUser } from "@/app/actions/tables/organizations.table.actions";
 
 const ACTIVE_ORG_COOKIE = "active_org_id";
 const ACTIVE_ORG_COOKIE_MAX_AGE = 60 * 60 * 24 * 400; // ~400 days, the practical browser max
@@ -79,9 +80,17 @@ export const getCurrentDbUser = cache(async () => {
 
   if (!dbUser) return null;
 
-  const { orgId, role } = await resolveActiveOrgContext(dbUser.id);
+  const [{ orgId, role }, personalOrganization] = await Promise.all([
+    resolveActiveOrgContext(dbUser.id),
+    getPersonalOrganizationForUser(dbUser.id),
+  ]);
 
-  return { ...dbUser, orgId, role };
+  // Personal space is the single source of truth for every transaction this
+  // user makes — `orgId`/`role` above describe the "active" space (personal
+  // or shared) driving navigation/UI, while `personalOrgId` is the fixed
+  // target every write goes to regardless of which space is active. Null
+  // only for a user who hasn't finished onboarding yet.
+  return { ...dbUser, orgId, role, personalOrgId: personalOrganization?.id ?? null };
 });
 
 /**

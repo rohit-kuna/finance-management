@@ -7,6 +7,7 @@ export type CategoryRecordDto = {
   name: string;
   type: CategoryType;
   createdBy: string;
+  isSystemDefault: boolean;
   createdAt: string;
   updatedAt: string;
 };

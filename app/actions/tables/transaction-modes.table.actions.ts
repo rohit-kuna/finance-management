@@ -1,6 +1,6 @@
 "use server";
 
-import { aliasedTable, and, asc, desc, eq, inArray } from "drizzle-orm";
+import { aliasedTable, and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { transactionModes, users } from "@/db/schema";
 import type { TransactionModeRecordDto } from "@/app/lib/finance.types";
@@ -42,35 +42,6 @@ export async function getTransactionModesByUser(orgId: number, userId: string): 
     .innerJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
     .where(and(eq(transactionModes.orgId, orgId), eq(transactionModes.userId, userId)))
     .orderBy(desc(transactionModes.isDefault), asc(transactionModes.createdAt), desc(transactionModes.id));
-
-  return records.map(toTransactionModeDto);
-}
-
-export async function getTransactionModesByUsers(
-  orgId: number,
-  userIds: string[]
-): Promise<TransactionModeRecordDto[]> {
-  if (!userIds.length) return [];
-
-  const records = await db
-    .select({
-      id: transactionModes.id,
-      name: transactionModes.name,
-      userId: transactionModes.userId,
-      userName: transactionModeOwner.name,
-      isDefault: transactionModes.isDefault,
-      createdAt: transactionModes.createdAt,
-      updatedAt: transactionModes.updatedAt,
-    })
-    .from(transactionModes)
-    .innerJoin(transactionModeOwner, eq(transactionModeOwner.id, transactionModes.userId))
-    .where(and(eq(transactionModes.orgId, orgId), inArray(transactionModes.userId, userIds)))
-    .orderBy(
-      asc(transactionModes.userId),
-      desc(transactionModes.isDefault),
-      asc(transactionModes.createdAt),
-      desc(transactionModes.id)
-    );
 
   return records.map(toTransactionModeDto);
 }
