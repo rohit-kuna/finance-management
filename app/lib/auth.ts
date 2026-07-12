@@ -110,3 +110,18 @@ export async function requireAdmin() {
   if (user.role !== ROLES.ADMIN) redirect(ROUTES.DASHBOARD);
   return user;
 }
+
+/**
+ * Require the active space to be the user's personal org. A shared space is a
+ * read-only lens (Analytics, Budgets, Categories, Space, Users only) — pages
+ * that support transaction entry or transaction-metadata management call this
+ * to hard-redirect away when a shared space is active.
+ */
+export async function requireActiveOrgIsPersonal() {
+  const user = await requireUser();
+  if (!user.orgId) redirect(ROUTES.DASHBOARD);
+  if (user.personalOrgId !== null && user.orgId !== user.personalOrgId) {
+    redirect(ROUTES.ANALYTICS);
+  }
+  return user;
+}

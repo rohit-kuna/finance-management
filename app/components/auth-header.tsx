@@ -50,60 +50,11 @@ type HeaderNavConfig = {
   settingsGroups: HeaderNavGroup[];
 };
 
-const adminTopNavItems: HeaderNavItem[] = [
-  { label: "Transactions", href: ROUTES.TRANSACTIONS },
-  { label: "Analytics", href: ROUTES.ANALYTICS },
-  { label: "Budgets", href: ROUTES.BUDGETS },
-  { label: "Transfers", href: ROUTES.TRANSFERS },
-];
-
-const adminSettingsGroups: HeaderNavGroup[] = [
-  {
-    label: "Settings",
-    items: [
-      { label: "Space", href: ROUTES.ORGANIZATION },
-      { label: "Users", href: ROUTES.USERS },
-      { label: "Categories", href: ROUTES.CATEGORIES },
-      { label: "Tags", href: ROUTES.TAGS },
-      { label: "Modes", href: ROUTES.TRANSACTION_MODES },
-      { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
-      { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
-    ],
-  },
-];
-
-const userTopNavItems: HeaderNavItem[] = [
-  { label: "Transactions", href: ROUTES.TRANSACTIONS },
-  { label: "Analytics", href: ROUTES.ANALYTICS },
-  { label: "Budgets", href: ROUTES.BUDGETS },
-  { label: "Transfers", href: ROUTES.TRANSFERS },
-];
-
-const userSettingsGroups: HeaderNavGroup[] = [
-  {
-    label: "Settings",
-    items: [
-      { label: "Categories", href: ROUTES.CATEGORIES },
-      { label: "Tags", href: ROUTES.TAGS },
-      { label: "Modes", href: ROUTES.TRANSACTION_MODES },
-      { label: "Counterparties", href: ROUTES.COUNTERPARTIES },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
-      { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
-    ],
-  },
-];
-
+// A shared space is a read-only lens — Transactions, Transfers, Tags, Modes,
+// Counterparties, and Import Export all require transaction entry/metadata
+// management, which only ever happens in personal space (see
+// requireActiveOrgIsPersonal). Analytics, Budgets, and Categories work in
+// both; Space/Users are admin-only regardless of space.
 function getNavConfig(
   role: AppRole,
   hasOrganization: boolean,
@@ -113,14 +64,41 @@ function getNavConfig(
     return { topItems: [], settingsGroups: [] };
   }
 
-  if (role === ROLES.ADMIN) {
-    return {
-      topItems: adminTopNavItems,
-      settingsGroups: adminSettingsGroups,
-    };
+  const topItems: HeaderNavItem[] = [
+    { label: "Analytics", href: ROUTES.ANALYTICS },
+    { label: "Budgets", href: ROUTES.BUDGETS },
+  ];
+  if (isPersonalSpace) {
+    topItems.unshift({ label: "Transactions", href: ROUTES.TRANSACTIONS });
+    topItems.push({ label: "Transfers", href: ROUTES.TRANSFERS });
   }
 
-  return { topItems: userTopNavItems, settingsGroups: userSettingsGroups };
+  const settingsItems: HeaderNavItem[] = [];
+  if (role === ROLES.ADMIN) {
+    settingsItems.push({ label: "Space", href: ROUTES.ORGANIZATION }, { label: "Users", href: ROUTES.USERS });
+  }
+  settingsItems.push({ label: "Categories", href: ROUTES.CATEGORIES });
+  if (isPersonalSpace) {
+    settingsItems.push(
+      { label: "Tags", href: ROUTES.TAGS },
+      { label: "Modes", href: ROUTES.TRANSACTION_MODES },
+      { label: "Counterparties", href: ROUTES.COUNTERPARTIES }
+    );
+  }
+
+  const toolsItems: HeaderNavItem[] = [];
+  if (isPersonalSpace) {
+    toolsItems.push({ label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT });
+  }
+  toolsItems.push({ label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION });
+
+  return {
+    topItems,
+    settingsGroups: [
+      { label: "Settings", items: settingsItems },
+      { label: "Tools", items: toolsItems },
+    ],
+  };
 }
 
 function NavLinkItem({ item }: { item: HeaderNavItem }) {

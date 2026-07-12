@@ -4,14 +4,13 @@ import { randomUUID } from "crypto";
 import { requireUser } from "@/app/lib/auth";
 import { parseWorkbookBuffer } from "@/app/lib/manage-import-export.workbook";
 import { normalizeWorkbookName } from "@/app/lib/manage-import-export.shared";
-import { getCategoriesByOrg } from "@/app/actions/tables/categories.table.actions";
-import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
+import { getUserCategoriesByOrg } from "@/app/actions/tables/user-categories.table.actions";
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
 import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
 import { ensureDefaultTransactionModesForUser } from "@/app/actions/tables/transaction-modes.table.actions";
-import { getCategoryById } from "@/app/actions/tables/categories.table.actions";
 import { getCounterpartyById } from "@/app/actions/tables/counterparties.table.actions";
 import { getTransactionModeById } from "@/app/actions/tables/transaction-modes.table.actions";
+import { getUserCategoryByIdAndOrg } from "@/app/actions/tables/user-categories.table.actions";
 import { createExpenseRecord } from "@/app/actions/tables/expenses.table.actions";
 import { setTransactionTags } from "@/app/actions/tables/tags.table.actions";
 import { toExpenseDateInputValue, parseExpenseDate } from "@/app/lib/expense-date";
@@ -25,6 +24,11 @@ function parseAmount(value: string): string {
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`Invalid amount: ${value}`);
   return parsed.toFixed(2);
+}
+
+function parseExpenseTypeValue(value: string): "expense" | "income" {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "income" ? "income" : "expense";
 }
 
 function parseNecessityScore(value: string): number {
@@ -94,9 +98,8 @@ export async function parseBulkAddWorkbookAction(
     return { rows: [], error: err instanceof Error ? err.message : "Failed to parse file" };
   }
 
-  const [categories, subcategories, counterparties, tags, modes] = await Promise.all([
-    getCategoriesByOrg(personalOrgId),
-    getSubcategoriesByOrg(personalOrgId),
+  const [userCategories, counterparties, tags, modes] = await Promise.all([
+    getUserCategoriesByOrg(personalOrgId),
     getCounterpartiesByOrg(orgId),
     getTagsByOrg(orgId),
     ensureDefaultTransactionModesForUser(orgId, currentUser.id),
@@ -105,8 +108,7 @@ export async function parseBulkAddWorkbookAction(
   const defaultMode = modes.find((m) => m.isDefault) ?? modes[0] ?? null;
 
   // Normalised name → record lookup maps
-  const categoryByName = new Map(categories.map((c) => [normalizeWorkbookName(c.name), c]));
-  const subcategoryByName = new Map(subcategories.map((s) => [normalizeWorkbookName(s.name), s]));
+  const userCategoryByName = new Map(userCategories.map((c) => [normalizeWorkbookName(c.name), c]));
   const counterpartyByName = new Map(counterparties.map((cp) => [normalizeWorkbookName(cp.name), cp]));
   const tagByName = new Map(tags.map((t) => [normalizeWorkbookName(t.name), t]));
   const modeByName = new Map(modes.map((m) => [normalizeWorkbookName(m.name), m]));
@@ -133,6 +135,10 @@ export async function parseBulkAddWorkbookAction(
       issues.push(`Row ${row.rowNumber}: invalid amount "${rawAmount}"`);
     }
 
+    // Type
+    const rawType = getFieldValue(preview, row, "type");
+    const type = parseExpenseTypeValue(rawType);
+
     // Necessity
     const rawNecessity = getFieldValue(preview, row, "necessity_score");
     let necessityScore = 1;
@@ -145,20 +151,17 @@ export async function parseBulkAddWorkbookAction(
     // Note
     const note = parseNote(getFieldValue(preview, row, "note"));
 
-    // Category
+    // Category (informational hint only — not stored on the transaction)
     const rawCategory = getFieldValue(preview, row, "category").trim();
-    const resolvedCategory = rawCategory ? categoryByName.get(normalizeWorkbookName(rawCategory)) ?? null : null;
-    if (rawCategory && !resolvedCategory) {
-      issues.push(`Category "${rawCategory}" not found in your organization`);
-    }
 
-    // Subcategory
+    // Subcategory (UserCategory)
     const rawSub = getFieldValue(preview, row, "subcategories").trim();
-    let resolvedSubId: number | null = null;
-    if (rawSub && resolvedCategory) {
-      const sub = subcategoryByName.get(normalizeWorkbookName(rawSub));
-      if (sub && sub.categoryId === resolvedCategory.id) resolvedSubId = sub.id;
-      else if (rawSub) issues.push(`Subcategory "${rawSub}" not found under "${rawCategory}"`);
+    const resolvedUserCategory = rawSub ? userCategoryByName.get(normalizeWorkbookName(rawSub)) ?? null : null;
+    if (rawSub && !resolvedUserCategory) {
+      issues.push(`Subcategory "${rawSub}" not found in your personal space`);
+    }
+    if (!rawSub) {
+      issues.push("Missing subcategory");
     }
 
     // Mode
@@ -186,10 +189,10 @@ export async function parseBulkAddWorkbookAction(
       clientId: randomUUID(),
       date,
       amount,
-      categoryId: resolvedCategory?.id ?? null,
-      categoryName: rawCategory,
-      subcategoryId: resolvedSubId,
-      subcategoryName: rawSub,
+      type,
+      userCategoryId: resolvedUserCategory?.id ?? null,
+      userCategoryName: rawSub,
+      spaceCategoryName: rawCategory,
       modeId: finalMode?.id ?? null,
       modeName: finalMode?.name ?? rawMode,
       counterPartyId: resolvedCp?.id ?? null,
@@ -214,12 +217,12 @@ export async function bulkCreateExpenseAction(
   const orgId = currentUser.orgId;
   const personalOrgId = currentUser.personalOrgId;
 
-  const [category, mode] = await Promise.all([
-    getCategoryById(input.categoryId),
+  const [userCategory, mode] = await Promise.all([
+    getUserCategoryByIdAndOrg(input.userCategoryId, personalOrgId),
     getTransactionModeById(input.transactionModeId),
   ]);
 
-  if (!category || category.orgId !== personalOrgId) return { success: false, error: "Category not found" };
+  if (!userCategory) return { success: false, error: "Subcategory not found" };
   if (!mode || mode.userId !== currentUser.id) return { success: false, error: "Transaction mode not found" };
 
   let counterPartyId: number | null = null;
@@ -228,14 +231,6 @@ export async function bulkCreateExpenseAction(
     if (cp && cp.orgId === orgId) counterPartyId = cp.id;
   }
 
-  let subcategoryId: number | null = null;
-  if (input.subcategoryId) {
-    const subs = await getSubcategoriesByOrg(personalOrgId);
-    const sub = subs.find((s) => s.id === input.subcategoryId && s.categoryId === input.categoryId);
-    if (sub) subcategoryId = sub.id;
-  }
-  if (subcategoryId == null) return { success: false, error: "A subcategory is required" };
-
   const orgTags = await getTagsByOrg(orgId);
   const validTagIds = new Set(orgTags.map((t) => t.id));
   const tagIds = input.tagIds.filter((id) => validTagIds.has(id));
@@ -243,13 +238,12 @@ export async function bulkCreateExpenseAction(
   const expense = await createExpenseRecord({
     orgId: personalOrgId,
     userId: currentUser.id,
-    categoryId: input.categoryId,
     counterPartyId,
     transactionModeId: input.transactionModeId,
-    subcategoryId,
+    userCategoryId: input.userCategoryId,
     transferStatus: counterPartyId ? "open" : null,
     amount: input.amount,
-    type: category.type,
+    type: input.type,
     necessityScore: input.necessityScore,
     note: input.note,
     occurredAt: parseExpenseDate(input.occurredAt),

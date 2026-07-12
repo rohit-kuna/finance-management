@@ -1,7 +1,9 @@
 import { getOrganizationCounterpartiesData } from "@/app/actions/auth-roles/counterparties.actions";
 import { CounterpartyManagement } from "@/components/features/counterparties/counterparty-management";
+import { requireActiveOrgIsPersonal } from "@/app/lib/auth";
 
 export default async function CounterpartiesPage() {
+  await requireActiveOrgIsPersonal();
   const data = await getOrganizationCounterpartiesData();
 
   return (

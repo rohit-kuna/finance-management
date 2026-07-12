@@ -280,7 +280,7 @@ function CategoryGroupFilter({
   selectedValues,
   onChange,
 }: {
-  categories: ActivityDashboardDataDto["categories"];
+  categories: ActivityDashboardDataDto["spaceCategories"];
   selectedValues: string[];
   onChange: (nextValues: string[]) => void;
 }) {
@@ -298,7 +298,7 @@ function CategoryGroupFilter({
 
   function renderGroup(
     title: string,
-    items: ActivityDashboardDataDto["categories"],
+    items: ActivityDashboardDataDto["spaceCategories"],
     emptyMessage: string
   ) {
     return (
@@ -525,26 +525,29 @@ function BudgetVsActualChart({
       chartPalette[(categoryId - 1) % chartPalette.length] ?? "var(--color-chart-4)";
 
     for (const budget of selectedBudgets) {
-      const existing = categoryMap.get(budget.categoryId);
+      const existing = categoryMap.get(budget.spaceCategoryId);
       const nextBudget = (existing?.budget ?? 0) + Number(budget.amount);
-      categoryMap.set(budget.categoryId, {
-        categoryId: budget.categoryId,
-        categoryName: budget.categoryName,
+      categoryMap.set(budget.spaceCategoryId, {
+        categoryId: budget.spaceCategoryId,
+        categoryName: budget.spaceCategoryName,
         budget: nextBudget,
         actual: existing?.actual ?? 0,
-        color: existing?.color ?? getCategoryColor(budget.categoryId),
+        color: existing?.color ?? getCategoryColor(budget.spaceCategoryId),
       });
     }
 
     for (const expense of selectedExpenses) {
-      const existing = categoryMap.get(expense.categoryId);
+      // Analytics only ever includes mapped transactions — spaceCategoryId is
+      // always present here, but guard defensively since the DTO allows null.
+      if (expense.spaceCategoryId == null) continue;
+      const existing = categoryMap.get(expense.spaceCategoryId);
       const nextActual = (existing?.actual ?? 0) + Number(expense.amount);
-      categoryMap.set(expense.categoryId, {
-        categoryId: expense.categoryId,
-        categoryName: expense.categoryName,
+      categoryMap.set(expense.spaceCategoryId, {
+        categoryId: expense.spaceCategoryId,
+        categoryName: expense.spaceCategoryName ?? "Unmapped",
         budget: existing?.budget ?? 0,
         actual: nextActual,
-        color: existing?.color ?? getCategoryColor(expense.categoryId),
+        color: existing?.color ?? getCategoryColor(expense.spaceCategoryId),
       });
     }
 
@@ -1085,12 +1088,13 @@ function CategoryDrilldownChart({
       chartPalette[(categoryId - 1) % chartPalette.length] ?? "var(--color-chart-1)";
 
     for (const expense of filtered) {
-      const existing = totalsByCategory.get(expense.categoryId);
-      totalsByCategory.set(expense.categoryId, {
-        categoryId: expense.categoryId,
-        categoryName: expense.categoryName,
+      if (expense.spaceCategoryId == null) continue;
+      const existing = totalsByCategory.get(expense.spaceCategoryId);
+      totalsByCategory.set(expense.spaceCategoryId, {
+        categoryId: expense.spaceCategoryId,
+        categoryName: expense.spaceCategoryName ?? "Unmapped",
         amount: (existing?.amount ?? 0) + Number(expense.amount),
-        color: existing?.color ?? getCategoryColor(expense.categoryId),
+        color: existing?.color ?? getCategoryColor(expense.spaceCategoryId),
       });
     }
 
@@ -1122,7 +1126,7 @@ function CategoryDrilldownChart({
       const expenseMonth = getMonthKey(expense.occurredAt);
       return (
         expense.type === transactionType &&
-        expense.categoryId === selectedCategory.categoryId &&
+        expense.spaceCategoryId === selectedCategory.categoryId &&
         expenseMonth >= monthStart &&
         expenseMonth <= monthEnd
       );
@@ -1135,17 +1139,17 @@ function CategoryDrilldownChart({
 
     for (const expense of filtered) {
       const amount = Number(expense.amount);
-      if (expense.subcategoryId == null) {
+      if (expense.userCategoryId == null) {
         noSubcategoryTotal += amount;
         continue;
       }
-      subcategoryTotals.set(expense.subcategoryId, (subcategoryTotals.get(expense.subcategoryId) ?? 0) + amount);
+      subcategoryTotals.set(expense.userCategoryId, (subcategoryTotals.get(expense.userCategoryId) ?? 0) + amount);
     }
 
     const combinationTotals = new Map<string, { label: string; amount: number; count: number }>();
     for (const expense of filtered) {
       const amount = Number(expense.amount);
-      const label = expense.subcategoryName ?? "No subcategory";
+      const label = expense.userCategoryName ?? "No subcategory";
       const existing = combinationTotals.get(label);
       combinationTotals.set(label, {
         label,
@@ -1392,11 +1396,11 @@ export function ActivityDashboard({
     const selectedCategories = new Set(selectedCategoryIds);
     const filteredBudgets = scopedData.budgets.filter((budget) => {
       if (selectedCategories.size === 0) return true;
-      return selectedCategories.has(String(budget.categoryId));
+      return selectedCategories.has(String(budget.spaceCategoryId));
     });
     const filteredExpenses = scopedData.expenses.filter((expense) => {
       if (selectedCategories.size === 0) return true;
-      return selectedCategories.has(String(expense.categoryId));
+      return selectedCategories.has(String(expense.spaceCategoryId));
     });
 
     return {
@@ -1421,7 +1425,7 @@ export function ActivityDashboard({
           </p>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">Members {visibleData.members.length}</Badge>
-            <Badge variant="outline">Categories {visibleData.categories.length}</Badge>
+            <Badge variant="outline">Categories {visibleData.spaceCategories.length}</Badge>
             <Badge variant="outline">Budget months {new Set(visibleData.budgets.map((budget) => budget.month)).size}</Badge>
             <Badge variant="outline">Range {rangeLabel}</Badge>
           </div>
@@ -1494,7 +1498,7 @@ export function ActivityDashboard({
           </div>
 
           <CategoryGroupFilter
-            categories={visibleData.categories}
+            categories={visibleData.spaceCategories}
             selectedValues={selectedCategoryIds}
             onChange={setSelectedCategoryIds}
           />

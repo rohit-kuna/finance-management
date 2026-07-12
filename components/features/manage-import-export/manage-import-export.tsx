@@ -153,14 +153,8 @@ function collectDistinctValues(rows: Array<{ values: Record<ImportWorkbookField,
   return Array.from(seen.values()).sort((left, right) => left.localeCompare(right));
 }
 
-function collectDistinctSubcategoryNames(
-  rows: Array<{
-    values: Record<ImportWorkbookField, string>;
-    resolvedCategoryId: number | null;
-    resolvedCategoryName: string;
-  }>
-) {
-  const seen = new Map<string, { subcategoryName: string; categoryId: number | null; categoryName: string }>();
+function collectDistinctSubcategoryNames(rows: Array<{ values: Record<ImportWorkbookField, string> }>) {
+  const seen = new Map<string, string>();
 
   for (const row of rows) {
     const value = row.values.subcategories;
@@ -170,20 +164,14 @@ function collectDistinctSubcategoryNames(
       const trimmed = part.trim();
       if (!trimmed) continue;
 
-      const key = `${row.resolvedCategoryId}:${normalizeWorkbookName(trimmed)}`;
-      if (!seen.has(key)) {
-        seen.set(key, {
-          subcategoryName: trimmed,
-          categoryId: row.resolvedCategoryId,
-          categoryName: row.resolvedCategoryName,
-        });
+      const normalized = normalizeWorkbookName(trimmed);
+      if (!seen.has(normalized)) {
+        seen.set(normalized, trimmed);
       }
     }
   }
 
-  return Array.from(seen.values()).sort((left, right) =>
-    left.subcategoryName.localeCompare(right.subcategoryName)
-  );
+  return Array.from(seen.values()).sort((left, right) => left.localeCompare(right));
 }
 
 function collectDistinctTagNames(rows: Array<{ values: Record<ImportWorkbookField, string> }>) {
@@ -218,7 +206,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   );
   const [columnSelections, setColumnSelections] = useState<ColumnSelections>({});
   const [counterpartySelections, setCounterpartySelections] = useState<ValueSelectionMap>({});
-  const [categorySelections, setCategorySelections] = useState<ValueSelectionMap>({});
   const [modeSelections, setModeSelections] = useState<ValueSelectionMap>({});
   const initializedPreviewKey = useRef("");
 
@@ -242,7 +229,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
 
       setColumnSelections(nextColumnSelections);
       setCounterpartySelections({});
-      setCategorySelections({});
       setModeSelections({});
     }, 0);
 
@@ -274,10 +260,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     () => new Map(data.counterparties.map((counterparty) => [String(counterparty.id), counterparty] as const)),
     [data.counterparties]
   );
-  const categoryById = useMemo(
-    () => new Map(data.categories.map((category) => [String(category.id), category] as const)),
-    [data.categories]
-  );
   const modeById = useMemo(
     () =>
       new Map(
@@ -295,10 +277,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   const defaultTransactionMode = useMemo(
     () => data.transactionModes.find((mode) => mode.isDefault) ?? data.transactionModes[0] ?? null,
     [data.transactionModes]
-  );
-  const categoriesSorted = useMemo(
-    () => data.categories.slice().sort(sortByName),
-    [data.categories]
   );
   const counterpartiesSorted = useMemo(
     () => data.counterparties.slice().sort(sortByName),
@@ -319,25 +297,10 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
           : "";
       }
 
-      const normalizedCategoryName = normalizeWorkbookName(resolvedValues.category);
       const normalizedCounterpartyName = normalizeWorkbookName(resolvedValues.counter_party_name);
       const normalizedModeName = normalizeWorkbookName(resolvedValues.mode);
-      const hasCategoryValue = resolvedValues.category.trim().length > 0;
       const hasCounterpartyValue = resolvedValues.counter_party_name.trim().length > 0;
       const hasModeValue = resolvedValues.mode.trim().length > 0;
-
-      const categoryMatch = findUniqueNormalizedMatch(data.categories, resolvedValues.category);
-      const selectedCategoryValue =
-        categorySelections[normalizedCategoryName] ??
-        (hasCategoryValue
-          ? categoryMatch.match
-            ? String(categoryMatch.match.id)
-            : ""
-          : "");
-      const resolvedCategory =
-        selectedCategoryValue
-          ? categoryById.get(selectedCategoryValue) ?? null
-          : null;
 
       const counterpartyMatch = findUniqueNormalizedMatch(data.counterparties, resolvedValues.counter_party_name);
       const selectedCounterpartyValue =
@@ -370,7 +333,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         type: resolvedValues.type,
         necessity_score: resolvedValues.necessity_score.trim() || "1",
         note: resolvedValues.note.trim() || "—",
-        category: resolvedCategory?.name ?? resolvedValues.category,
+        category: resolvedValues.category.trim() || "—",
         transactionTimestamp: resolvedValues.transactionTimestamp,
         user_name: resolvedUserName,
         counter_party_name: (resolvedCounterparty?.name ?? resolvedValues.counter_party_name) || "—",
@@ -384,33 +347,23 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
         values: resolvedValues,
         displayValues,
         issues: row.issues,
-        resolvedCategoryId: resolvedCategory?.id ?? null,
-        resolvedCategoryName: resolvedCategory?.name ?? (resolvedValues.category.trim() || "—"),
       };
     });
   }, [
     preview,
     selectedColumns,
     headerIndex,
-    categorySelections,
     counterpartySelections,
     modeSelections,
-    categoryById,
     counterpartyById,
     modeById,
-    data.categories,
     data.counterparties,
     data.transactionModes,
     defaultTransactionMode,
-    data.currentUser.id,
     data.currentUser.name,
     fieldList,
   ]);
 
-  const distinctCategoryNames = useMemo(
-    () => collectDistinctValues(resolvedRows, "category"),
-    [resolvedRows]
-  );
   const distinctCounterpartyNames = useMemo(
     () => collectDistinctValues(resolvedRows, "counter_party_name"),
     [resolvedRows]
@@ -431,18 +384,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
     });
   }, [data.counterparties, distinctCounterpartyNames]);
 
-  const categoryMappings = useMemo(() => {
-    return distinctCategoryNames.map((sheetValue) => {
-      const match = findUniqueNormalizedMatch(data.categories, sheetValue);
-      return {
-        sheetValue,
-        defaultValue: match.match ? String(match.match.id) : "",
-        isAmbiguous: match.isAmbiguous,
-        hasMatch: Boolean(match.match),
-      };
-    });
-  }, [data.categories, distinctCategoryNames]);
-
   const modeMappings = useMemo(() => {
     return distinctModeNames.map((sheetValue) => {
       const match = findUniqueNormalizedMatch(data.transactionModes, sheetValue);
@@ -454,17 +395,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
       };
     });
   }, [data.transactionModes, distinctModeNames]);
-
-  const categoryChecks = useMemo(() => {
-    return distinctCategoryNames.map((sheetValue) => {
-      const match = findUniqueNormalizedMatch(data.categories, sheetValue);
-      return {
-        sheetValue,
-        hasMatch: Boolean(match.match),
-        isAmbiguous: match.isAmbiguous,
-      };
-    });
-  }, [data.categories, distinctCategoryNames]);
 
   const modeChecks = useMemo(() => {
     return distinctModeNames.map((sheetValue) => {
@@ -478,18 +408,14 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   }, [data.transactionModes, distinctModeNames]);
 
   const subcategoryChecks = useMemo(() => {
-    return distinctSubcategoryNames.map((entry) => {
-      const subcategoriesInCategory = data.subcategories.filter(
-        (subcategory) => subcategory.categoryId === entry.categoryId
-      );
-      const match = findUniqueNormalizedMatch(subcategoriesInCategory, entry.subcategoryName);
+    return distinctSubcategoryNames.map((sheetValue) => {
+      const match = findUniqueNormalizedMatch(data.userCategories, sheetValue);
       return {
-        sheetValue: entry.subcategoryName,
-        categoryName: entry.categoryName,
+        sheetValue,
         hasMatch: Boolean(match.match),
       };
     });
-  }, [data.subcategories, distinctSubcategoryNames]);
+  }, [data.userCategories, distinctSubcategoryNames]);
 
   const tagChecks = useMemo(() => {
     return distinctTagNames.map((sheetValue) => {
@@ -502,19 +428,17 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
   }, [data.tags, distinctTagNames]);
 
   const unresolvedCounterparties = counterpartyMappings.filter((mapping) => !mapping.hasMatch).length;
-  const unresolvedCategories = categoryChecks.filter((check) => !check.hasMatch).length;
   const unresolvedModes = modeChecks.filter((check) => !check.hasMatch).length;
-  const hasUnresolvedLookups = unresolvedCategories > 0 || unresolvedCounterparties > 0 || unresolvedModes > 0;
+  const hasUnresolvedLookups = unresolvedCounterparties > 0 || unresolvedModes > 0;
 
   const modeColumnMapped = Boolean(selectedColumns.mode);
   const subcategoryColumnMapped = Boolean(selectedColumns.subcategories);
   const tagColumnMapped = Boolean(selectedColumns.tags);
-  const categoryStepLabel = "Step 1";
-  const counterpartyStepLabel = "Step 2";
-  const modeStepLabel = "Step 3";
-  const subcategoryStepLabel = "Step 4";
-  const tagStepLabel = "Step 5";
-  const previewStepLabel = "Step 6";
+  const counterpartyStepLabel = "Step 1";
+  const modeStepLabel = "Step 2";
+  const subcategoryStepLabel = "Step 3";
+  const tagStepLabel = "Step 4";
+  const previewStepLabel = "Step 5";
 
   const resolvedPreviewRows = resolvedRows.slice(0, 10);
 
@@ -602,14 +526,15 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-6 text-sm text-muted-foreground sm:px-8 sm:pb-8">
             <p>Column names are flexible. Map your workbook headers before reviewing the rows.</p>
-            <p>Categories, counterparties, and modes must already exist in your account before you import.</p>
+            <p>Counterparties and modes must already exist in your account before you import.</p>
             <p>Every imported row is assigned to the signed-in user, so there is no user column or user mapping.</p>
-            <p>If a sheet value does not match an existing category, counterparty, or mode, create it first in the app and then come back to map it.</p>
+            <p>Every row needs a subcategory. If it doesn&apos;t already exist, it&apos;s created automatically, starting Unmapped — map it into a category afterward on the Categories page.</p>
+            <p>If a sheet value does not match an existing counterparty or mode, create it first in the app and then come back to map it.</p>
             <p>Mode rows are optional. If you do not map a mode column, expenses import without a transaction mode.</p>
             <p>Blank `necessity_score` defaults to 1.</p>
-            <p>Category type comes from the mapped category record, not the spreadsheet `type` column.</p>
+            <p>The spreadsheet `type` column (expense/income) is required on every row.</p>
             <p>
-              Duplicate rows are rejected when `amount`, `user_id`, `category_id`, `note`, and
+              Duplicate rows are rejected when `amount`, `user_id`, `subcategory_id`, `note`, and
               `transactionTimestamp` all match an existing expense.
             </p>
             <p>Imports are atomic, so any bad row stops the whole batch.</p>
@@ -677,12 +602,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </p>
                   </div>
                   <div className="rounded-lg border bg-muted/20 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Categories</p>
-                    <p className="mt-2 text-sm font-medium">
-                      {unresolvedCategories === 0 ? "All mapped" : `${unresolvedCategories} need review`}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/20 p-4">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Modes</p>
                     <p className="mt-2 text-sm font-medium">
                       {modeColumnMapped
@@ -691,25 +610,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                           : `${unresolvedModes} need review`
                         : "No mode column"}
                     </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <p className="text-sm font-medium">Category names in the sheet</p>
-                  <div className="grid gap-2">
-                    {categoryChecks.map((check) => (
-                      <div
-                        key={check.sheetValue}
-                        className="flex flex-col gap-2 rounded-lg border bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <span className="text-sm font-medium">{check.sheetValue}</span>
-                        <SuggestionBadge
-                          match={check.hasMatch}
-                          isAmbiguous={check.isAmbiguous}
-                          fallbackLabel="Missing"
-                        />
-                      </div>
-                    ))}
                   </div>
                 </div>
 
@@ -810,66 +710,6 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                                       ? `Suggested: ${preview.suggestedColumnMappings[field]}`
                                       : "Needs mapping"
                                   }
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <SectionTitle
-                      eyebrow={categoryStepLabel}
-                      title="Map categories"
-                      description="Choose an existing DB category for each distinct sheet category. If a sheet value is missing, create it in the app first and then return here."
-                    />
-                    <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
-                      <div className="grid gap-3">
-                        {categoryMappings.map((mapping, index) => {
-                          const currentValue =
-                            categorySelections[normalizeWorkbookName(mapping.sheetValue)] ?? mapping.defaultValue;
-
-                          return (
-                            <div
-                              key={mapping.sheetValue}
-                              className="grid gap-3 rounded-lg border bg-background/70 p-3 md:grid-cols-[1fr_1.5fr_auto]"
-                            >
-                              <div className="space-y-1">
-                                <p className="text-sm font-medium">{mapping.sheetValue}</p>
-                                <p className="text-xs text-muted-foreground">sheet category value</p>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`category_map_${index}`}>Map to DB category</Label>
-                                <select
-                                  id={`category_map_${index}`}
-                                  name={`category_map_${index}`}
-                                  value={currentValue}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    const key = normalizeWorkbookName(mapping.sheetValue);
-                                    setCategorySelections((current) => ({
-                                      ...current,
-                                      [key]: value,
-                                    }));
-                                  }}
-                                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                  required
-                                  >
-                                  <option value="">Select a category</option>
-                                  {categoriesSorted.map((category) => (
-                                    <option key={category.id} value={String(category.id)}>
-                                      {category.name} ({category.type})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="flex items-start">
-                                <SuggestionBadge
-                                  match={mapping.hasMatch}
-                                  isAmbiguous={mapping.isAmbiguous}
-                                  fallbackLabel="Missing"
                                 />
                               </div>
                             </div>
@@ -1012,21 +852,19 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     <div className="space-y-4">
                       <SectionTitle
                         eyebrow={subcategoryStepLabel}
-                        title="Map subcategories"
-                        description="Sheet subcategories are matched to your existing subcategories by name within the row's category. Any subcategory that doesn't already exist will be created automatically during import — no action needed here."
+                        title="Subcategories"
+                        description="Sheet subcategories are matched to your existing subcategories by name. Any subcategory that doesn't already exist will be created automatically during import, starting Unmapped — no action needed here."
                       />
                       <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
                         <div className="grid gap-3">
                           {subcategoryChecks.map((check) => (
                             <div
-                              key={`${check.categoryName}:${check.sheetValue}`}
+                              key={check.sheetValue}
                               className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 p-3"
                             >
                               <div className="space-y-1">
                                 <p className="text-sm font-medium">{check.sheetValue}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  sheet subcategory value · category: {check.categoryName}
-                                </p>
+                                <p className="text-xs text-muted-foreground">sheet subcategory value</p>
                               </div>
                               <Badge variant={check.hasMatch ? "success" : "outline"} className="shrink-0">
                                 {check.hasMatch ? "Matched" : "Will be created"}

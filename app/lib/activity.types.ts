@@ -1,4 +1,4 @@
-import type { CategoryRecordDto, BudgetRecordDto } from "@/app/lib/finance.types";
+import type { SpaceCategoryRecordDto, BudgetRecordDto } from "@/app/lib/finance.types";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
 import type { AppRole } from "@/app/lib/roles";
 
@@ -18,7 +18,7 @@ export type ActivityDashboardDataDto = {
     createdAt: string;
     updatedAt: string;
   } | null;
-  categories: CategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
   members: ActivityMemberDto[];
   budgets: BudgetRecordDto[];
   expenses: ExpenseRecordDto[];

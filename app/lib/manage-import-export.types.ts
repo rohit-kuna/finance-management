@@ -1,4 +1,4 @@
-import type { CategoryRecordDto, CounterpartyRecordDto, SubcategoryRecordDto, TagRecordDto, TransactionModeRecordDto } from "@/app/lib/finance.types";
+import type { SpaceCategoryRecordDto, CounterpartyRecordDto, UserCategoryRecordDto, TagRecordDto, TransactionModeRecordDto } from "@/app/lib/finance.types";
 import type { AppRole } from "@/app/lib/roles";
 
 export const IMPORT_WORKBOOK_FIELDS = [
@@ -25,9 +25,9 @@ export type ManageImportExportScope = "user";
 export const IMPORT_WORKBOOK_FIELD_CONFIGS = [
   { key: "transactionTimestamp", label: "Transaction timestamp", required: true, valueMapping: null },
   { key: "amount", label: "Amount", required: true, valueMapping: null },
-  { key: "type", label: "Type", required: false, valueMapping: null },
-  { key: "category", label: "Category", required: true, valueMapping: "category" },
-  { key: "subcategories", label: "Subcategories", required: false, valueMapping: null },
+  { key: "type", label: "Type", required: true, valueMapping: null },
+  { key: "category", label: "Category", required: false, valueMapping: "category" },
+  { key: "subcategories", label: "Subcategories", required: true, valueMapping: null },
   { key: "note", label: "Note", required: false, valueMapping: null },
   { key: "tags", label: "Tags", required: false, valueMapping: null },
   { key: "mode", label: "Mode", required: false, valueMapping: "mode" },
@@ -98,9 +98,9 @@ export type ManageImportExportDataDto = {
     createdAt: string;
     updatedAt: string;
   } | null;
-  categories: CategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   tags: TagRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   currentUser: {

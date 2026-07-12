@@ -1,6 +1,6 @@
 {
-  "id": "f6b1b4fb-226e-4a94-83e0-c59a4f942292",
-  "prevId": "53a60437-50b6-41c6-be4c-57da435070af",
+  "id": "945a0059-8c44-4ef8-bc32-1baf97b769b1",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -26,8 +26,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "category_id": {
-          "name": "category_id",
+        "space_category_id": {
+          "name": "space_category_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -77,7 +77,53 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "budget_org_id_idx": {
+          "name": "budget_org_id_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "budget_user_id_idx": {
+          "name": "budget_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "budget_space_category_id_idx": {
+          "name": "budget_space_category_id_idx",
+          "columns": [
+            {
+              "expression": "space_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "budget_org_id_organizations_id_fk": {
           "name": "budget_org_id_organizations_id_fk",
@@ -105,12 +151,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "budget_category_id_categories_id_fk": {
-          "name": "budget_category_id_categories_id_fk",
+        "budget_space_category_id_space_categories_id_fk": {
+          "name": "budget_space_category_id_space_categories_id_fk",
           "tableFrom": "budget",
-          "tableTo": "categories",
+          "tableTo": "space_categories",
           "columnsFrom": [
-            "category_id"
+            "space_category_id"
           ],
           "columnsTo": [
             "id"
@@ -134,119 +180,25 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "budget_org_category_scope_period_unique": {
-          "name": "budget_org_category_scope_period_unique",
+        "budget_org_space_category_scope_period_unique": {
+          "name": "budget_org_space_category_scope_period_unique",
           "nullsNotDistinct": false,
           "columns": [
             "org_id",
-            "category_id",
+            "space_category_id",
             "scope",
             "period_from",
             "period_to"
           ]
         },
-        "budget_user_category_period_unique": {
-          "name": "budget_user_category_period_unique",
+        "budget_user_space_category_period_unique": {
+          "name": "budget_user_space_category_period_unique",
           "nullsNotDistinct": false,
           "columns": [
             "user_id",
-            "category_id",
+            "space_category_id",
             "period_from",
             "period_to"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.categories": {
-      "name": "categories",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "org_id": {
-          "name": "org_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type": {
-          "name": "type",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'expense'"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "categories_org_id_organizations_id_fk": {
-          "name": "categories_org_id_organizations_id_fk",
-          "tableFrom": "categories",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "categories_created_by_users_id_fk": {
-          "name": "categories_created_by_users_id_fk",
-          "tableFrom": "categories",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "categories_name_org_unique": {
-          "name": "categories_name_org_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "name",
-            "org_id"
           ]
         }
       },
@@ -360,12 +312,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "category_id": {
-          "name": "category_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "counter_party_id": {
           "name": "counter_party_id",
           "type": "integer",
@@ -378,11 +324,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "subcategory_id": {
-          "name": "subcategory_id",
+        "user_category_id": {
+          "name": "user_category_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "transfer_status": {
           "name": "transfer_status",
@@ -408,7 +354,7 @@
           "type": "smallint",
           "primaryKey": false,
           "notNull": true,
-          "default": 1
+          "default": 0
         },
         "note": {
           "name": "note",
@@ -454,7 +400,7 @@
               "nulls": "last"
             },
             {
-              "expression": "category_id",
+              "expression": "user_category_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -477,116 +423,53 @@
           "method": "btree",
           "with": {}
         },
-        "finance_transactions_org_id_idx": {
-          "name": "finance_transactions_org_id_idx",
+        "finance_transactions_user_category_id_idx": {
+          "name": "finance_transactions_user_category_id_idx",
+          "columns": [
+            {
+              "expression": "user_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "finance_transactions_org_id_transaction_timestamp_idx": {
+          "name": "finance_transactions_org_id_transaction_timestamp_idx",
           "columns": [
             {
               "expression": "org_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "finance_transactions_user_id_idx": {
-          "name": "finance_transactions_user_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "finance_transactions_category_id_idx": {
-          "name": "finance_transactions_category_id_idx",
-          "columns": [
-            {
-              "expression": "category_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "finance_transactions_counter_party_id_idx": {
-          "name": "finance_transactions_counter_party_id_idx",
-          "columns": [
-            {
-              "expression": "counter_party_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "finance_transactions_transaction_mode_id_idx": {
-          "name": "finance_transactions_transaction_mode_id_idx",
-          "columns": [
-            {
-              "expression": "transaction_mode_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "finance_transactions_subcategory_id_idx": {
-          "name": "finance_transactions_subcategory_id_idx",
-          "columns": [
-            {
-              "expression": "subcategory_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "finance_transactions_transfer_status_idx": {
-          "name": "finance_transactions_transfer_status_idx",
-          "columns": [
-            {
-              "expression": "transfer_status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "finance_transactions_occurred_at_idx": {
-          "name": "finance_transactions_occurred_at_idx",
-          "columns": [
+            },
             {
               "expression": "transaction_timestamp",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "finance_transactions_org_id_user_id_idx": {
+          "name": "finance_transactions_org_id_user_id_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -625,19 +508,6 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "finance_transactions_category_id_categories_id_fk": {
-          "name": "finance_transactions_category_id_categories_id_fk",
-          "tableFrom": "finance_transactions",
-          "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "finance_transactions_counter_party_id_counter_party_id_fk": {
           "name": "finance_transactions_counter_party_id_counter_party_id_fk",
           "tableFrom": "finance_transactions",
@@ -664,17 +534,17 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "finance_transactions_subcategory_id_subcategories_id_fk": {
-          "name": "finance_transactions_subcategory_id_subcategories_id_fk",
+        "finance_transactions_user_category_id_user_categories_id_fk": {
+          "name": "finance_transactions_user_category_id_user_categories_id_fk",
           "tableFrom": "finance_transactions",
-          "tableTo": "subcategories",
+          "tableTo": "user_categories",
           "columnsFrom": [
-            "subcategory_id"
+            "user_category_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -684,7 +554,7 @@
       "checkConstraints": {
         "finance_transactions_necessity_score_check": {
           "name": "finance_transactions_necessity_score_check",
-          "value": "\"finance_transactions\".\"necessity_score\" >= 1 AND \"finance_transactions\".\"necessity_score\" <= 5"
+          "value": "\"finance_transactions\".\"necessity_score\" IN (-1, 0, 1)"
         }
       },
       "isRLSEnabled": false
@@ -843,6 +713,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "is_personal": {
+          "name": "is_personal",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -858,7 +735,24 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "organizations_personal_created_by_unique": {
+          "name": "organizations_personal_created_by_unique",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"organizations\".\"is_personal\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "organizations_created_by_users_id_fk": {
           "name": "organizations_created_by_users_id_fk",
@@ -888,8 +782,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.subcategories": {
-      "name": "subcategories",
+    "public.space_categories": {
+      "name": "space_categories",
       "schema": "",
       "columns": {
         "id": {
@@ -910,8 +804,112 @@
           "primaryKey": false,
           "notNull": true
         },
-        "category_id": {
-          "name": "category_id",
+        "type": {
+          "name": "type",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'expense'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "space_categories_org_id_idx": {
+          "name": "space_categories_org_id_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "space_categories_org_id_organizations_id_fk": {
+          "name": "space_categories_org_id_organizations_id_fk",
+          "tableFrom": "space_categories",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "space_categories_created_by_users_id_fk": {
+          "name": "space_categories_created_by_users_id_fk",
+          "tableFrom": "space_categories",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "space_categories_name_org_unique": {
+          "name": "space_categories_name_org_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name",
+            "org_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tags": {
+      "name": "tags",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -938,8 +936,8 @@
         }
       },
       "indexes": {
-        "subcategories_org_id_idx": {
-          "name": "subcategories_org_id_idx",
+        "tags_org_id_idx": {
+          "name": "tags_org_id_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -952,27 +950,12 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "subcategories_category_id_idx": {
-          "name": "subcategories_category_id_idx",
-          "columns": [
-            {
-              "expression": "category_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
-        "subcategories_org_id_organizations_id_fk": {
-          "name": "subcategories_org_id_organizations_id_fk",
-          "tableFrom": "subcategories",
+        "tags_org_id_organizations_id_fk": {
+          "name": "tags_org_id_organizations_id_fk",
+          "tableFrom": "tags",
           "tableTo": "organizations",
           "columnsFrom": [
             "org_id"
@@ -983,22 +966,9 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "subcategories_category_id_categories_id_fk": {
-          "name": "subcategories_category_id_categories_id_fk",
-          "tableFrom": "subcategories",
-          "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "subcategories_created_by_users_id_fk": {
-          "name": "subcategories_created_by_users_id_fk",
-          "tableFrom": "subcategories",
+        "tags_created_by_users_id_fk": {
+          "name": "tags_created_by_users_id_fk",
+          "tableFrom": "tags",
           "tableTo": "users",
           "columnsFrom": [
             "created_by"
@@ -1012,12 +982,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "subcategories_category_name_unique": {
-          "name": "subcategories_category_name_unique",
+        "tags_name_org_unique": {
+          "name": "tags_name_org_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "category_id",
-            "name"
+            "name",
+            "org_id"
           ]
         }
       },
@@ -1158,6 +1128,411 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.transaction_tags": {
+      "name": "transaction_tags",
+      "schema": "",
+      "columns": {
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag_id": {
+          "name": "tag_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "transaction_tags_transaction_id_idx": {
+          "name": "transaction_tags_transaction_id_idx",
+          "columns": [
+            {
+              "expression": "transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "transaction_tags_tag_id_idx": {
+          "name": "transaction_tags_tag_id_idx",
+          "columns": [
+            {
+              "expression": "tag_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "transaction_tags_transaction_id_finance_transactions_id_fk": {
+          "name": "transaction_tags_transaction_id_finance_transactions_id_fk",
+          "tableFrom": "transaction_tags",
+          "tableTo": "finance_transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "transaction_tags_tag_id_tags_id_fk": {
+          "name": "transaction_tags_tag_id_tags_id_fk",
+          "tableFrom": "transaction_tags",
+          "tableTo": "tags",
+          "columnsFrom": [
+            "tag_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "transaction_tags_transaction_id_tag_id_pk": {
+          "name": "transaction_tags_transaction_id_tag_id_pk",
+          "columns": [
+            "transaction_id",
+            "tag_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_categories": {
+      "name": "user_categories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "space_category_id": {
+          "name": "space_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "user_categories_org_id_idx": {
+          "name": "user_categories_org_id_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_categories_space_category_id_idx": {
+          "name": "user_categories_space_category_id_idx",
+          "columns": [
+            {
+              "expression": "space_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_categories_org_id_organizations_id_fk": {
+          "name": "user_categories_org_id_organizations_id_fk",
+          "tableFrom": "user_categories",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "user_categories_space_category_id_space_categories_id_fk": {
+          "name": "user_categories_space_category_id_space_categories_id_fk",
+          "tableFrom": "user_categories",
+          "tableTo": "space_categories",
+          "columnsFrom": [
+            "space_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "user_categories_created_by_users_id_fk": {
+          "name": "user_categories_created_by_users_id_fk",
+          "tableFrom": "user_categories",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_categories_org_name_unique": {
+          "name": "user_categories_org_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "org_id",
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_category_space_category_mappings": {
+      "name": "user_category_space_category_mappings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_category_id": {
+          "name": "user_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_org_id": {
+          "name": "target_org_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "space_category_id": {
+          "name": "space_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "user_category_space_category_mappings_user_category_target_org_unique": {
+          "name": "user_category_space_category_mappings_user_category_target_org_unique",
+          "columns": [
+            {
+              "expression": "user_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_category_space_category_mappings_target_org_id_idx": {
+          "name": "user_category_space_category_mappings_target_org_id_idx",
+          "columns": [
+            {
+              "expression": "target_org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_category_space_category_mappings_user_category_id_idx": {
+          "name": "user_category_space_category_mappings_user_category_id_idx",
+          "columns": [
+            {
+              "expression": "user_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_category_space_category_mappings_space_category_id_idx": {
+          "name": "user_category_space_category_mappings_space_category_id_idx",
+          "columns": [
+            {
+              "expression": "space_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "user_category_space_category_mappings_user_category_id_user_categories_id_fk": {
+          "name": "user_category_space_category_mappings_user_category_id_user_categories_id_fk",
+          "tableFrom": "user_category_space_category_mappings",
+          "tableTo": "user_categories",
+          "columnsFrom": [
+            "user_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_category_space_category_mappings_target_org_id_organizations_id_fk": {
+          "name": "user_category_space_category_mappings_target_org_id_organizations_id_fk",
+          "tableFrom": "user_category_space_category_mappings",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "target_org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_category_space_category_mappings_space_category_id_space_categories_id_fk": {
+          "name": "user_category_space_category_mappings_space_category_id_space_categories_id_fk",
+          "tableFrom": "user_category_space_category_mappings",
+          "tableTo": "space_categories",
+          "columnsFrom": [
+            "space_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_category_space_category_mappings_updated_by_users_id_fk": {
+          "name": "user_category_space_category_mappings_updated_by_users_id_fk",
+          "tableFrom": "user_category_space_category_mappings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.users": {
       "name": "users",
       "schema": "",
@@ -1186,6 +1561,12 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1231,7 +1612,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "users_scope_check": {
+          "name": "users_scope_check",
+          "value": "\"users\".\"scope\" IN ('personal', 'shared')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

@@ -11,7 +11,7 @@ import { MonthInput } from "@/components/ui/month-input";
 import type {
   BudgetAllocationSummaryDto,
   BudgetRecordDto,
-  CategoryRecordDto,
+  SpaceCategoryRecordDto,
   FinanceMemberDto,
   OrganizationFinanceDataDto,
 } from "@/app/lib/finance.types";
@@ -64,7 +64,7 @@ function CategorySelect({
   name,
   defaultValue,
 }: {
-  categories: CategoryRecordDto[];
+  categories: SpaceCategoryRecordDto[];
   name: string;
   defaultValue?: number;
 }) {
@@ -95,7 +95,7 @@ function BudgetEditor({
   deleteError,
 }: {
   budget: BudgetRecordDto;
-  categories: CategoryRecordDto[];
+  categories: SpaceCategoryRecordDto[];
   updateAction: (formData: FormData) => void;
   deleteAction: (formData: FormData) => void;
   updatePending: boolean;
@@ -110,7 +110,7 @@ function BudgetEditor({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Category</Label>
-            <CategorySelect categories={categories} name="categoryId" defaultValue={budget.categoryId} />
+            <CategorySelect categories={categories} name="spaceCategoryId" defaultValue={budget.spaceCategoryId} />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`amount-${budget.id}`}>Amount</Label>
@@ -146,7 +146,7 @@ function PersonalBudgetRow({
   categories,
 }: {
   budget: BudgetRecordDto;
-  categories: CategoryRecordDto[];
+  categories: SpaceCategoryRecordDto[];
 }) {
   const [updateState, updateAction, updatePending] = useActionState(
     updatePersonalBudgetAction,
@@ -176,7 +176,7 @@ function SharedBudgetRow({
   categories,
 }: {
   budget: BudgetRecordDto;
-  categories: CategoryRecordDto[];
+  categories: SpaceCategoryRecordDto[];
 }) {
   const [updateState, updateAction, updatePending] = useActionState(
     updateSharedBudgetAction,
@@ -211,7 +211,7 @@ function AllocationSummaryPanel({
   const latestSummariesByCategory = useMemo(() => {
     const map = new Map<number, BudgetAllocationSummaryDto>();
     for (const summary of summaries) {
-      map.set(summary.categoryId, summary);
+      map.set(summary.spaceCategoryId, summary);
     }
     return map;
   }, [summaries]);
@@ -219,8 +219,8 @@ function AllocationSummaryPanel({
   const categories = useMemo(
     () =>
       Array.from(latestSummariesByCategory.values()).map((summary) => ({
-        id: summary.categoryId,
-        name: summary.categoryName,
+        id: summary.spaceCategoryId,
+        name: summary.spaceCategoryName,
       })),
     [latestSummariesByCategory]
   );
@@ -281,7 +281,7 @@ function PersonalBudgetSection({
   categories,
   budgets,
 }: {
-  categories: CategoryRecordDto[];
+  categories: SpaceCategoryRecordDto[];
   budgets: BudgetRecordDto[];
 }) {
   const [createState, createAction, createPending] = useActionState(
@@ -313,7 +313,7 @@ function PersonalBudgetSection({
         <form action={createAction} className="grid gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Category</Label>
-            <CategorySelect categories={categories} name="categoryId" />
+            <CategorySelect categories={categories} name="spaceCategoryId" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="personal-amount">Amount</Label>
@@ -351,7 +351,7 @@ function SharedBudgetSection({
   categories,
   budgets,
 }: {
-  categories: CategoryRecordDto[];
+  categories: SpaceCategoryRecordDto[];
   budgets: BudgetRecordDto[];
 }) {
   const [createState, createAction, createPending] = useActionState(
@@ -383,7 +383,7 @@ function SharedBudgetSection({
         <form action={createAction} className="grid gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Category</Label>
-            <CategorySelect categories={categories} name="categoryId" />
+            <CategorySelect categories={categories} name="spaceCategoryId" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="shared-amount">Amount</Label>
@@ -431,7 +431,7 @@ function SummaryCard({
     <Card className="py-2">
       <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-xl tracking-tight">{summary.categoryName}</CardTitle>
+          <CardTitle className="text-xl tracking-tight">{summary.spaceCategoryName}</CardTitle>
           {isOverBudget ? (
             <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
               <TriangleAlert className="size-3.5" />
@@ -468,7 +468,7 @@ function SummaryCard({
         </div>
         {isOverBudget ? (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
-            ⚠ Shared {summary.categoryName} budget exceeded by {formatMoney(summary.overageAmount ?? "0")}
+            ⚠ Shared {summary.spaceCategoryName} budget exceeded by {formatMoney(summary.overageAmount ?? "0")}
           </div>
         ) : null}
 
@@ -511,7 +511,7 @@ export function BudgetManagement({
   data: OrganizationFinanceDataDto;
   showSharedBudgetSection?: boolean;
 }) {
-  const expenseCategories = data.categories.filter((category) => category.type === "expense");
+  const expenseCategories = data.spaceCategories.filter((category) => category.type === "expense");
   const personalBudgets = data.budgets.filter(
     (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
   );

@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Download, Upload, X } from "lucide-react";
 import { parseBulkAddWorkbookAction, bulkCreateExpenseAction } from "@/app/actions/auth-roles/bulk-expense.actions";
-import { CategorySubcategorySelect } from "@/components/features/expenses/category-subcategory-select";
+import { TransactionCategorySelect } from "@/components/features/expenses/category-subcategory-select";
 import { TagMultiSelect } from "@/components/features/expenses/tag-multiselect";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/table";
 import type { BulkAddRowDto } from "@/app/lib/bulk-expense.types";
 import type {
-  CategoryRecordDto,
   CounterpartyRecordDto,
-  SubcategoryRecordDto,
+  SpaceCategoryRecordDto,
+  UserCategoryRecordDto,
   TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
@@ -38,8 +38,8 @@ function Req() {
 
 function BulkAddRow({
   row,
-  categories,
-  subcategories,
+  spaceCategories,
+  userCategories,
   counterparties,
   transactionModes,
   tags,
@@ -47,8 +47,8 @@ function BulkAddRow({
   onSaved,
 }: {
   row: BulkAddRowDto;
-  categories: CategoryRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   tags: TagRecordDto[];
@@ -59,8 +59,8 @@ function BulkAddRow({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const [categoryId, setCategoryId] = useState<number>(row.categoryId ?? 0);
-  const [subcategoryId, setSubcategoryId] = useState<number | null>(row.subcategoryId);
+  const [type, setType] = useState<"expense" | "income">(row.type);
+  const [userCategoryId, setUserCategoryId] = useState<number | null>(row.userCategoryId);
   const [amount, setAmount] = useState(row.amount);
   const [note, setNote] = useState(row.note);
   const [necessity, setNecessity] = useState(String(row.necessityScore));
@@ -69,23 +69,21 @@ function BulkAddRow({
   const [counterPartyId, setCounterPartyId] = useState(String(row.counterPartyId ?? ""));
   const [tagIds, setTagIds] = useState<number[]>(row.tagIds);
 
-  const inferredType = categories.find((c) => c.id === categoryId)?.type ?? null;
-
   const isValid =
     date.trim() !== "" &&
     Number(amount) > 0 &&
-    categoryId > 0 &&
+    (userCategoryId ?? 0) > 0 &&
     modeId !== "" &&
     [-1, 0, 1].includes(Number(necessity));
 
   function handleSave() {
-    if (!isValid) return;
+    if (!isValid || userCategoryId == null) return;
     setError(null);
 
     startTransition(async () => {
       const result = await bulkCreateExpenseAction({
-        categoryId,
-        subcategoryId,
+        userCategoryId,
+        type,
         transactionModeId: Number(modeId),
         counterPartyId: counterPartyId ? Number(counterPartyId) : null,
         amount,
@@ -126,30 +124,24 @@ function BulkAddRow({
         />
       </TableCell>
 
-      {/* Type */}
+      {/* Type (implicit, from the selected category) */}
       <TableCell className="py-2">
-        {inferredType ? (
-          <Badge variant={inferredType === "income" ? "default" : "secondary"}>{inferredType}</Badge>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        )}
+        <span className="inline-block rounded-full bg-muted px-2 py-1 text-xs font-medium capitalize">{type}</span>
       </TableCell>
 
-      {/* Category > Subcategory */}
-      <TableCell className="min-w-55 py-2">
-        <CategorySubcategorySelect
-          categories={categories}
-          subcategories={subcategories}
-          defaultCategoryId={categoryId}
-          defaultSubcategoryId={subcategoryId}
-          onCategoryChange={(id) => {
-            setCategoryId(id);
-            setSubcategoryId(null);
+      {/* Category (SpaceCategory > UserCategory) */}
+      <TableCell className="min-w-72 py-2">
+        <TransactionCategorySelect
+          spaceCategories={spaceCategories}
+          userCategories={userCategories}
+          defaultUserCategoryId={userCategoryId}
+          onChange={({ userCategoryId: nextId, type: nextType }) => {
+            setUserCategoryId(nextId);
+            if (nextType) setType(nextType);
           }}
-          onSubcategoryChange={setSubcategoryId}
         />
-        {row.categoryName && categoryId === 0 ? (
-          <p className="mt-0.5 text-xs text-destructive">"{row.categoryName}" not found</p>
+        {row.userCategoryName && !userCategoryId ? (
+          <p className="mt-0.5 text-xs text-destructive">&quot;{row.userCategoryName}&quot; not found</p>
         ) : null}
       </TableCell>
 
@@ -234,15 +226,15 @@ function BulkAddRow({
 // ─── BulkAddSection ───────────────────────────────────────────────────────────
 
 export function BulkAddSection({
-  categories,
-  subcategories,
+  spaceCategories,
+  userCategories,
   counterparties,
   transactionModes,
   tags,
   onClose,
 }: {
-  categories: CategoryRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   tags: TagRecordDto[];
@@ -288,7 +280,7 @@ export function BulkAddSection({
     return (
       row.date.trim() !== "" &&
       Number(row.amount) > 0 &&
-      (row.categoryId ?? 0) > 0 &&
+      (row.userCategoryId ?? 0) > 0 &&
       (row.modeId ?? 0) > 0 &&
       [-1, 0, 1].includes(row.necessityScore)
     );
@@ -300,8 +292,8 @@ export function BulkAddSection({
       const results = await Promise.allSettled(
         validRows.map((row) =>
           bulkCreateExpenseAction({
-            categoryId: row.categoryId!,
-            subcategoryId: row.subcategoryId,
+            userCategoryId: row.userCategoryId!,
+            type: row.type,
             transactionModeId: row.modeId!,
             counterPartyId: row.counterPartyId,
             amount: row.amount,
@@ -419,7 +411,7 @@ export function BulkAddSection({
                   </TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Type</TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">
-                    Category &gt; Subcategory<Req />
+                    Subcategory<Req />
                   </TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Note</TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Tags</TableHead>
@@ -438,8 +430,8 @@ export function BulkAddSection({
                   <BulkAddRow
                     key={row.clientId}
                     row={row}
-                    categories={categories}
-                    subcategories={subcategories}
+                    spaceCategories={spaceCategories}
+                    userCategories={userCategories}
                     counterparties={counterparties}
                     transactionModes={transactionModes}
                     tags={tags}

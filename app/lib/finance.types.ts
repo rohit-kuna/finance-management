@@ -1,13 +1,12 @@
 import type { BudgetScope, CategoryType, UserScope } from "@/db/schema";
 import type { AppRole } from "@/app/lib/roles";
 
-export type CategoryRecordDto = {
+export type SpaceCategoryRecordDto = {
   id: number;
   orgId: number;
   name: string;
   type: CategoryType;
   createdBy: string;
-  isSystemDefault: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -16,8 +15,8 @@ export type BudgetRecordDto = {
   id: number;
   orgId: number;
   userId: string | null;
-  categoryId: number;
-  categoryName: string;
+  spaceCategoryId: number;
+  spaceCategoryName: string;
   scope: BudgetScope;
   amount: string;
   month: string;
@@ -30,8 +29,8 @@ export type BudgetRecordDto = {
 };
 
 export type BudgetAllocationSummaryDto = {
-  categoryId: number;
-  categoryName: string;
+  spaceCategoryId: number;
+  spaceCategoryName: string;
   month: string;
   monthLabel: string;
   periodFrom: string;
@@ -52,10 +51,10 @@ export type CounterpartyRecordDto = {
   updatedAt: string;
 };
 
-export type SubcategoryRecordDto = {
+export type UserCategoryRecordDto = {
   id: number;
   orgId: number;
-  categoryId: number;
+  spaceCategoryId: number | null;
   name: string;
   createdBy: string;
   createdAt: string;
@@ -97,8 +96,8 @@ export type OrganizationFinanceDataDto = {
     createdAt: string;
     updatedAt: string;
   } | null;
-  categories: CategoryRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   members: FinanceMemberDto[];

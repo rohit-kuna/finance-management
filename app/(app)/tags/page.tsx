@@ -1,9 +1,9 @@
 import { TagManagement } from "@/components/features/admin/tag-management";
 import { getOrganizationTagsForAdmin } from "@/app/actions/auth-roles/tags.actions";
-import { requireUser } from "@/app/lib/auth";
+import { requireActiveOrgIsPersonal } from "@/app/lib/auth";
 
 export default async function TagsPage() {
-  const currentUser = await requireUser();
+  const currentUser = await requireActiveOrgIsPersonal();
   const data = await getOrganizationTagsForAdmin();
 
   return (

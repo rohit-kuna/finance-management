@@ -19,7 +19,6 @@ import {
   setDefaultOrganizationForUser,
 } from "@/app/actions/tables/organization-members.table.actions";
 import { setUserScope } from "@/app/actions/tables/users.table.actions";
-import { ensureSystemDefaultCategories } from "@/app/actions/tables/categories.table.actions";
 import type { OnboardingActionState } from "@/app/actions/auth-roles/onboarding.types";
 
 /**
@@ -143,7 +142,6 @@ export async function createOrganizationFromOnboardingAction(
     };
   }
 
-  await ensureSystemDefaultCategories(organization.id, currentUser.id);
   await addOrganizationMember({
     orgId: organization.id,
     userId: currentUser.id,

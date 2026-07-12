@@ -1,224 +1,69 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { createSubcategoryInline } from "@/app/actions/auth-roles/subcategories.actions";
-import type { CategoryRecordDto, SubcategoryRecordDto } from "@/app/lib/finance.types";
+import { createUserCategoryInline } from "@/app/actions/auth-roles/user-categories.actions";
+import { createSpaceCategoryInline } from "@/app/actions/auth-roles/organization-finance.actions";
+import type { SpaceCategoryRecordDto, UserCategoryRecordDto } from "@/app/lib/finance.types";
+import type { CategoryType } from "@/db/schema";
 import { cn } from "@/lib/utils";
 
-type Option =
-  | { kind: "category"; categoryId: number; label: string; group: "Expense" | "Income" }
-  | { kind: "subcategory"; categoryId: number; subcategoryId: number; label: string; group: "Expense" | "Income" };
+type ComboboxItem = { id: number; name: string };
 
-export function CategorySubcategorySelect({
-  categories,
-  subcategories,
-  defaultCategoryId,
-  defaultSubcategoryId = null,
-  onCategoryChange,
-  onSubcategoryChange,
+/**
+ * Generic type-to-search dropdown shared by the SpaceCategory and UserCategory
+ * steps below. `renderCreate`, if provided, renders a trailing row for
+ * creating a new item from the current query text.
+ */
+function Combobox<T extends ComboboxItem>({
+  items,
+  selected,
+  onSelect,
+  placeholder,
+  disabled,
+  renderCreate,
 }: {
-  categories: CategoryRecordDto[];
-  subcategories: SubcategoryRecordDto[];
-  defaultCategoryId: number;
-  defaultSubcategoryId?: number | null;
-  onCategoryChange: (categoryId: number) => void;
-  onSubcategoryChange?: (subcategoryId: number | null) => void;
+  items: T[];
+  selected: T | null;
+  onSelect: (item: T | null) => void;
+  placeholder: string;
+  disabled?: boolean;
+  renderCreate?: (query: string, close: () => void) => React.ReactNode;
 }) {
-  const [localAdditions, setLocalAdditions] = useState<SubcategoryRecordDto[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCategoryId);
-  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | null>(defaultSubcategoryId);
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [isCreating, startCreating] = useTransition();
-  const [createError, setCreateError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const skipFocusResetRef = useRef(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-
-  const localSubcategories = useMemo(() => {
-    const serverIds = new Set(subcategories.map((s) => s.id));
-    const additions = localAdditions.filter((s) => !serverIds.has(s.id));
-    return additions.length ? [...additions, ...subcategories] : subcategories;
-  }, [subcategories, localAdditions]);
-
-  const categoriesById = useMemo(() => {
-    const map = new Map<number, CategoryRecordDto>();
-    for (const category of categories) {
-      map.set(category.id, category);
-    }
-    return map;
-  }, [categories]);
-
-  const selectedCategory = categoriesById.get(selectedCategoryId) ?? null;
-  const selectedSubcategory = useMemo(
-    () => localSubcategories.find((subcategory) => subcategory.id === selectedSubcategoryId) ?? null,
-    [localSubcategories, selectedSubcategoryId]
-  );
-
-  const displayValue = selectedCategory
-    ? selectedSubcategory
-      ? `${selectedCategory.name} > ${selectedSubcategory.name}`
-      : selectedCategory.name
-    : "";
 
   const trimmedQuery = query.trim();
   const loweredQuery = trimmedQuery.toLowerCase();
 
-  // When the query contains ">", treat the part before it as a category name
-  // and the part after it as a subcategory search/create query scoped to that category.
-  const arrowIndex = query.indexOf(">");
-  const arrowCategoryPart = arrowIndex >= 0 ? query.slice(0, arrowIndex).trim() : null;
-  const arrowSubPart = arrowIndex >= 0 ? query.slice(arrowIndex + 1).trim() : null;
-  const arrowCategory = arrowCategoryPart
-    ? categories.find((category) => category.name.toLowerCase() === arrowCategoryPart.toLowerCase()) ?? null
-    : null;
-  const isArrowMode = arrowIndex >= 0 && Boolean(arrowCategory);
+  const suggestions = useMemo(() => {
+    if (!loweredQuery) return items;
+    return items.filter((item) => item.name.toLowerCase().includes(loweredQuery));
+  }, [items, loweredQuery]);
 
-  const allOptions = useMemo(() => {
-    const options: Option[] = [];
-    for (const category of categories) {
-      const group = category.type === "income" ? "Income" : "Expense";
-      options.push({ kind: "category", categoryId: category.id, label: category.name, group });
-      for (const subcategory of localSubcategories) {
-        if (subcategory.categoryId !== category.id) continue;
-        options.push({
-          kind: "subcategory",
-          categoryId: category.id,
-          subcategoryId: subcategory.id,
-          label: `${category.name} > ${subcategory.name}`,
-          group,
-        });
-      }
-    }
-    return options;
-  }, [categories, localSubcategories]);
-
-  const normalSuggestions = useMemo(() => {
-    if (!loweredQuery) return allOptions.filter((option) => option.kind === "category");
-
-    const matchingCategoryIds = new Set(
-      categories.filter((category) => category.name.toLowerCase().includes(loweredQuery)).map((category) => category.id)
-    );
-    const matchingSubcategoryCategoryIds = new Set(
-      localSubcategories
-        .filter((subcategory) => subcategory.name.toLowerCase().includes(loweredQuery))
-        .map((subcategory) => subcategory.categoryId)
-    );
-
-    return allOptions.filter((option) => {
-      if (option.kind === "category") {
-        return matchingCategoryIds.has(option.categoryId) || matchingSubcategoryCategoryIds.has(option.categoryId);
-      }
-
-      if (matchingCategoryIds.has(option.categoryId)) return true;
-
-      const subcategory = localSubcategories.find((candidate) => candidate.id === option.subcategoryId);
-      return Boolean(subcategory && subcategory.name.toLowerCase().includes(loweredQuery));
-    });
-  }, [allOptions, categories, localSubcategories, loweredQuery]);
-
-  const arrowSubQueryLowered = (arrowSubPart ?? "").toLowerCase();
-  const arrowSuggestions = useMemo(() => {
-    if (!arrowCategory) return [];
-
-    return localSubcategories
-      .filter((subcategory) => subcategory.categoryId === arrowCategory.id)
-      .filter((subcategory) => !arrowSubQueryLowered || subcategory.name.toLowerCase().includes(arrowSubQueryLowered))
-      .map<Option>((subcategory) => ({
-        kind: "subcategory",
-        categoryId: arrowCategory.id,
-        subcategoryId: subcategory.id,
-        label: `${arrowCategory.name} > ${subcategory.name}`,
-        group: arrowCategory.type === "income" ? "Income" : "Expense",
-      }));
-  }, [arrowCategory, arrowSubQueryLowered, localSubcategories]);
-
-  const suggestions = isArrowMode ? arrowSuggestions : normalSuggestions;
-
-  const canCreate = isArrowMode
-    ? Boolean(arrowCategory) &&
-      Boolean(arrowSubPart) &&
-      (arrowSubPart?.length ?? 0) >= 1 &&
-      !localSubcategories.some(
-        (subcategory) => subcategory.categoryId === arrowCategory?.id && subcategory.name.toLowerCase() === arrowSubQueryLowered
-      )
-    : false;
-
-  const createTargetCategory = isArrowMode ? arrowCategory : selectedCategory;
-  const createTargetName = isArrowMode ? arrowSubPart ?? "" : trimmedQuery;
-
-  function selectCategory(categoryId: number) {
-    setSelectedCategoryId(categoryId);
-    setSelectedSubcategoryId(null);
-    onCategoryChange(categoryId);
-    onSubcategoryChange?.(null);
+  function selectItem(item: T) {
+    onSelect(item);
     setQuery("");
     setIsOpen(false);
-  }
-
-  function selectSubcategory(categoryId: number, subcategoryId: number) {
-    setSelectedCategoryId(categoryId);
-    setSelectedSubcategoryId(subcategoryId);
-    onCategoryChange(categoryId);
-    onSubcategoryChange?.(subcategoryId);
-    setQuery("");
-    setIsOpen(false);
-  }
-
-  function handleCreateSubcategory() {
-    if (!createTargetName || isCreating || !createTargetCategory) return;
-    setCreateError(null);
-    const name = createTargetName;
-    const categoryId = createTargetCategory.id;
-
-    startCreating(async () => {
-      const result = await createSubcategoryInline(categoryId, name);
-
-      if ("error" in result) {
-        setCreateError(result.error);
-        return;
-      }
-
-      setLocalAdditions((current) =>
-        current.some((subcategory) => subcategory.id === result.subcategory.id)
-          ? current
-          : [result.subcategory, ...current]
-      );
-      selectSubcategory(categoryId, result.subcategory.id);
-    });
   }
 
   function openDropdown() {
-    if (!containerRef.current) { setIsOpen(true); return; }
+    if (disabled) return;
+    if (!containerRef.current) {
+      setIsOpen(true);
+      return;
+    }
     const rect = containerRef.current.getBoundingClientRect();
-    setDropdownStyle({
-      position: "fixed",
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
-      zIndex: 9999,
-    });
+    setDropdownStyle({ position: "fixed", top: rect.bottom + 4, left: rect.left, width: rect.width, zIndex: 9999 });
     setIsOpen(true);
   }
 
   function handleFocus() {
-    if (skipFocusResetRef.current) {
-      skipFocusResetRef.current = false;
-      openDropdown();
-      return;
-    }
-    setQuery(displayValue);
+    setQuery(selected?.name ?? "");
     openDropdown();
-  }
-
-  function handleAddSubcategoryHint() {
-    if (!selectedCategory) return;
-    skipFocusResetRef.current = true;
-    setQuery(`${selectedCategory.name} > `);
-    openDropdown();
-    inputRef.current?.focus();
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -235,9 +80,7 @@ export function CategorySubcategorySelect({
         openDropdown();
         return;
       }
-      if (navigableCount > 0) {
-        setHighlightedIndex((current) => (current + 1) % navigableCount);
-      }
+      if (suggestions.length) setHighlightedIndex((current) => (current + 1) % suggestions.length);
       return;
     }
 
@@ -247,68 +90,30 @@ export function CategorySubcategorySelect({
         openDropdown();
         return;
       }
-      if (navigableCount > 0) {
-        setHighlightedIndex((current) => (current <= 0 ? navigableCount - 1 : current - 1));
-      }
+      if (suggestions.length) setHighlightedIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
       return;
     }
 
     if (event.key === "Enter") {
       event.preventDefault();
-
-      if (highlightedIndex >= 0) {
-        if (highlightedIndex < navigableOptions.length) {
-          selectOption(navigableOptions[highlightedIndex], selectCategory, selectSubcategory);
-        } else if (canCreate) {
-          handleCreateSubcategory();
-        }
+      if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+        selectItem(suggestions[highlightedIndex]);
         return;
       }
-
-      const exactSubcategory = suggestions.find(
-        (option) =>
-          option.kind === "subcategory" &&
-          (isArrowMode
-            ? option.label.split(" > ")[1]?.toLowerCase() === arrowSubQueryLowered
-            : option.label.toLowerCase() === loweredQuery)
-      );
-      if (exactSubcategory && exactSubcategory.kind === "subcategory") {
-        selectSubcategory(exactSubcategory.categoryId, exactSubcategory.subcategoryId);
-        return;
-      }
-
-      if (!isArrowMode) {
-        const exactCategory = suggestions.find(
-          (option) => option.kind === "category" && option.label.toLowerCase() === loweredQuery
-        );
-        if (exactCategory) {
-          selectCategory(exactCategory.categoryId);
-          return;
-        }
-      }
-
-      if (suggestions.length) {
-        selectOption(suggestions[0], selectCategory, selectSubcategory);
-        return;
-      }
-
-      if (canCreate) {
-        handleCreateSubcategory();
-      }
+      const exact = suggestions.find((item) => item.name.toLowerCase() === loweredQuery);
+      if (exact) selectItem(exact);
     }
   }
 
   const closeAndMaybeClearSelection = useCallback(() => {
     setIsOpen((wasOpen) => {
-      if (wasOpen && !trimmedQuery && selectedCategory) {
-        setSelectedCategoryId(0);
-        setSelectedSubcategoryId(null);
-        onCategoryChange(0);
+      if (wasOpen && !trimmedQuery && selected) {
+        onSelect(null);
       }
       return false;
     });
     setQuery("");
-  }, [trimmedQuery, selectedCategory, onCategoryChange]);
+  }, [trimmedQuery, selected, onSelect]);
 
   function handleBlur(event: React.FocusEvent<HTMLDivElement>) {
     if (!containerRef.current?.contains(event.relatedTarget as Node | null)) {
@@ -318,25 +123,14 @@ export function CategorySubcategorySelect({
 
   useEffect(() => {
     if (!isOpen) return;
-
     function handlePointerDown(event: PointerEvent) {
       if (!containerRef.current?.contains(event.target as Node | null)) {
         closeAndMaybeClearSelection();
       }
     }
-
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [isOpen, closeAndMaybeClearSelection]);
-
-  const expenseSuggestions = suggestions.filter((option) => option.group === "Expense");
-  const incomeSuggestions = suggestions.filter((option) => option.group === "Income");
-
-  const navigableOptions = useMemo(
-    () => [...expenseSuggestions, ...incomeSuggestions],
-    [expenseSuggestions, incomeSuggestions]
-  );
-  const navigableCount = navigableOptions.length + (canCreate ? 1 : 0);
 
   useEffect(() => {
     setHighlightedIndex(-1);
@@ -344,19 +138,11 @@ export function CategorySubcategorySelect({
 
   useEffect(() => {
     if (!isOpen || !containerRef.current) return;
-
     function updatePosition() {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      setDropdownStyle({
-        position: "fixed",
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        zIndex: 9999,
-      });
+      setDropdownStyle({ position: "fixed", top: rect.bottom + 4, left: rect.left, width: rect.width, zIndex: 9999 });
     }
-
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("resize", updatePosition);
     return () => {
@@ -367,127 +153,240 @@ export function CategorySubcategorySelect({
 
   return (
     <div ref={containerRef} className="relative" onBlur={handleBlur}>
-      <input type="hidden" name="categoryId" value={selectedCategoryId} />
-      {selectedSubcategoryId != null ? (
-        <input type="hidden" name="subcategoryId" value={selectedSubcategoryId} />
-      ) : null}
       <input
         ref={inputRef}
         type="text"
-        value={isOpen ? query : displayValue}
+        value={isOpen ? query : selected?.name ?? ""}
         onChange={(event) => {
           if (!isOpen) openDropdown();
           setQuery(event.target.value);
         }}
         onFocus={handleFocus}
         onKeyDown={handleKeyDown}
-        placeholder="Type to find a category or subcategory..."
-        className={cn(
-          "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          selectedCategory && !selectedSubcategoryId && arrowIndex < 0 ? "sm:pr-32" : null
-        )}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       />
-      {selectedCategory && !selectedSubcategoryId && arrowIndex < 0 ? (
-        <button
-          type="button"
-          onClick={handleAddSubcategoryHint}
-          className="mt-1 text-xs text-muted-foreground transition-colors hover:text-foreground sm:absolute sm:inset-y-0 sm:right-2 sm:mt-0 sm:flex sm:items-center"
-        >
-          Press &gt; to add subcategory
-        </button>
-      ) : null}
       {isOpen ? (
         <ul style={dropdownStyle} className="max-h-64 overflow-auto rounded-md border border-border bg-popover p-1 text-sm shadow-md">
-          {expenseSuggestions.length ? (
-            <>
-              <li className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Expense</li>
-              {expenseSuggestions.map((option) => (
-                <OptionRow
-                  key={optionKey(option)}
-                  option={option}
-                  isHighlighted={navigableOptions.indexOf(option) === highlightedIndex}
-                  onSelect={() => selectOption(option, selectCategory, selectSubcategory)}
-                />
-              ))}
-            </>
-          ) : null}
-          {incomeSuggestions.length ? (
-            <>
-              <li className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Income</li>
-              {incomeSuggestions.map((option) => (
-                <OptionRow
-                  key={optionKey(option)}
-                  option={option}
-                  isHighlighted={navigableOptions.indexOf(option) === highlightedIndex}
-                  onSelect={() => selectOption(option, selectCategory, selectSubcategory)}
-                />
-              ))}
-            </>
-          ) : null}
-          {canCreate ? (
-            <li>
+          {suggestions.map((item, index) => (
+            <li key={item.id}>
               <button
                 type="button"
-                disabled={isCreating}
-                onClick={handleCreateSubcategory}
+                onClick={() => selectItem(item)}
                 className={cn(
-                  "block w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                  "disabled:cursor-not-allowed disabled:opacity-60",
-                  highlightedIndex === navigableOptions.length && "bg-accent text-accent-foreground"
+                  "block w-full rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground",
+                  highlightedIndex === index && "bg-accent text-accent-foreground"
                 )}
               >
-                {isCreating ? "Creating..." : `Create "${createTargetName}" under ${createTargetCategory?.name}`}
+                {item.name}
               </button>
             </li>
-          ) : null}
-          {!expenseSuggestions.length && !incomeSuggestions.length && !canCreate ? (
+          ))}
+          {!suggestions.length && !renderCreate ? (
             <li className="px-2 py-1.5 text-muted-foreground">No matches</li>
           ) : null}
+          {renderCreate ? <li className="border-t pt-1">{renderCreate(trimmedQuery, () => setIsOpen(false))}</li> : null}
         </ul>
       ) : null}
-      {createError ? <p className="mt-1 text-xs text-destructive">{createError}</p> : null}
     </div>
   );
 }
 
-function optionKey(option: Option) {
-  return option.kind === "category" ? `c-${option.categoryId}` : `s-${option.subcategoryId}`;
-}
-
-function selectOption(
-  option: Option,
-  selectCategory: (categoryId: number) => void,
-  selectSubcategory: (categoryId: number, subcategoryId: number) => void
-) {
-  if (option.kind === "category") {
-    selectCategory(option.categoryId);
-  } else {
-    selectSubcategory(option.categoryId, option.subcategoryId);
-  }
-}
-
-function OptionRow({
-  option,
-  isHighlighted,
-  onSelect,
+function CreateUserCategoryRow({
+  query,
+  disabled,
+  onCreate,
 }: {
-  option: Option;
-  isHighlighted: boolean;
-  onSelect: () => void;
+  query: string;
+  disabled?: boolean;
+  onCreate: (name: string) => void;
 }) {
+  if (query.length < 2 || disabled) return null;
+
   return (
-    <li>
+    <button
+      type="button"
+      onClick={() => onCreate(query)}
+      className="block w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+    >
+      {`Create "${query}"`}
+    </button>
+  );
+}
+
+function CreateSpaceCategoryRow({
+  query,
+  onCreate,
+}: {
+  query: string;
+  onCreate: (name: string, type: CategoryType) => void;
+}) {
+  const [type, setType] = useState<CategoryType>("expense");
+
+  if (query.length < 2) return null;
+
+  return (
+    <div className="flex items-center gap-1 px-1 py-1">
       <button
         type="button"
-        onClick={onSelect}
-        className={cn(
-          "block w-full rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground",
-          option.kind === "category" && "font-medium",
-          isHighlighted && "bg-accent text-accent-foreground"
-        )}
+        onClick={() => onCreate(query, type)}
+        className="flex-1 rounded-sm px-1.5 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
       >
-        {option.label}
+        {`Create "${query}"`}
       </button>
-    </li>
+      <select
+        value={type}
+        onChange={(event) => setType(event.target.value as CategoryType)}
+        onClick={(event) => event.stopPropagation()}
+        className="h-7 shrink-0 rounded-md border border-input bg-background px-1 text-xs"
+      >
+        <option value="expense">Expense</option>
+        <option value="income">Income</option>
+      </select>
+    </div>
+  );
+}
+
+/**
+ * Two-step category picker for a transaction: pick a SpaceCategory first
+ * (implicitly setting the transaction's type from it), then pick or create a
+ * UserCategory scoped to that SpaceCategory. A UserCategory created here is
+ * mapped to the chosen SpaceCategory immediately — this is the explicit
+ * "place a transaction in a category" flow, distinct from the Kanban board's
+ * "+ New" flow where new UserCategories always start Unmapped.
+ */
+export function TransactionCategorySelect({
+  spaceCategories,
+  userCategories,
+  defaultUserCategoryId = null,
+  onChange,
+}: {
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
+  defaultUserCategoryId?: number | null;
+  onChange?: (state: { userCategoryId: number | null; type: CategoryType | null }) => void;
+}) {
+  const [localSpaceCategories, setLocalSpaceCategories] = useState<SpaceCategoryRecordDto[]>([]);
+  const [localUserCategories, setLocalUserCategories] = useState<UserCategoryRecordDto[]>([]);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const defaultUserCategory = userCategories.find((c) => c.id === defaultUserCategoryId) ?? null;
+  const [selectedSpaceCategoryId, setSelectedSpaceCategoryId] = useState<number | null>(
+    defaultUserCategory?.spaceCategoryId ?? null
+  );
+  const [selectedUserCategoryId, setSelectedUserCategoryId] = useState<number | null>(defaultUserCategoryId);
+
+  const allSpaceCategories = useMemo(() => {
+    const serverIds = new Set(spaceCategories.map((c) => c.id));
+    const additions = localSpaceCategories.filter((c) => !serverIds.has(c.id));
+    return additions.length ? [...additions, ...spaceCategories] : spaceCategories;
+  }, [spaceCategories, localSpaceCategories]);
+
+  const allUserCategories = useMemo(() => {
+    const serverIds = new Set(userCategories.map((c) => c.id));
+    const additions = localUserCategories.filter((c) => !serverIds.has(c.id));
+    return additions.length ? [...additions, ...userCategories] : userCategories;
+  }, [userCategories, localUserCategories]);
+
+  const selectedSpaceCategory = allSpaceCategories.find((c) => c.id === selectedSpaceCategoryId) ?? null;
+  const selectedUserCategory = allUserCategories.find((c) => c.id === selectedUserCategoryId) ?? null;
+
+  const userCategoryOptions = useMemo(
+    () => allUserCategories.filter((c) => c.spaceCategoryId === selectedSpaceCategoryId),
+    [allUserCategories, selectedSpaceCategoryId]
+  );
+
+  useEffect(() => {
+    onChange?.({ userCategoryId: selectedUserCategoryId, type: selectedSpaceCategory?.type ?? null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUserCategoryId, selectedSpaceCategory?.type]);
+
+  function handleSelectSpaceCategory(item: SpaceCategoryRecordDto | null) {
+    setCreateError(null);
+    setSelectedSpaceCategoryId(item?.id ?? null);
+    setSelectedUserCategoryId(null);
+  }
+
+  function handleCreateSpaceCategory(name: string, type: CategoryType) {
+    if (isPending) return;
+    setCreateError(null);
+    startTransition(async () => {
+      const result = await createSpaceCategoryInline(name, type);
+      if ("error" in result) {
+        setCreateError(result.error);
+        return;
+      }
+      setLocalSpaceCategories((current) =>
+        current.some((c) => c.id === result.spaceCategory.id) ? current : [result.spaceCategory, ...current]
+      );
+      setSelectedSpaceCategoryId(result.spaceCategory.id);
+      setSelectedUserCategoryId(null);
+    });
+  }
+
+  function handleCreateUserCategory(name: string) {
+    if (isPending || selectedSpaceCategoryId == null) return;
+    setCreateError(null);
+    startTransition(async () => {
+      const result = await createUserCategoryInline(name, selectedSpaceCategoryId);
+      if ("error" in result) {
+        setCreateError(result.error);
+        return;
+      }
+      setLocalUserCategories((current) =>
+        current.some((c) => c.id === result.userCategory.id) ? current : [result.userCategory, ...current]
+      );
+      setSelectedUserCategoryId(result.userCategory.id);
+    });
+  }
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {selectedUserCategoryId != null ? <input type="hidden" name="userCategoryId" value={selectedUserCategoryId} /> : null}
+      <div>
+        <Combobox
+          items={allSpaceCategories}
+          selected={selectedSpaceCategory}
+          onSelect={handleSelectSpaceCategory}
+          placeholder="Type to find or create a category..."
+          renderCreate={(query, close) => (
+            <CreateSpaceCategoryRow
+              query={query}
+              onCreate={(name, type) => {
+                handleCreateSpaceCategory(name, type);
+                close();
+              }}
+            />
+          )}
+        />
+      </div>
+      <div>
+        <Combobox
+          items={userCategoryOptions}
+          selected={selectedUserCategory}
+          onSelect={(item) => setSelectedUserCategoryId(item?.id ?? null)}
+          placeholder={selectedSpaceCategoryId == null ? "Pick a category first" : "Type to find or create a subcategory..."}
+          disabled={selectedSpaceCategoryId == null}
+          renderCreate={(query, close) => (
+            <CreateUserCategoryRow
+              query={query}
+              disabled={isPending}
+              onCreate={(name) => {
+                handleCreateUserCategory(name);
+                close();
+              }}
+            />
+          )}
+        />
+      </div>
+      {defaultUserCategory && defaultUserCategory.spaceCategoryId == null && selectedUserCategoryId === defaultUserCategoryId ? (
+        <p className="text-xs text-muted-foreground sm:col-span-2">
+          {`Currently Unmapped — pick a category to place "${defaultUserCategory.name}" into it.`}
+        </p>
+      ) : null}
+      {createError ? <p className="text-xs text-destructive sm:col-span-2">{createError}</p> : null}
+    </div>
   );
 }

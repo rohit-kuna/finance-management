@@ -2,7 +2,7 @@
 
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { budget, categories } from "@/db/schema";
+import { budget, spaceCategories } from "@/db/schema";
 import { formatBudgetMonth, getBudgetMonthFromDate } from "@/app/lib/budget-month";
 import type { BudgetRecordDto } from "@/app/lib/finance.types";
 import type { BudgetScope } from "@/db/schema";
@@ -12,7 +12,7 @@ function normalizeBudgetScope(scope: string): BudgetScope {
 }
 
 function toBudgetDto(
-  record: typeof budget.$inferSelect & { categoryName: string }
+  record: typeof budget.$inferSelect & { spaceCategoryName: string }
 ): BudgetRecordDto {
   const month = getBudgetMonthFromDate(record.periodFrom);
 
@@ -20,8 +20,8 @@ function toBudgetDto(
     id: record.id,
     orgId: record.orgId,
     userId: record.userId,
-    categoryId: record.categoryId,
-    categoryName: record.categoryName,
+    spaceCategoryId: record.spaceCategoryId,
+    spaceCategoryName: record.spaceCategoryName,
     scope: normalizeBudgetScope(record.scope),
     amount: record.amount.toString(),
     month,
@@ -40,8 +40,8 @@ export async function getBudgetsByOrg(orgId: number): Promise<BudgetRecordDto[]>
       id: budget.id,
       orgId: budget.orgId,
       userId: budget.userId,
-      categoryId: budget.categoryId,
-      categoryName: categories.name,
+      spaceCategoryId: budget.spaceCategoryId,
+      spaceCategoryName: spaceCategories.name,
       scope: budget.scope,
       amount: budget.amount,
       periodFrom: budget.periodFrom,
@@ -51,7 +51,7 @@ export async function getBudgetsByOrg(orgId: number): Promise<BudgetRecordDto[]>
       updatedAt: budget.updatedAt,
     })
     .from(budget)
-    .innerJoin(categories, eq(categories.id, budget.categoryId))
+    .innerJoin(spaceCategories, eq(spaceCategories.id, budget.spaceCategoryId))
     .where(eq(budget.orgId, orgId))
     .orderBy(desc(budget.createdAt));
   return records.map(toBudgetDto);
@@ -63,8 +63,8 @@ export async function getBudgetById(id: number): Promise<BudgetRecordDto | null>
       id: budget.id,
       orgId: budget.orgId,
       userId: budget.userId,
-      categoryId: budget.categoryId,
-      categoryName: categories.name,
+      spaceCategoryId: budget.spaceCategoryId,
+      spaceCategoryName: spaceCategories.name,
       scope: budget.scope,
       amount: budget.amount,
       periodFrom: budget.periodFrom,
@@ -74,7 +74,7 @@ export async function getBudgetById(id: number): Promise<BudgetRecordDto | null>
       updatedAt: budget.updatedAt,
     })
     .from(budget)
-    .innerJoin(categories, eq(categories.id, budget.categoryId))
+    .innerJoin(spaceCategories, eq(spaceCategories.id, budget.spaceCategoryId))
     .where(eq(budget.id, id))
     .limit(1);
 
@@ -84,7 +84,7 @@ export async function getBudgetById(id: number): Promise<BudgetRecordDto | null>
 export async function createBudgetRecord(input: {
   orgId: number;
   userId: string | null;
-  categoryId: number;
+  spaceCategoryId: number;
   scope: BudgetScope;
   amount: string;
   periodFrom: string;
@@ -98,7 +98,7 @@ export async function createBudgetRecord(input: {
 export async function updateBudgetRecord(
   id: number,
   input: Partial<{
-    categoryId: number;
+    spaceCategoryId: number;
     userId: string | null;
     scope: BudgetScope;
     amount: string;

@@ -1,7 +1,9 @@
+import { requireActiveOrgIsPersonal } from "@/app/lib/auth";
 import { getTransfersDashboardData } from "@/app/actions/auth-roles/expense.actions";
 import { TransferManagement } from "@/components/features/transfers/transfer-management";
 
 export default async function TransfersPage() {
+  await requireActiveOrgIsPersonal();
   const data = await getTransfersDashboardData();
 
   return (

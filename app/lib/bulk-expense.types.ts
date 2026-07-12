@@ -2,10 +2,10 @@ export type BulkAddRowDto = {
   clientId: string;
   date: string;               // YYYY-MM-DD for <input type="date">
   amount: string;             // "250.00"
-  categoryId: number | null;  // null = name not matched in org
-  categoryName: string;       // raw from Excel — shown as hint when unresolved
-  subcategoryId: number | null;
-  subcategoryName: string;
+  type: "expense" | "income";
+  userCategoryId: number | null;  // null = name not matched in your personal space
+  userCategoryName: string;       // raw from Excel — shown as hint when unresolved
+  spaceCategoryName: string;      // informational hint only; not stored on the transaction
   modeId: number | null;      // null = name not matched; will default to user's default mode
   modeName: string;
   counterPartyId: number | null;
@@ -17,8 +17,8 @@ export type BulkAddRowDto = {
 };
 
 export type BulkCreateInput = {
-  categoryId: number;
-  subcategoryId: number | null;
+  userCategoryId: number;
+  type: "expense" | "income";
   transactionModeId: number;
   counterPartyId: number | null;
   amount: string;

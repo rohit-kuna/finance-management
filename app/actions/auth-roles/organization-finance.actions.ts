@@ -2,18 +2,19 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requireAdmin, requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
 import {
-  createCategoryRecord,
-  deleteCategoryRecord,
-  getCategoriesByOrg,
-  getCategoryByOrgAndName,
-  getCategoryById,
-  getCategoryUsageCounts,
-  updateCategoryRecord,
-} from "@/app/actions/tables/categories.table.actions";
+  createSpaceCategoryRecord,
+  deleteSpaceCategoryRecord,
+  getSpaceCategoriesByOrg,
+  getSpaceCategoryByOrgAndName,
+  getSpaceCategoryById,
+  getSpaceCategoryUsageCounts,
+  updateSpaceCategoryRecord,
+} from "@/app/actions/tables/space-categories.table.actions";
 import {
   createBudgetRecord,
   deleteBudgetRecord,
@@ -24,13 +25,13 @@ import {
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
 import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import { ensureDefaultTransactionModesForUser } from "@/app/actions/tables/transaction-modes.table.actions";
-import { createSubcategoryRecord, getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
+import { getUserCategoriesByOrg } from "@/app/actions/tables/user-categories.table.actions";
 import { buildBudgetAllocationSummaries } from "@/app/lib/budget-utils";
 import { getBudgetMonthBounds, isValidBudgetMonth } from "@/app/lib/budget-month";
 import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
-import type { OrganizationFinanceDataDto } from "@/app/lib/finance.types";
+import type { OrganizationFinanceDataDto, SpaceCategoryRecordDto } from "@/app/lib/finance.types";
 
-const categorySchema = z.object({
+const spaceCategorySchema = z.object({
   name: z.string().trim().min(2, "Category name is required").max(100),
   type: z.enum(["expense", "income"]).default("expense"),
 });
@@ -41,7 +42,7 @@ const budgetMonthSchema = z.preprocess(
 );
 
 const budgetSchema = z.object({
-  categoryId: z.coerce.number().int().positive(),
+  spaceCategoryId: z.coerce.number().int().positive(),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
   month: budgetMonthSchema,
 });
@@ -50,8 +51,8 @@ const budgetIdSchema = z.object({
   budgetId: z.coerce.number().int().positive(),
 });
 
-const categoryIdSchema = z.object({
-  categoryId: z.coerce.number().int().positive(),
+const spaceCategoryIdSchema = z.object({
+  spaceCategoryId: z.coerce.number().int().positive(),
 });
 
 function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
@@ -85,8 +86,8 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
   if (!currentUser.orgId) {
     return {
       organization: null,
-      categories: [],
-      subcategories: [],
+      spaceCategories: [],
+      userCategories: [],
       counterparties: [],
       transactionModes: [],
       members: [],
@@ -101,10 +102,10 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
     };
   }
 
-  const [organization, categories, subcategories, counterparties, budgets, members, transactionModes] = await Promise.all([
+  const [organization, spaceCategories, userCategories, counterparties, budgets, members, transactionModes] = await Promise.all([
     getOrganizationById(currentUser.orgId),
-    getCategoriesByOrg(currentUser.orgId),
-    getSubcategoriesByOrg(currentUser.orgId),
+    getSpaceCategoriesByOrg(currentUser.orgId),
+    currentUser.personalOrgId ? getUserCategoriesByOrg(currentUser.personalOrgId) : Promise.resolve([]),
     getCounterpartiesByOrg(currentUser.orgId),
     getBudgetsByOrg(currentUser.orgId),
     getOrganizationMembers(currentUser.orgId),
@@ -117,8 +118,8 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
 
   return {
     organization: toOrganizationDto(organization),
-    categories,
-    subcategories,
+    spaceCategories,
+    userCategories,
     counterparties,
     transactionModes,
     members: members.map((member) => ({
@@ -138,55 +139,12 @@ export async function getOrganizationFinanceData(): Promise<OrganizationFinanceD
   };
 }
 
-export async function getOrganizationCategoriesForAdmin() {
-  const currentUser = await requireAdmin();
-
-  if (!currentUser.orgId) {
-    return {
-      organization: null,
-      categories: [],
-      subcategories: [],
-    };
-  }
-
-  const organization = await getOrganizationById(currentUser.orgId);
-  const [categories, subcategories] = await Promise.all([
-    getCategoriesByOrg(currentUser.orgId),
-    // Shared spaces never have their own subcategories — only top-level
-    // "shell" categories that members map their personal subcategories into.
-    organization?.isPersonal ? getSubcategoriesByOrg(currentUser.orgId) : Promise.resolve([]),
-  ]);
-
-  return { organization, categories, subcategories };
-}
-
-export async function getOrganizationCategoriesForUser() {
-  const currentUser = await requireUser();
-
-  if (!currentUser.orgId) {
-    return {
-      organization: null,
-      categories: [],
-      subcategories: [],
-      currentUserId: currentUser.id,
-    };
-  }
-
-  const organization = await getOrganizationById(currentUser.orgId);
-  const [categories, subcategories] = await Promise.all([
-    getCategoriesByOrg(currentUser.orgId),
-    organization?.isPersonal ? getSubcategoriesByOrg(currentUser.orgId) : Promise.resolve([]),
-  ]);
-
-  return { organization, categories, subcategories, currentUserId: currentUser.id };
-}
-
-export async function createCategoryAction(
+export async function createSpaceCategoryAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
   const currentUser = await requireAdmin();
-  const parsed = categorySchema.safeParse({
+  const parsed = spaceCategorySchema.safeParse({
     name: formData.get("name"),
     type: formData.get("type"),
   });
@@ -197,11 +155,11 @@ export async function createCategoryAction(
 
   const orgId = assertOrgId(currentUser);
 
-  if (await getCategoryByOrgAndName(orgId, parsed.data.name)) {
+  if (await getSpaceCategoryByOrgAndName(orgId, parsed.data.name)) {
     return { error: "Category already exists" };
   }
 
-  await createCategoryRecord({
+  await createSpaceCategoryRecord({
     orgId,
     name: parsed.data.name,
     type: parsed.data.type,
@@ -211,15 +169,18 @@ export async function createCategoryAction(
   redirect(ROUTES.CATEGORIES);
 }
 
-export async function createCategoryWithSubcategoriesAction(
-  _previousState: FinanceActionState,
-  formData: FormData
-): Promise<FinanceActionState> {
+/**
+ * No-redirect variant of createSpaceCategoryAction, used by the transaction
+ * form's inline "create category" step (which lives inside a client-managed
+ * combobox, not a plain <form>, so a redirecting server action would break
+ * the flow).
+ */
+export async function createSpaceCategoryInline(
+  name: string,
+  type: "expense" | "income"
+): Promise<{ spaceCategory: SpaceCategoryRecordDto } | { error: string }> {
   const currentUser = await requireAdmin();
-  const parsed = categorySchema.safeParse({
-    name: formData.get("name"),
-    type: formData.get("type"),
-  });
+  const parsed = spaceCategorySchema.safeParse({ name, type });
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Unable to create category" };
@@ -227,87 +188,70 @@ export async function createCategoryWithSubcategoriesAction(
 
   const orgId = assertOrgId(currentUser);
 
-  if (await getCategoryByOrgAndName(orgId, parsed.data.name)) {
-    return { error: "Category already exists" };
+  const existing = await getSpaceCategoryByOrgAndName(orgId, parsed.data.name);
+  if (existing) {
+    return { spaceCategory: existing };
   }
 
-  const subcategoryNames: string[] = [];
-  const seen = new Set<string>();
-  for (const value of formData.getAll("subcategoryNames")) {
-    const name = typeof value === "string" ? value.trim() : "";
-    if (name.length < 2) continue;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    subcategoryNames.push(name);
-  }
-
-  const organization = await getOrganizationById(orgId);
-  if (subcategoryNames.length > 0 && !organization?.isPersonal) {
-    return { error: "Shared spaces only have top-level categories — subcategories belong to your personal space" };
-  }
-
-  const category = await createCategoryRecord({
+  const record = await createSpaceCategoryRecord({
     orgId,
     name: parsed.data.name,
     type: parsed.data.type,
     createdBy: currentUser.id,
   });
 
-  if (!category) {
+  if (!record) {
     return { error: "Unable to create category" };
   }
 
-  for (const name of subcategoryNames) {
-    await createSubcategoryRecord({
-      orgId,
-      categoryId: category.id,
-      name,
-      createdBy: currentUser.id,
-    });
-  }
-
-  redirect(ROUTES.CATEGORIES);
+  revalidatePath(ROUTES.CATEGORIES);
+  return {
+    spaceCategory: {
+      id: record.id,
+      orgId: record.orgId,
+      name: record.name,
+      type: record.type,
+      createdBy: record.createdBy,
+      createdAt: record.createdAt.toISOString(),
+      updatedAt: record.updatedAt.toISOString(),
+    },
+  };
 }
 
-export async function updateCategoryAction(
+export async function updateSpaceCategoryAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
   const currentUser = await requireAdmin();
-  const parsed = categorySchema.safeParse({
+  const parsed = spaceCategorySchema.safeParse({
     name: formData.get("name"),
     type: formData.get("type"),
   });
-  const categoryIdResult = categoryIdSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+  const spaceCategoryIdResult = spaceCategoryIdSchema.safeParse({
+    spaceCategoryId: formData.get("spaceCategoryId"),
   });
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Unable to update category" };
   }
 
-  if (!categoryIdResult.success) {
+  if (!spaceCategoryIdResult.success) {
     return { error: "Category is required" };
   }
 
-  const category = await getCategoryById(categoryIdResult.data.categoryId);
-  if (!category || category.orgId !== currentUser.orgId) {
+  const spaceCategory = await getSpaceCategoryById(spaceCategoryIdResult.data.spaceCategoryId);
+  if (!spaceCategory || spaceCategory.orgId !== currentUser.orgId) {
     return { error: "Category does not belong to your organization" };
   }
 
-  if (category.isSystemDefault && category.type !== parsed.data.type) {
-    return { error: "The default category's type cannot be changed" };
-  }
-
-  if (category.type === "expense" && parsed.data.type === "income") {
-    const usage = await getCategoryUsageCounts(category.id);
+  if (spaceCategory.type === "expense" && parsed.data.type === "income") {
+    const usage = await getSpaceCategoryUsageCounts(spaceCategory.id);
     if (usage.budgetCount > 0) {
       return { error: "Categories used by budgets must remain expense type" };
     }
   }
 
-  await updateCategoryRecord(category.id, {
+  await updateSpaceCategoryRecord(spaceCategory.id, {
     name: parsed.data.name,
     type: parsed.data.type,
     updatedAt: new Date(),
@@ -316,36 +260,32 @@ export async function updateCategoryAction(
   redirect(ROUTES.CATEGORIES);
 }
 
-export async function deleteCategoryAction(
+export async function deleteSpaceCategoryAction(
   _previousState: FinanceActionState,
   formData: FormData
 ): Promise<FinanceActionState> {
   const currentUser = await requireAdmin();
-  const categoryIdResult = categoryIdSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+  const spaceCategoryIdResult = spaceCategoryIdSchema.safeParse({
+    spaceCategoryId: formData.get("spaceCategoryId"),
   });
 
-  if (!categoryIdResult.success) {
+  if (!spaceCategoryIdResult.success) {
     return { error: "Category is required" };
   }
 
-  const category = await getCategoryById(categoryIdResult.data.categoryId);
-  if (!category || category.orgId !== currentUser.orgId) {
+  const spaceCategory = await getSpaceCategoryById(spaceCategoryIdResult.data.spaceCategoryId);
+  if (!spaceCategory || spaceCategory.orgId !== currentUser.orgId) {
     return { error: "Category does not belong to your organization" };
   }
 
-  if (category.isSystemDefault) {
-    return { error: "The default category cannot be deleted" };
-  }
-
-  const usage = await getCategoryUsageCounts(category.id);
-  if (usage.budgetCount > 0 || usage.expenseCount > 0 || usage.mappingCount > 0) {
+  const usage = await getSpaceCategoryUsageCounts(spaceCategory.id);
+  if (usage.budgetCount > 0) {
     return {
-      error: "Category is in use by existing budgets, expenses, or space mappings and cannot be deleted",
+      error: "Category is in use by existing budgets and cannot be deleted",
     };
   }
 
-  await deleteCategoryRecord(category.id);
+  await deleteSpaceCategoryRecord(spaceCategory.id);
   redirect(ROUTES.CATEGORIES);
 }
 
@@ -376,7 +316,7 @@ export async function createPersonalBudgetAction(
   const currentUser = await requireUser();
   const orgId = assertOrgId(currentUser);
   const parsed = budgetSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+    spaceCategoryId: formData.get("spaceCategoryId"),
     amount: formData.get("amount"),
     month: formData.get("month"),
   });
@@ -385,11 +325,11 @@ export async function createPersonalBudgetAction(
     return { error: parsed.error.issues[0]?.message ?? "Unable to create budget" };
   }
 
-  const category = await getCategoryById(parsed.data.categoryId);
-  if (!category || category.orgId !== orgId) {
+  const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
+  if (!spaceCategory || spaceCategory.orgId !== orgId) {
     return { error: "Category does not belong to your organization" };
   }
-  if (category.type !== "expense") {
+  if (spaceCategory.type !== "expense") {
     return { error: "Budgets can only use expense categories" };
   }
 
@@ -398,7 +338,7 @@ export async function createPersonalBudgetAction(
   await createBudgetRecord({
     orgId,
     userId: currentUser.id,
-    categoryId: parsed.data.categoryId,
+    spaceCategoryId: parsed.data.spaceCategoryId,
     scope: "personal",
     amount: toMoneyString(parsed.data.amount),
     periodFrom: bounds.periodFrom,
@@ -416,7 +356,7 @@ export async function createSharedBudgetAction(
   const currentUser = await requireAdmin();
   const orgId = assertOrgId(currentUser);
   const parsed = budgetSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+    spaceCategoryId: formData.get("spaceCategoryId"),
     amount: formData.get("amount"),
     month: formData.get("month"),
   });
@@ -425,11 +365,11 @@ export async function createSharedBudgetAction(
     return { error: parsed.error.issues[0]?.message ?? "Unable to create shared budget" };
   }
 
-  const category = await getCategoryById(parsed.data.categoryId);
-  if (!category || category.orgId !== orgId) {
+  const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
+  if (!spaceCategory || spaceCategory.orgId !== orgId) {
     return { error: "Category does not belong to your organization" };
   }
-  if (category.type !== "expense") {
+  if (spaceCategory.type !== "expense") {
     return { error: "Budgets can only use expense categories" };
   }
 
@@ -438,7 +378,7 @@ export async function createSharedBudgetAction(
   await createBudgetRecord({
     orgId,
     userId: null,
-    categoryId: parsed.data.categoryId,
+    spaceCategoryId: parsed.data.spaceCategoryId,
     scope: "shared",
     amount: toMoneyString(parsed.data.amount),
     periodFrom: bounds.periodFrom,
@@ -455,7 +395,7 @@ export async function updatePersonalBudgetAction(
 ): Promise<FinanceActionState> {
   const currentUser = await requireUser();
   const parsed = budgetSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+    spaceCategoryId: formData.get("spaceCategoryId"),
     amount: formData.get("amount"),
     month: formData.get("month"),
   });
@@ -471,11 +411,11 @@ export async function updatePersonalBudgetAction(
     return { error: "Budget is required" };
   }
 
-  const category = await getCategoryById(parsed.data.categoryId);
-  if (!category || category.orgId !== currentUser.orgId) {
+  const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
+  if (!spaceCategory || spaceCategory.orgId !== currentUser.orgId) {
     return { error: "Category does not belong to your organization" };
   }
-  if (category.type !== "expense") {
+  if (spaceCategory.type !== "expense") {
     return { error: "Budgets can only use expense categories" };
   }
 
@@ -487,7 +427,7 @@ export async function updatePersonalBudgetAction(
   }
 
   await updateBudgetRecord(budget.id, {
-    categoryId: parsed.data.categoryId,
+    spaceCategoryId: parsed.data.spaceCategoryId,
     amount: toMoneyString(parsed.data.amount),
     periodFrom: bounds.periodFrom,
     periodTo: bounds.periodTo,
@@ -504,7 +444,7 @@ export async function updateSharedBudgetAction(
   const currentUser = await requireAdmin();
   const orgId = assertOrgId(currentUser);
   const parsed = budgetSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+    spaceCategoryId: formData.get("spaceCategoryId"),
     amount: formData.get("amount"),
     month: formData.get("month"),
   });
@@ -520,11 +460,11 @@ export async function updateSharedBudgetAction(
     return { error: "Budget is required" };
   }
 
-  const category = await getCategoryById(parsed.data.categoryId);
-  if (!category || category.orgId !== orgId) {
+  const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
+  if (!spaceCategory || spaceCategory.orgId !== orgId) {
     return { error: "Category does not belong to your organization" };
   }
-  if (category.type !== "expense") {
+  if (spaceCategory.type !== "expense") {
     return { error: "Budgets can only use expense categories" };
   }
 
@@ -536,7 +476,7 @@ export async function updateSharedBudgetAction(
   }
 
   await updateBudgetRecord(budget.id, {
-    categoryId: parsed.data.categoryId,
+    spaceCategoryId: parsed.data.spaceCategoryId,
     amount: toMoneyString(parsed.data.amount),
     periodFrom: bounds.periodFrom,
     periodTo: bounds.periodTo,

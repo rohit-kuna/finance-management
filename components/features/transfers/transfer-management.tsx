@@ -136,7 +136,7 @@ export function TransferManagement({
   const categoryOptions = useMemo(
     () => [
       { value: "all", label: "All categories" },
-      ...Array.from(new Map(data.expenses.map((expense) => [expense.categoryId, expense.categoryName])).entries()).map(
+      ...Array.from(new Map(data.expenses.map((expense) => [expense.spaceCategoryId, expense.spaceCategoryName ?? "Unmapped"])).entries()).map(
         ([id, name]) => ({
           value: String(id),
           label: name,
@@ -169,7 +169,7 @@ export function TransferManagement({
       })
       .filter((expense) => {
         if (categoryFilter === "all") return true;
-        return String(expense.categoryId) === categoryFilter;
+        return String(expense.spaceCategoryId) === categoryFilter;
       })
       .filter((expense) => {
         if (counterpartyFilter === "all") return true;
@@ -183,7 +183,7 @@ export function TransferManagement({
         if (!loweredQuery) return true;
 
         return [
-          expense.categoryName,
+          expense.spaceCategoryName ?? "Unmapped",
           expense.counterPartyName ?? "",
           expense.userName,
           expense.note ?? "",
@@ -357,7 +357,7 @@ export function TransferManagement({
                         <Badge variant={expense.type === "expense" ? "outline" : "secondary"}>{getTypeLabel(expense)}</Badge>
                       </TableCell>
                       <TableCell>{expense.counterPartyName ?? "—"}</TableCell>
-                      <TableCell>{expense.categoryName}</TableCell>
+                      <TableCell>{expense.spaceCategoryName ?? "Unmapped"}</TableCell>
                       <TableCell className="font-semibold">{formatMoney(expense.amount)}</TableCell>
                       <TableCell>
                         <Badge variant={expense.transferStatus === "settled" ? "secondary" : "outline"}>

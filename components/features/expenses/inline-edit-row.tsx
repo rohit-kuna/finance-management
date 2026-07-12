@@ -3,34 +3,33 @@
 import { useState, useTransition } from "react";
 import { Check, X } from "lucide-react";
 import { updateExpenseAction } from "@/app/actions/auth-roles/expense.actions";
-import { CategorySubcategorySelect } from "@/components/features/expenses/category-subcategory-select";
+import { TransactionCategorySelect } from "@/components/features/expenses/category-subcategory-select";
 import { TagMultiSelect } from "@/components/features/expenses/tag-multiselect";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { toExpenseDateInputValue } from "@/app/lib/expense-date";
 import type { ExpenseRecordDto } from "@/app/lib/expense.types";
 import type {
-  CategoryRecordDto,
   CounterpartyRecordDto,
-  SubcategoryRecordDto,
+  SpaceCategoryRecordDto,
+  UserCategoryRecordDto,
   TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
 
 export function InlineEditRow({
   expense,
-  categories,
-  subcategories,
+  spaceCategories,
+  userCategories,
   counterparties,
   transactionModes,
   tags,
   onCancel,
 }: {
   expense: ExpenseRecordDto;
-  categories: CategoryRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   tags: TagRecordDto[];
@@ -39,8 +38,8 @@ export function InlineEditRow({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const [categoryId, setCategoryId] = useState(expense.categoryId);
-  const [subcategoryId, setSubcategoryId] = useState<number | null>(expense.subcategoryId);
+  const [type, setType] = useState<"expense" | "income">(expense.type);
+  const [userCategoryId, setUserCategoryId] = useState<number | null>(expense.userCategoryId);
   const [amount, setAmount] = useState(expense.amount);
   const [note, setNote] = useState(expense.note ?? "");
   const [necessity, setNecessity] = useState(String(expense.necessityScore));
@@ -49,15 +48,13 @@ export function InlineEditRow({
   const [counterPartyId, setCounterPartyId] = useState(String(expense.counterPartyId ?? ""));
   const [tagIds, setTagIds] = useState<number[]>(expense.tagIds);
 
-  const inferredType = categories.find((c) => c.id === categoryId)?.type ?? expense.type;
-
   function handleSave() {
     setError(null);
     const formData = new FormData();
     formData.append("expenseId", String(expense.id));
     formData.append("amount", amount);
-    formData.append("categoryId", String(categoryId));
-    if (subcategoryId != null) formData.append("subcategoryId", String(subcategoryId));
+    formData.append("type", type);
+    if (userCategoryId != null) formData.append("userCategoryId", String(userCategoryId));
     formData.append("occurredAt", date);
     formData.append("transactionModeId", modeId);
     if (counterPartyId) formData.append("counterPartyId", counterPartyId);
@@ -94,23 +91,21 @@ export function InlineEditRow({
         />
       </TableCell>
 
-      {/* Type — read-only, derived from selected category */}
+      {/* Type (implicit, from the selected category) */}
       <TableCell className="py-2">
-        <Badge variant={inferredType === "income" ? "default" : "secondary"}>{inferredType}</Badge>
+        <span className="inline-block rounded-full bg-muted px-2 py-1 text-xs font-medium capitalize">{type}</span>
       </TableCell>
 
-      {/* Category + Subcategory — single combobox in "Category > Subcategory" format */}
-      <TableCell className="min-w-55 py-2">
-        <CategorySubcategorySelect
-          categories={categories}
-          subcategories={subcategories}
-          defaultCategoryId={categoryId}
-          defaultSubcategoryId={subcategoryId}
-          onCategoryChange={(id) => {
-            setCategoryId(id);
-            setSubcategoryId(null);
+      {/* Category (SpaceCategory > UserCategory) */}
+      <TableCell className="min-w-72 py-2">
+        <TransactionCategorySelect
+          spaceCategories={spaceCategories}
+          userCategories={userCategories}
+          defaultUserCategoryId={userCategoryId}
+          onChange={({ userCategoryId: nextId, type: nextType }) => {
+            setUserCategoryId(nextId);
+            if (nextType) setType(nextType);
           }}
-          onSubcategoryChange={setSubcategoryId}
         />
       </TableCell>
 

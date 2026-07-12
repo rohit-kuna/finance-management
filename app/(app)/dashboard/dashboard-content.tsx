@@ -10,10 +10,10 @@ export async function DashboardContent() {
   return (
     <>
       <ExpenseFormCard
-        categories={data.categories}
         counterparties={data.counterparties}
         transactionModes={data.transactionModes}
-        subcategories={data.subcategories}
+        spaceCategories={data.spaceCategories}
+        userCategories={data.userCategories}
         tags={data.tags}
         editingExpense={null}
       />

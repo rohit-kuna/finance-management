@@ -13,13 +13,13 @@ export function buildBudgetAllocationSummaries(
   const groups = new Map<string, BudgetAllocationSummaryDto>();
 
   for (const item of budgets) {
-    const key = `${item.categoryId}:${item.month}`;
+    const key = `${item.spaceCategoryId}:${item.month}`;
     const existing = groups.get(key);
 
     if (!existing) {
       groups.set(key, {
-        categoryId: item.categoryId,
-        categoryName: item.categoryName,
+        spaceCategoryId: item.spaceCategoryId,
+        spaceCategoryName: item.spaceCategoryName,
         month: item.month,
         monthLabel: item.monthLabel,
         periodFrom: item.periodFrom,
@@ -61,8 +61,8 @@ export function buildBudgetAllocationSummaries(
   return Array.from(groups.values())
     .filter((summary) => Boolean(summary.sharedBudget))
     .sort((left, right) => {
-      const leftKey = `${left.month}:${left.categoryName}`;
-      const rightKey = `${right.month}:${right.categoryName}`;
+      const leftKey = `${left.month}:${left.spaceCategoryName}`;
+      const rightKey = `${right.month}:${right.spaceCategoryName}`;
       return leftKey.localeCompare(rightKey);
     });
 }

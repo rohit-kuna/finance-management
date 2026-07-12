@@ -23,12 +23,12 @@ export async function GET(request: Request) {
       transaction_timestamp: expense.occurredAt.slice(0, 10),
       amount: expense.amount,
       type: expense.type,
-      category: expense.categoryName,
+      category: expense.spaceCategoryName ?? "",
       note: expense.note ?? "",
       necessity_score: expense.necessityScore,
       counter_party_name: expense.counterPartyName ?? "",
       mode: expense.transactionModeName ?? "",
-      subcategories: expense.subcategoryName ?? "",
+      subcategories: expense.userCategoryName ?? "",
       tags: expense.tagIds.map((tagId) => tagNameById.get(tagId)).filter(Boolean).join(", "),
     }))
   );

@@ -1,7 +1,7 @@
 import type {
-  CategoryRecordDto,
+  SpaceCategoryRecordDto,
   CounterpartyRecordDto,
-  SubcategoryRecordDto,
+  UserCategoryRecordDto,
   TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
@@ -13,8 +13,8 @@ export type ExpenseRecordDto = {
   userId: string;
   userName: string;
   userEmail: string;
-  categoryId: number;
-  categoryName: string;
+  spaceCategoryId: number | null;
+  spaceCategoryName: string | null;
   counterPartyId: number | null;
   counterPartyName: string | null;
   transactionModeId: number | null;
@@ -25,8 +25,8 @@ export type ExpenseRecordDto = {
   transferStatus: "open" | "settled" | "closed" | null;
   necessityScore: number;
   note: string | null;
-  subcategoryId: number | null;
-  subcategoryName: string | null;
+  userCategoryId: number;
+  userCategoryName: string | null;
   tagIds: number[];
   occurredAt: string;
   createdAt: string;
@@ -42,7 +42,7 @@ export type TransferDashboardDataDto = {
     createdAt: string;
     updatedAt: string;
   } | null;
-  categories: CategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   expenses: ExpenseRecordDto[];
@@ -63,10 +63,10 @@ export type ExpensesDashboardDataDto = {
     createdAt: string;
     updatedAt: string;
   } | null;
-  categories: CategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   tags: TagRecordDto[];
   expenses: ExpenseRecordDto[];
   currentUser: {

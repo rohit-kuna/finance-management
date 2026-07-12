@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/app/lib/constants";
+import { requireActiveOrgIsPersonal } from "@/app/lib/auth";
 import { getManageImportExportData } from "@/app/actions/auth-roles/manage-import-export.actions";
 import { ManageImportExport } from "@/components/features/manage-import-export/manage-import-export";
 
@@ -9,6 +10,7 @@ type ManageImportExportPageProps = {
 
 export default async function ManageImportExportPage({ searchParams }: ManageImportExportPageProps) {
   void searchParams;
+  await requireActiveOrgIsPersonal();
   const data = await getManageImportExportData();
 
   if (!data.organization) {

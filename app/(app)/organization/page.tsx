@@ -7,11 +7,12 @@ import { PersonalSpaceSettings } from "@/components/features/admin/personal-spac
 export default async function OrganizationPage() {
   await requireUser();
   const data = await getAdminDashboardData();
-  const Settings = data.organization?.isPersonal ? PersonalSpaceSettings : OrganizationSettings;
+  const isPersonalSpace = data.organization?.isPersonal ?? false;
+  const Settings = isPersonalSpace ? PersonalSpaceSettings : OrganizationSettings;
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
-      <OrganizationOverview data={data} />
+      {isPersonalSpace ? null : <OrganizationOverview data={data} />}
       <Settings data={data} />
     </main>
   );

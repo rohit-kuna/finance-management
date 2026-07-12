@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { categories, counterParty, financeTransactions, subcategories, tags as tagsTable, transactionModes, transactionTags } from "@/db/schema";
+import { financeTransactions, tags as tagsTable, transactionTags, userCategories } from "@/db/schema";
 import { requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
-import { getCategoriesByOrg } from "@/app/actions/tables/categories.table.actions";
+import { getSpaceCategoriesByOrg } from "@/app/actions/tables/space-categories.table.actions";
 import { getCounterpartiesByOrg } from "@/app/actions/tables/counterparties.table.actions";
 import { formatExpenseRecordSummary, getExpensesByOrg } from "@/app/actions/tables/expenses.table.actions";
-import { getSubcategoriesByOrg } from "@/app/actions/tables/subcategories.table.actions";
+import { getUserCategoriesByOrg } from "@/app/actions/tables/user-categories.table.actions";
 import { getTagsByOrg } from "@/app/actions/tables/tags.table.actions";
 import { getTransactionModesByUser } from "@/app/actions/tables/transaction-modes.table.actions";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
@@ -20,7 +20,6 @@ import type {
   ManageImportExportActionState,
   ManageImportExportDataDto,
 } from "@/app/lib/manage-import-export.types";
-import { IMPORT_WORKBOOK_FIELD_CONFIGS } from "@/app/lib/manage-import-export.types";
 import { parseWorkbookBuffer } from "@/app/lib/manage-import-export.workbook";
 import {
   buildWorkbookHeaderIndex,
@@ -29,8 +28,6 @@ import {
 } from "@/app/lib/manage-import-export.shared";
 
 type ImportPayload = ImportWorkbookPreview;
-
-const FALLBACK_SUBCATEGORY_NAME = "Uncategorized";
 
 const importPayloadSchema = z.object({
   scope: z.enum(["organization", "user"]),
@@ -79,18 +76,17 @@ function toManageImportExportCurrentUserDto(currentUser: Awaited<ReturnType<type
   };
 }
 
-
 function toDuplicateKey(input: {
   amount: string;
   userId: string;
-  categoryId: string | number;
+  userCategoryId: string | number;
   note: string | null;
   transactionTimestamp: Date;
 }) {
   return [
     input.amount,
     input.userId,
-    input.categoryId,
+    input.userCategoryId,
     input.note ?? "",
     input.transactionTimestamp.toISOString(),
   ].join("|");
@@ -103,6 +99,12 @@ function parseAmount(value: string) {
   }
 
   return parsed.toFixed(2);
+}
+
+function parseExpenseTypeValue(value: string): "expense" | "income" {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "expense" || normalized === "income") return normalized;
+  throw new Error(`Invalid type: "${value}". Must be "expense" or "income"`);
 }
 
 function parseNecessityScore(value: string) {
@@ -142,7 +144,7 @@ function parseNote(value: string) {
   return trimmed.length ? trimmed : null;
 }
 
-function parseSubcategoryName(value: string) {
+function parseUserCategoryName(value: string) {
   const [first] = value.split(",");
   const trimmed = first?.trim() ?? "";
   return trimmed.length ? trimmed : null;
@@ -161,7 +163,7 @@ function parseTagNames(value: string) {
 
 function formatImportRowSummary(input: {
   amount: string;
-  category: string;
+  userCategory: string;
   userName: string;
   transactionTimestamp: Date;
   note: string | null;
@@ -171,7 +173,7 @@ function formatImportRowSummary(input: {
 }) {
   const parts = [
     `amount ${input.amount}`,
-    `category ${input.category}`,
+    `category ${input.userCategory}`,
     `user ${input.userName}`,
     `date ${input.transactionTimestamp.toISOString().slice(0, 10)}`,
   ];
@@ -235,11 +237,6 @@ function resolveMappedColumn(payload: ImportPayload, field: ImportWorkbookField,
     if (trimmed) {
       return trimmed;
     }
-
-    const fieldConfig = IMPORT_WORKBOOK_FIELD_CONFIGS.find((config) => config.key === field);
-    if (!fieldConfig?.required) {
-      return "";
-    }
   }
 
   const suggested = payload.suggestedColumnMappings[field];
@@ -302,9 +299,9 @@ export async function getManageImportExportData(): Promise<ManageImportExportDat
     return {
       scope: "user",
       organization: null,
-      categories: [],
+      spaceCategories: [],
       counterparties: [],
-      subcategories: [],
+      userCategories: [],
       tags: [],
       transactionModes: [],
       currentUser: toManageImportExportCurrentUserDto(currentUser),
@@ -312,12 +309,13 @@ export async function getManageImportExportData(): Promise<ManageImportExportDat
   }
 
   const orgId = currentUser.orgId;
+  const personalOrgId = currentUser.personalOrgId ?? orgId;
 
-  const [organization, categoriesResult, counterparties, orgSubcategories, orgTags] = await Promise.all([
+  const [organization, spaceCategoriesResult, counterparties, orgUserCategories, orgTags] = await Promise.all([
     getOrganizationById(orgId),
-    getCategoriesByOrg(orgId),
+    getSpaceCategoriesByOrg(orgId),
     getCounterpartiesByOrg(orgId),
-    getSubcategoriesByOrg(orgId),
+    getUserCategoriesByOrg(personalOrgId),
     getTagsByOrg(orgId),
   ]);
 
@@ -326,9 +324,9 @@ export async function getManageImportExportData(): Promise<ManageImportExportDat
   return {
     scope: "user",
     organization: toManageImportExportOrganizationDto(organization),
-    categories: categoriesResult,
+    spaceCategories: spaceCategoriesResult,
     counterparties,
-    subcategories: orgSubcategories,
+    userCategories: orgUserCategories,
     tags: orgTags,
     transactionModes,
     currentUser: toManageImportExportCurrentUserDto(currentUser),
@@ -389,8 +387,13 @@ export async function importExpensesFromWorkbookAction(
       preview: null,
     };
   }
-
-  const orgId = currentUser.orgId;
+  if (!currentUser.personalOrgId) {
+    return {
+      error: "Set up your personal space first",
+      success: null,
+      preview: null,
+    };
+  }
 
   const payloadJson = formData.get("payload");
   if (typeof payloadJson !== "string" || !payloadJson.trim()) {
@@ -420,7 +423,7 @@ async function importUserScopedExpensesFromWorkbookAction(
   payload: ImportPayload,
   formData: FormData
 ): Promise<ManageImportExportActionState> {
-  if (!currentUser.orgId) {
+  if (!currentUser.orgId || !currentUser.personalOrgId) {
     return {
       error: "Create or join an organization first",
       success: null,
@@ -429,31 +432,18 @@ async function importUserScopedExpensesFromWorkbookAction(
   }
 
   const orgId = currentUser.orgId;
+  const personalOrgId = currentUser.personalOrgId;
 
-  const [orgCategories, orgCounterparties, orgSubcategories, orgTags, existingUserExpenses, userTransactionModes] =
-    await Promise.all([
-      getCategoriesByOrg(orgId),
-      getCounterpartiesByOrg(orgId),
-      getSubcategoriesByOrg(orgId),
-      getTagsByOrg(orgId),
-      // Dedup correctness requires every existing transaction, not the UI's default page size.
-      getExpensesByOrg(orgId, Number.MAX_SAFE_INTEGER, currentUser.id),
-      getTransactionModesByUser(orgId, currentUser.id),
-    ]);
+  const [orgCounterparties, orgUserCategories, orgTags, existingUserExpenses, userTransactionModes] = await Promise.all([
+    getCounterpartiesByOrg(orgId),
+    getUserCategoriesByOrg(personalOrgId),
+    getTagsByOrg(orgId),
+    // Dedup correctness requires every existing transaction, not the UI's default page size.
+    getExpensesByOrg(orgId, Number.MAX_SAFE_INTEGER, currentUser.id),
+    getTransactionModesByUser(orgId, currentUser.id),
+  ]);
   const headerIndex = buildWorkbookHeaderIndex(payload.headers);
 
-  const categoryMap = new Map<string, { id: number; name: string; type: string }>(
-    orgCategories.map((category) => [
-      normalizeWorkbookName(category.name),
-      { id: category.id, name: category.name, type: category.type },
-    ])
-  );
-  const counterpartyMap = new Map<string, { id: number; name: string }>(
-    orgCounterparties.map((counterparty) => [
-      normalizeWorkbookName(counterparty.name),
-      { id: counterparty.id, name: counterparty.name },
-    ])
-  );
   const transactionModeById = new Map<number, { id: number; name: string; userId: string }>(
     userTransactionModes.map((mode) => [
       mode.id,
@@ -467,7 +457,7 @@ async function importUserScopedExpensesFromWorkbookAction(
       toDuplicateKey({
         amount: expense.amount,
         userId: expense.userId,
-        categoryId: expense.categoryId,
+        userCategoryId: expense.userCategoryId,
         note: expense.note,
         transactionTimestamp: new Date(expense.occurredAt),
       })
@@ -478,7 +468,7 @@ async function importUserScopedExpensesFromWorkbookAction(
       toDuplicateKey({
         amount: expense.amount,
         userId: expense.userId,
-        categoryId: expense.categoryId,
+        userCategoryId: expense.userCategoryId,
         note: expense.note,
         transactionTimestamp: new Date(expense.occurredAt),
       }),
@@ -486,7 +476,6 @@ async function importUserScopedExpensesFromWorkbookAction(
     ] as const)
   );
 
-  const distinctCategoryNames = getDistinctWorkbookValues(payload, headerIndex, "category", formData);
   const distinctCounterpartyNames = getDistinctWorkbookValues(
     payload,
     headerIndex,
@@ -494,51 +483,6 @@ async function importUserScopedExpensesFromWorkbookAction(
     formData
   );
   const distinctModeNames = getDistinctWorkbookValues(payload, headerIndex, "mode", formData);
-
-  const categorySelections = new Map<
-    string,
-    { categoryId: number; categoryName: string; categoryType: "expense" | "income" } | null
-  >();
-  const categorySelectionErrors = new Map<string, string>();
-  distinctCategoryNames.forEach((sheetCategoryName, index) => {
-    const selected = formData.get(`category_map_${index}`);
-    const normalizedSheetCategoryName = normalizeWorkbookName(sheetCategoryName);
-
-    if (typeof selected !== "string" || !selected.trim()) {
-      categorySelectionErrors.set(
-        normalizedSheetCategoryName,
-        `Create the category "${sheetCategoryName}" first, then map it here.`
-      );
-      categorySelections.set(normalizedSheetCategoryName, null);
-      return;
-    }
-
-    const parsedCategoryId = Number.parseInt(selected.trim(), 10);
-    if (!Number.isInteger(parsedCategoryId)) {
-      categorySelectionErrors.set(
-        normalizedSheetCategoryName,
-        `Invalid category mapping for "${sheetCategoryName}"`
-      );
-      categorySelections.set(normalizedSheetCategoryName, null);
-      return;
-    }
-
-    const existingCategory = orgCategories.find((category) => category.id === parsedCategoryId);
-    if (!existingCategory) {
-      categorySelectionErrors.set(
-        normalizedSheetCategoryName,
-        `Category "${sheetCategoryName}" no longer exists in your organization. Create it first, then refresh this page.`
-      );
-      categorySelections.set(normalizedSheetCategoryName, null);
-      return;
-    }
-
-    categorySelections.set(normalizedSheetCategoryName, {
-      categoryId: existingCategory.id,
-      categoryName: existingCategory.name,
-      categoryType: existingCategory.type as "expense" | "income",
-    });
-  });
 
   const counterpartySelections = new Map<string, { counterpartyId: number | null; error: string | null }>();
   distinctCounterpartyNames.forEach((sheetCounterpartyName, index) => {
@@ -619,43 +563,33 @@ async function importUserScopedExpensesFromWorkbookAction(
   const skippedDuplicateRows = new Set<number>();
   const validatedRows: ImportWorkbookRow[] = [];
   const seenDuplicateKeys = new Map<string, string>();
+  const userCategoryIdByName = new Map<string, number>(
+    orgUserCategories.map((userCategory) => [normalizeWorkbookName(userCategory.name), userCategory.id])
+  );
 
   for (const row of payload.rows) {
     const issues = [...row.issues];
 
     const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
+    const typeValue = resolveWorkbookValue(row, headerIndex, "type", payload, formData);
     const necessityScoreValue = resolveWorkbookValue(row, headerIndex, "necessity_score", payload, formData);
     const noteValue = resolveWorkbookValue(row, headerIndex, "note", payload, formData);
-    const categoryValue = resolveWorkbookValue(row, headerIndex, "category", payload, formData);
+    const userCategoryValue = resolveWorkbookValue(row, headerIndex, "subcategories", payload, formData);
     const timestampValue = resolveWorkbookValue(row, headerIndex, "transactionTimestamp", payload, formData);
-    const counterpartyValue = resolveWorkbookValue(
-      row,
-      headerIndex,
-      "counter_party_name",
-      payload,
-      formData
-    );
+    const counterpartyValue = resolveWorkbookValue(row, headerIndex, "counter_party_name", payload, formData);
     const modeValue = resolveWorkbookValue(row, headerIndex, "mode", payload, formData);
 
     if (!amountValue.trim()) {
       issues.push("Missing amount");
     }
-    if (!categoryValue.trim()) {
-      issues.push("Missing category");
+    if (!typeValue.trim()) {
+      issues.push("Missing type");
+    }
+    if (!userCategoryValue.trim()) {
+      issues.push("Missing subcategory");
     }
     if (!timestampValue.trim()) {
       issues.push("Missing transactionTimestamp");
-    }
-
-    const normalizedCategoryName = normalizeWorkbookName(categoryValue);
-    const categorySelection = categorySelections.get(normalizedCategoryName);
-    if (!categorySelection) {
-      issues.push(`Create the category "${categoryValue || "—"}" first, then refresh and map it.`);
-    } else if (categorySelection === null) {
-      const selectionError = categorySelectionErrors.get(normalizedCategoryName);
-      if (selectionError) {
-        issues.push(selectionError as string);
-      }
     }
 
     const counterpartySelectionValue = counterpartyValue.trim();
@@ -694,6 +628,14 @@ async function importUserScopedExpensesFromWorkbookAction(
       issues.push(`Invalid amount: ${amountValue}`);
     }
 
+    let type: "expense" | "income" | null = null;
+    try {
+      type = parseExpenseTypeValue(typeValue);
+    } catch (error) {
+      void error;
+      issues.push(`Invalid type: ${typeValue}`);
+    }
+
     try {
       parseNecessityScore(necessityScoreValue);
     } catch (error) {
@@ -711,19 +653,25 @@ async function importUserScopedExpensesFromWorkbookAction(
     }
 
     const userId = currentUser.id;
-    const categoryId = categorySelection?.categoryId ?? null;
+    const resolvedUserCategoryName = parseUserCategoryName(userCategoryValue);
+    const userCategoryId = resolvedUserCategoryName
+      ? userCategoryIdByName.get(normalizeWorkbookName(resolvedUserCategoryName)) ?? null
+      : null;
+    // A UserCategory named in the sheet but not yet created gets created
+    // Unmapped during the transaction phase — its absence from this map is
+    // not itself an issue.
     const duplicateKey =
-      issues.length === 0 && categoryId !== null
+      issues.length === 0 && userCategoryId !== null
         ? toDuplicateKey({
             amount,
             userId,
-            categoryId,
+            userCategoryId,
             note,
             transactionTimestamp,
           })
         : null;
 
-    if (issues.length === 0 && categoryId !== null && duplicateKey) {
+    if (issues.length === 0 && userCategoryId !== null && duplicateKey) {
       const existingExpense = existingExpenseByKey.get(duplicateKey) ?? null;
       if (existingExpense) {
         skippedDuplicateRows.add(row.rowNumber);
@@ -741,7 +689,7 @@ async function importUserScopedExpensesFromWorkbookAction(
         const previousSummary = seenDuplicateKeys.get(duplicateKey);
         skippedDuplicateRows.add(row.rowNumber);
         duplicateWarnings.push(
-          `Row ${row.rowNumber} skipped because it duplicates another uploaded row (${previousSummary ?? "same amount, user, category, note, and date"})`
+          `Row ${row.rowNumber} skipped because it duplicates another uploaded row (${previousSummary ?? "same amount, user, subcategory, note, and date"})`
         );
         validatedRows.push({
           ...row,
@@ -754,13 +702,13 @@ async function importUserScopedExpensesFromWorkbookAction(
         duplicateKey,
         formatImportRowSummary({
           amount,
-          category: categoryValue.trim(),
+          userCategory: resolvedUserCategoryName ?? "",
           userName: currentUser.name,
           transactionTimestamp,
           note,
           counterpartyName: counterpartySelectionValue || null,
           modeName: modeSelectionValue || defaultTransactionMode?.name || null,
-          type: categorySelection!.categoryType,
+          type,
         })
       );
     }
@@ -775,7 +723,7 @@ async function importUserScopedExpensesFromWorkbookAction(
   const hasValidationIssues = validatedRows.some((row) => row.issues.length > 0);
   if (hasValidationIssues) {
     return {
-      error: "Create any missing categories, counterparties, or modes first, then try again",
+      error: "Fix the flagged rows (missing fields or unrecognized counterparties/modes), then try again",
       success: null,
       preview: annotatedPreview,
     };
@@ -783,50 +731,20 @@ async function importUserScopedExpensesFromWorkbookAction(
 
   try {
     await db.transaction(async (tx) => {
-      const subcategoryIdByKey = new Map<string, number>(
-        orgSubcategories.map((subcategory) => [
-          `${subcategory.categoryId}:${normalizeWorkbookName(subcategory.name)}`,
-          subcategory.id,
-        ])
-      );
-      const tagIdByName = new Map<string, number>(
-        orgTags.map((tag) => [normalizeWorkbookName(tag.name), tag.id])
-      );
-
       for (const row of payload.rows) {
         if (skippedDuplicateRows.has(row.rowNumber)) {
           continue;
         }
 
         const amountValue = resolveWorkbookValue(row, headerIndex, "amount", payload, formData);
-        const necessityScoreValue = resolveWorkbookValue(
-          row,
-          headerIndex,
-          "necessity_score",
-          payload,
-          formData
-        );
+        const typeValue = resolveWorkbookValue(row, headerIndex, "type", payload, formData);
+        const necessityScoreValue = resolveWorkbookValue(row, headerIndex, "necessity_score", payload, formData);
         const noteValue = resolveWorkbookValue(row, headerIndex, "note", payload, formData);
-        const categoryValue = resolveWorkbookValue(row, headerIndex, "category", payload, formData);
         const timestampValue = resolveWorkbookValue(row, headerIndex, "transactionTimestamp", payload, formData);
-        const counterpartyValue = resolveWorkbookValue(
-          row,
-          headerIndex,
-          "counter_party_name",
-          payload,
-          formData
-        );
+        const counterpartyValue = resolveWorkbookValue(row, headerIndex, "counter_party_name", payload, formData);
         const modeValue = resolveWorkbookValue(row, headerIndex, "mode", payload, formData);
-        const subcategoriesValue = resolveWorkbookValue(row, headerIndex, "subcategories", payload, formData);
+        const userCategoryValue = resolveWorkbookValue(row, headerIndex, "subcategories", payload, formData);
         const tagsValue = resolveWorkbookValue(row, headerIndex, "tags", payload, formData);
-
-        const normalizedCategoryName = normalizeWorkbookName(categoryValue.trim());
-        const categorySelection = categorySelections.get(normalizedCategoryName);
-        if (!categorySelection) {
-          throw new Error(`Create the category "${categoryValue || "—"}" first, then refresh and map it.`);
-        }
-
-        const categoryId = categorySelection.categoryId;
 
         const counterpartySelection = counterpartyValue.trim();
         let counterpartyId: number | null = null;
@@ -853,14 +771,40 @@ async function importUserScopedExpensesFromWorkbookAction(
         }
 
         const amount = parseAmount(amountValue);
+        const type = parseExpenseTypeValue(typeValue);
         const necessityScore = parseNecessityScore(necessityScoreValue);
         const note = parseNote(noteValue);
         const transactionTimestamp = parseTransactionTimestamp(timestampValue);
-        const type = categorySelection!.categoryType;
+
+        // A UserCategory always starts Unmapped — its SpaceCategory
+        // assignment happens later via the Kanban board, never at import time.
+        const resolvedUserCategoryName = parseUserCategoryName(userCategoryValue);
+        if (!resolvedUserCategoryName) {
+          throw new Error(`Row ${row.rowNumber}: a subcategory is required`);
+        }
+        const userCategoryKey = normalizeWorkbookName(resolvedUserCategoryName);
+        let userCategoryId = userCategoryIdByName.get(userCategoryKey) ?? null;
+
+        if (userCategoryId === null) {
+          const [createdUserCategory] = await tx
+            .insert(userCategories)
+            .values({ orgId: personalOrgId, name: resolvedUserCategoryName, createdBy: currentUser.id })
+            .returning();
+
+          if (createdUserCategory) {
+            userCategoryId = createdUserCategory.id;
+            userCategoryIdByName.set(userCategoryKey, userCategoryId);
+          }
+        }
+
+        if (userCategoryId === null) {
+          throw new Error(`Row ${row.rowNumber}: unable to resolve a subcategory`);
+        }
+
         const duplicateKey = toDuplicateKey({
           amount,
           userId: currentUser.id,
-          categoryId,
+          userCategoryId,
           note,
           transactionTimestamp,
         });
@@ -881,7 +825,7 @@ async function importUserScopedExpensesFromWorkbookAction(
           duplicateKey,
           formatImportRowSummary({
             amount,
-            category: categoryValue.trim(),
+            userCategory: resolvedUserCategoryName,
             userName: currentUser.name,
             transactionTimestamp,
             note,
@@ -892,28 +836,7 @@ async function importUserScopedExpensesFromWorkbookAction(
         );
 
         try {
-          // subcategoryId is required on every transaction now — fall back to
-          // an "Uncategorized" subcategory when the sheet didn't specify one.
-          const resolvedSubcategoryName = parseSubcategoryName(subcategoriesValue) || FALLBACK_SUBCATEGORY_NAME;
-          const subcategoryKey = `${categoryId}:${normalizeWorkbookName(resolvedSubcategoryName)}`;
-          let subcategoryId = subcategoryIdByKey.get(subcategoryKey) ?? null;
-
-          if (subcategoryId === null) {
-            const [createdSubcategory] = await tx
-              .insert(subcategories)
-              .values({ orgId, categoryId, name: resolvedSubcategoryName, createdBy: currentUser.id })
-              .returning();
-
-            if (createdSubcategory) {
-              subcategoryId = createdSubcategory.id;
-              subcategoryIdByKey.set(subcategoryKey, subcategoryId);
-            }
-          }
-
-          if (subcategoryId === null) {
-            throw new Error(`Row ${row.rowNumber}: unable to resolve a subcategory`);
-          }
-
+          const tagIdByName = new Map<string, number>(orgTags.map((tag) => [normalizeWorkbookName(tag.name), tag.id]));
           const tagIds: number[] = [];
           for (const tagName of parseTagNames(tagsValue)) {
             const key = normalizeWorkbookName(tagName);
@@ -939,12 +862,11 @@ async function importUserScopedExpensesFromWorkbookAction(
           const [createdExpense] = await tx
             .insert(financeTransactions)
             .values({
-              orgId,
+              orgId: personalOrgId,
               userId: currentUser.id,
-              categoryId,
               counterPartyId: counterpartyId,
               transactionModeId,
-              subcategoryId,
+              userCategoryId,
               transferStatus: counterpartyId ? "open" : null,
               amount,
               type,
@@ -967,7 +889,7 @@ async function importUserScopedExpensesFromWorkbookAction(
                 ? await formatExpenseRecordSummary(existingExpenseByKey.get(duplicateKey)!)
                 : formatImportRowSummary({
                     amount,
-                    category: categoryValue.trim(),
+                    userCategory: resolvedUserCategoryName,
                     userName: currentUser.name,
                     transactionTimestamp,
                     note,

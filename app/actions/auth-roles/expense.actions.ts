@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
-import { getCategoriesByOrg, getCategoryById } from "@/app/actions/tables/categories.table.actions";
+import { getSpaceCategoriesByOrg } from "@/app/actions/tables/space-categories.table.actions";
 import {
   createExpenseRecord,
   deleteExpenseRecord,
@@ -18,7 +18,7 @@ import {
   counterpartyExistsInOrg,
   getCounterpartiesByOrg,
 } from "@/app/actions/tables/counterparties.table.actions";
-import { getSubcategoriesByOrg, getSubcategoryByIdAndCategory } from "@/app/actions/tables/subcategories.table.actions";
+import { getUserCategoriesByOrg, getUserCategoryByIdAndOrg } from "@/app/actions/tables/user-categories.table.actions";
 import { getTagsByOrg, getValidTagIdsByOrg, setTransactionTags } from "@/app/actions/tables/tags.table.actions";
 import {
   getTransactionModeById,
@@ -30,7 +30,7 @@ import { parseExpenseDate } from "@/app/lib/expense-date";
 import type { TransferStatus } from "@/db/schema";
 
 const expenseSchema = z.object({
-  categoryId: z.coerce.number().int().positive(),
+  type: z.enum(["expense", "income"]),
   counterPartyId: z.preprocess(
     (value) => (typeof value === "string" && value.trim() ? value : undefined),
     z.coerce.number().int().positive().optional()
@@ -42,10 +42,7 @@ const expenseSchema = z.object({
     { message: "Necessity must be -1 (Optional), 0 (Default), or 1 (Important)" }
   ),
   note: z.string().trim().max(500).nullable(),
-  subcategoryId: z.preprocess(
-    (value) => (typeof value === "string" && value.trim() ? value : undefined),
-    z.coerce.number().int().positive().optional()
-  ),
+  userCategoryId: z.coerce.number({ error: "A subcategory is required" }).int().positive(),
   occurredAt: z.string().trim().min(1, "Expense date is required"),
   tagIds: z.array(z.coerce.number().int().positive()).optional().default([]),
 });
@@ -70,9 +67,9 @@ function assertOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
 }
 
 // Personal space is the single source of truth for every transaction: a
-// transaction's orgId/categoryId/subcategoryId always resolve against the
-// owner's personal org, regardless of which space (personal or shared) is
-// currently "active" for navigation/UI purposes.
+// transaction's orgId/userCategoryId always resolve against the owner's
+// personal org, regardless of which space (personal or shared) is currently
+// "active" for navigation/UI purposes.
 function assertPersonalOrgId(currentUser: Awaited<ReturnType<typeof requireUser>>) {
   if (!currentUser.personalOrgId) {
     throw new Error("Set up your personal space first");
@@ -131,13 +128,9 @@ async function resolveTagIds(orgId: number, tagIds: number[]) {
   return getValidTagIdsByOrg(orgId, tagIds);
 }
 
-async function resolveSubcategoryId(personalOrgId: number, categoryId: number, subcategoryId: number | undefined) {
-  if (subcategoryId == null) {
-    return null;
-  }
-
-  const match = await getSubcategoryByIdAndCategory(subcategoryId, personalOrgId, categoryId);
-  return match ? subcategoryId : undefined;
+async function resolveUserCategoryId(personalOrgId: number, userCategoryId: number) {
+  const match = await getUserCategoryByIdAndOrg(userCategoryId, personalOrgId);
+  return match ? userCategoryId : null;
 }
 
 export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataDto> {
@@ -146,10 +139,10 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
   if (!currentUser.orgId) {
     return {
       organization: null,
-      categories: [],
+      spaceCategories: [],
       counterparties: [],
       transactionModes: [],
-      subcategories: [],
+      userCategories: [],
       tags: [],
       expenses: [],
       currentUser: {
@@ -161,20 +154,20 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     };
   }
 
-  // Category/subcategory selection always sources from the personal space —
-  // subcategories are user-specific, never space-specific — regardless of
-  // which space is currently active. Counterparty/mode stay tied to whichever
-  // space is active. Expense listing depends on which kind of space is
-  // active: personal orgs list the owner's own transactions directly; shared
-  // orgs are a lens — every active member's transactions are visible there,
-  // grouped by each subcategory's mapping (or "Others" if unmapped).
+  // UserCategory selection always sources from the personal space — it's
+  // user-specific, never space-specific — regardless of which space is
+  // currently active. Counterparty/mode stay tied to whichever space is
+  // active. Expense listing depends on which kind of space is active:
+  // personal orgs list the owner's own transactions directly; shared orgs
+  // are a lens — every active member's transactions mapped into this space
+  // are visible there, grouped by SpaceCategory (unmapped ones excluded).
   const personalOrgId = currentUser.personalOrgId ?? currentUser.orgId;
   const organization = await getOrganizationById(currentUser.orgId);
 
-  const [categories, counterparties, subcategories, tags, expenses, transactionModes] = await Promise.all([
-    getCategoriesByOrg(personalOrgId),
+  const [spaceCategories, counterparties, userCategories, tags, expenses, transactionModes] = await Promise.all([
+    getSpaceCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
-    getSubcategoriesByOrg(personalOrgId),
+    getUserCategoriesByOrg(personalOrgId),
     getTagsByOrg(currentUser.orgId),
     organization?.isPersonal ?? true
       ? getExpensesByOrg(currentUser.orgId, 500, currentUser.id)
@@ -184,10 +177,10 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
 
   return {
     organization: toOrganizationDto(organization),
-    categories,
+    spaceCategories,
     counterparties,
     transactionModes,
-    subcategories,
+    userCategories,
     tags,
     expenses,
     currentUser: {
@@ -205,7 +198,7 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
   if (!currentUser.orgId) {
     return {
       organization: null,
-      categories: [],
+      spaceCategories: [],
       counterparties: [],
       transactionModes: [],
       expenses: [],
@@ -218,11 +211,10 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
     };
   }
 
-  const personalOrgId = currentUser.personalOrgId ?? currentUser.orgId;
   const organization = await getOrganizationById(currentUser.orgId);
 
-  const [categories, counterparties, expenses, transactionModes] = await Promise.all([
-    getCategoriesByOrg(personalOrgId),
+  const [spaceCategories, counterparties, expenses, transactionModes] = await Promise.all([
+    getSpaceCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     organization?.isPersonal ?? true
       ? getExpensesByOrg(currentUser.orgId, 500, currentUser.id)
@@ -233,7 +225,7 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
 
   return {
     organization: toOrganizationDto(organization),
-    categories,
+    spaceCategories,
     counterparties,
     transactionModes,
     expenses: visibleTransfers,
@@ -256,13 +248,13 @@ export async function createExpenseAction(
   const personalOrgId = assertPersonalOrgId(currentUser);
 
   const parsed = expenseSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+    type: formData.get("type"),
     counterPartyId: formData.get("counterPartyId"),
     transactionModeId: formData.get("transactionModeId"),
     amount: formData.get("amount"),
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
-    subcategoryId: formData.get("subcategoryId"),
+    userCategoryId: formData.get("userCategoryId"),
     occurredAt: formData.get("occurredAt"),
     tagIds: formData.getAll("tagIds"),
   });
@@ -272,18 +264,13 @@ export async function createExpenseAction(
     return { error: parsed.error.issues[0]?.message ?? "Unable to create expense" };
   }
 
-  const [category, counterPartyId, transactionMode, subcategoryId, tagIds] = await Promise.all([
-    getCategoryById(parsed.data.categoryId),
+  const [counterPartyId, transactionMode, userCategoryId, tagIds] = await Promise.all([
     resolveCounterpartyId(orgId, parsed.data.counterPartyId),
     getTransactionModeById(parsed.data.transactionModeId),
-    resolveSubcategoryId(personalOrgId, parsed.data.categoryId, parsed.data.subcategoryId),
+    resolveUserCategoryId(personalOrgId, parsed.data.userCategoryId),
     resolveTagIds(orgId, parsed.data.tagIds),
   ]);
 
-  if (!category || category.orgId !== personalOrgId) {
-    console.timeEnd("createExpenseAction");
-    return { error: "Category does not belong to your personal space" };
-  }
   if (parsed.data.counterPartyId != null && !counterPartyId) {
     console.timeEnd("createExpenseAction");
     return { error: "Counterparty does not belong to your organization" };
@@ -292,24 +279,22 @@ export async function createExpenseAction(
     console.timeEnd("createExpenseAction");
     return { error: "Transaction mode does not exist" };
   }
-  if (subcategoryId === undefined || subcategoryId === null) {
+  if (userCategoryId === null) {
     console.timeEnd("createExpenseAction");
     return { error: "A subcategory is required" };
   }
 
-  const expenseType = category.type;
   const transferStatus = counterPartyId ? "open" : null;
 
   const expense = await createExpenseRecord({
     orgId: personalOrgId,
     userId: currentUser.id,
-    categoryId: parsed.data.categoryId,
     counterPartyId,
     transactionModeId: transactionMode.id,
-    subcategoryId,
+    userCategoryId,
     transferStatus,
     amount: toMoneyString(parsed.data.amount),
-    type: expenseType,
+    type: parsed.data.type,
     necessityScore: parsed.data.necessityScore,
     note: parsed.data.note,
     occurredAt: parseExpenseDate(parsed.data.occurredAt),
@@ -333,13 +318,13 @@ export async function updateExpenseAction(
   const personalOrgId = assertPersonalOrgId(currentUser);
 
   const parsed = expenseSchema.safeParse({
-    categoryId: formData.get("categoryId"),
+    type: formData.get("type"),
     counterPartyId: formData.get("counterPartyId"),
     transactionModeId: formData.get("transactionModeId"),
     amount: formData.get("amount"),
     necessityScore: formData.get("necessityScore"),
     note: normalizeField(formData.get("note")) ?? null,
-    subcategoryId: formData.get("subcategoryId"),
+    userCategoryId: formData.get("userCategoryId"),
     occurredAt: formData.get("occurredAt"),
     tagIds: formData.getAll("tagIds"),
   });
@@ -363,18 +348,13 @@ export async function updateExpenseAction(
     return { error: "Expense does not belong to you" };
   }
 
-  const [category, counterPartyId, transactionMode, subcategoryId, tagIds] = await Promise.all([
-    getCategoryById(parsed.data.categoryId),
+  const [counterPartyId, transactionMode, userCategoryId, tagIds] = await Promise.all([
     resolveCounterpartyId(orgId, parsed.data.counterPartyId),
     getTransactionModeById(parsed.data.transactionModeId),
-    resolveSubcategoryId(personalOrgId, parsed.data.categoryId, parsed.data.subcategoryId),
+    resolveUserCategoryId(personalOrgId, parsed.data.userCategoryId),
     resolveTagIds(orgId, parsed.data.tagIds),
   ]);
 
-  if (!category || category.orgId !== personalOrgId) {
-    console.timeEnd("updateExpenseAction");
-    return { error: "Category does not belong to your personal space" };
-  }
   if (parsed.data.counterPartyId != null && !counterPartyId) {
     console.timeEnd("updateExpenseAction");
     return { error: "Counterparty does not belong to your organization" };
@@ -383,22 +363,20 @@ export async function updateExpenseAction(
     console.timeEnd("updateExpenseAction");
     return { error: "Transaction mode does not exist" };
   }
-  if (subcategoryId === undefined || subcategoryId === null) {
+  if (userCategoryId === null) {
     console.timeEnd("updateExpenseAction");
     return { error: "A subcategory is required" };
   }
 
-  const expenseType = category.type;
   const transferStatus = counterPartyId ? (expense.transferStatus ?? "open") as TransferStatus : null;
 
   await updateExpenseRecord(expense.id, {
-    categoryId: parsed.data.categoryId,
     counterPartyId,
     transactionModeId: transactionMode.id,
-    subcategoryId,
+    userCategoryId,
     transferStatus,
     amount: toMoneyString(parsed.data.amount),
-    type: expenseType,
+    type: parsed.data.type,
     necessityScore: parsed.data.necessityScore,
     note: parsed.data.note,
     occurredAt: parseExpenseDate(parsed.data.occurredAt, new Date(expense.occurredAt)),

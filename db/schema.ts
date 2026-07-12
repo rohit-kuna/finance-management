@@ -79,26 +79,23 @@ export const organizationMembers = pgTable(
   })
 );
 
-export const categories = pgTable(
-  "categories",
+// Space-level, admin-defined grouping. A SpaceCategory is just a label a
+// member privately maps their own UserCategories into (see
+// userCategorySpaceCategoryMappings) — it has no direct children.
+export const spaceCategories = pgTable(
+  "space_categories",
   {
     id: serial("id").primaryKey(),
     name: varchar("name", { length: 100 }).notNull(),
     orgId: integer("org_id").notNull().references(() => organizations.id),
     type: varchar("type", { length: 10 }).notNull().default("expense").$type<CategoryType>(),
     createdBy: uuid("created_by").notNull().references(() => users.id),
-    isSystemDefault: boolean("is_system_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    uniqueNamePerOrg: unique("categories_name_org_unique").on(table.name, table.orgId),
-    categoriesOrgIdx: index("categories_org_id_idx").on(table.orgId),
-    // one system-default ("Others") category per org per type (expense/income) —
-    // the implicit fallback grouping target for unmapped subcategories in shared spaces
-    orgTypeSystemDefaultUnique: uniqueIndex("categories_org_type_system_default_unique")
-      .on(table.orgId, table.type)
-      .where(sql`${table.isSystemDefault}`),
+    uniqueNamePerOrg: unique("space_categories_name_org_unique").on(table.name, table.orgId),
+    spaceCategoriesOrgIdx: index("space_categories_org_id_idx").on(table.orgId),
   })
 );
 
@@ -117,52 +114,58 @@ export const counterParty = pgTable(
   })
 );
 
-export const subcategories = pgTable(
-  "subcategories",
+// User-level, personal grouping. A transaction's only category-shaped FK is
+// to a UserCategory (see financeTransactions.userCategoryId); SpaceCategory
+// is reached transitively — directly via spaceCategoryId in personal space,
+// or via userCategorySpaceCategoryMappings in a shared space. A UserCategory
+// with a null spaceCategoryId is "Unmapped".
+export const userCategories = pgTable(
+  "user_categories",
   {
     id: serial("id").primaryKey(),
     name: varchar("name", { length: 100 }).notNull(),
     orgId: integer("org_id").notNull().references(() => organizations.id),
-    categoryId: integer("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
+    spaceCategoryId: integer("space_category_id").references(() => spaceCategories.id, { onDelete: "set null" }),
     createdBy: uuid("created_by").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    subcategoriesCategoryNameUnique: unique("subcategories_category_name_unique").on(table.categoryId, table.name),
-    subcategoriesOrgIdx: index("subcategories_org_id_idx").on(table.orgId),
-    subcategoriesCategoryIdx: index("subcategories_category_id_idx").on(table.categoryId),
+    userCategoriesOrgNameUnique: unique("user_categories_org_name_unique").on(table.orgId, table.name),
+    userCategoriesOrgIdx: index("user_categories_org_id_idx").on(table.orgId),
+    userCategoriesSpaceCategoryIdx: index("user_categories_space_category_id_idx").on(table.spaceCategoryId),
   })
 );
 
-// Maps a user's personal subcategory to a category "shell" in a shared space
-// (the target org). Absence of a row means the subcategory is unmapped and
-// falls back to that org's system-default ("Others") category at read time.
-export const subcategorySpaceMappings = pgTable(
-  "subcategory_space_mappings",
+// Maps a user's personal UserCategory into a SpaceCategory "shell" in a
+// shared space (the target org). Absence of a row means the UserCategory is
+// Unmapped for that space — it's simply excluded from that space's views,
+// there is no fallback category.
+export const userCategorySpaceCategoryMappings = pgTable(
+  "user_category_space_category_mappings",
   {
     id: serial("id").primaryKey(),
-    subcategoryId: integer("subcategory_id")
+    userCategoryId: integer("user_category_id")
       .notNull()
-      .references(() => subcategories.id, { onDelete: "cascade" }),
+      .references(() => userCategories.id, { onDelete: "cascade" }),
     targetOrgId: integer("target_org_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    categoryId: integer("category_id")
+    spaceCategoryId: integer("space_category_id")
       .notNull()
-      .references(() => categories.id, { onDelete: "cascade" }),
+      .references(() => spaceCategories.id, { onDelete: "cascade" }),
     updatedBy: uuid("updated_by").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    uniqueSubcategoryTargetOrg: uniqueIndex("subcategory_space_mappings_subcategory_target_org_unique").on(
-      table.subcategoryId,
+    uniqueUserCategoryTargetOrg: uniqueIndex("user_category_space_category_mappings_user_category_target_org_unique").on(
+      table.userCategoryId,
       table.targetOrgId
     ),
-    targetOrgIdx: index("subcategory_space_mappings_target_org_id_idx").on(table.targetOrgId),
-    subcategoryIdx: index("subcategory_space_mappings_subcategory_id_idx").on(table.subcategoryId),
-    categoryIdx: index("subcategory_space_mappings_category_id_idx").on(table.categoryId),
+    targetOrgIdx: index("user_category_space_category_mappings_target_org_id_idx").on(table.targetOrgId),
+    userCategoryIdx: index("user_category_space_category_mappings_user_category_id_idx").on(table.userCategoryId),
+    spaceCategoryIdx: index("user_category_space_category_mappings_space_category_id_idx").on(table.spaceCategoryId),
   })
 );
 
@@ -208,18 +211,20 @@ export const financeTransactions = pgTable(
     id: serial("id").primaryKey(),
     orgId: integer("org_id").notNull().references(() => organizations.id),
     userId: uuid("user_id").notNull().references(() => users.id),
-    categoryId: integer("category_id").notNull().references(() => categories.id),
     counterPartyId: integer("counter_party_id").references(() => counterParty.id, {
       onDelete: "set null",
     }),
     transactionModeId: integer("transaction_mode_id").references(() => transactionModes.id, {
       onDelete: "set null",
     }),
-    // Required — every transaction always carries a subcategory now (the
-    // owner's personal subcategory). Deleting an in-use subcategory is
-    // blocked at the app layer (getSubcategoryUsageCount), so this stays a
-    // plain FK rather than onDelete: "set null".
-    subcategoryId: integer("subcategory_id").notNull().references(() => subcategories.id),
+    // Required — every transaction always carries a UserCategory (the
+    // owner's personal category), mapped or not. SpaceCategory is reached
+    // transitively via userCategories.spaceCategoryId /
+    // userCategorySpaceCategoryMappings, never stored directly here.
+    // Deleting an in-use UserCategory is blocked at the app layer
+    // (getUserCategoryUsageCount), so this stays a plain FK rather than
+    // onDelete: "set null".
+    userCategoryId: integer("user_category_id").notNull().references(() => userCategories.id),
     transferStatus: varchar("transfer_status", { length: 10 }).$type<TransferStatus>(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     type: varchar("type", { length: 10 }).notNull().default("expense").$type<ExpenseType>(),
@@ -237,12 +242,11 @@ export const financeTransactions = pgTable(
     exactDuplicateIdx: uniqueIndex("finance_transactions_exact_duplicate_unique").on(
       table.amount,
       table.userId,
-      table.categoryId,
+      table.userCategoryId,
       sql`coalesce(${table.note}, '')`,
       table.transactionTimestamp
     ),
-    categoryIdx: index("finance_transactions_category_id_idx").on(table.categoryId),
-    subcategoryIdx: index("finance_transactions_subcategory_id_idx").on(table.subcategoryId),
+    userCategoryIdx: index("finance_transactions_user_category_id_idx").on(table.userCategoryId),
     orgTimestampIdx: index("finance_transactions_org_id_transaction_timestamp_idx").on(
       table.orgId,
       table.transactionTimestamp.desc()
@@ -274,7 +278,7 @@ export const budget = pgTable(
     id: serial("id").primaryKey(),
     orgId: integer("org_id").notNull().references(() => organizations.id),
     userId: uuid("user_id").references(() => users.id),
-    categoryId: integer("category_id").notNull().references(() => categories.id),
+    spaceCategoryId: integer("space_category_id").notNull().references(() => spaceCategories.id),
     scope: varchar("scope", { length: 10 }).notNull().$type<BudgetScope>(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     periodFrom: date("period_from").notNull(),
@@ -284,21 +288,21 @@ export const budget = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    uniqueOrgCategoryScopePeriod: unique("budget_org_category_scope_period_unique").on(
+    uniqueOrgCategoryScopePeriod: unique("budget_org_space_category_scope_period_unique").on(
       table.orgId,
-      table.categoryId,
+      table.spaceCategoryId,
       table.scope,
       table.periodFrom,
       table.periodTo
     ),
-    uniqueUserCategoryPeriod: unique("budget_user_category_period_unique").on(
+    uniqueUserCategoryPeriod: unique("budget_user_space_category_period_unique").on(
       table.userId,
-      table.categoryId,
+      table.spaceCategoryId,
       table.periodFrom,
       table.periodTo
     ),
     budgetOrgIdx: index("budget_org_id_idx").on(table.orgId),
     budgetUserIdx: index("budget_user_id_idx").on(table.userId),
-    budgetCategoryIdx: index("budget_category_id_idx").on(table.categoryId),
+    budgetSpaceCategoryIdx: index("budget_space_category_id_idx").on(table.spaceCategoryId),
   })
 );

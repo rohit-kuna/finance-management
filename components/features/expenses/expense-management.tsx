@@ -19,14 +19,14 @@ import {
   updateExpenseAction,
 } from "@/app/actions/auth-roles/expense.actions";
 import type {
-  CategoryRecordDto,
   CounterpartyRecordDto,
-  SubcategoryRecordDto,
+  SpaceCategoryRecordDto,
+  UserCategoryRecordDto,
   TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
 import type { ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expense.types";
-import { CategorySubcategorySelect } from "@/components/features/expenses/category-subcategory-select";
+import { TransactionCategorySelect } from "@/components/features/expenses/category-subcategory-select";
 import { TagMultiSelect } from "@/components/features/expenses/tag-multiselect";
 import { InlineEditRow } from "@/components/features/expenses/inline-edit-row";
 import { BulkAddSection } from "@/components/features/expenses/bulk-add-section";
@@ -217,18 +217,18 @@ function SortableHeader({
 }
 
 export function ExpenseFormCard({
-  categories,
   counterparties,
   transactionModes,
-  subcategories,
+  spaceCategories,
+  userCategories,
   tags,
   editingExpense,
   onCancelEdit,
 }: {
-  categories: CategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   tags: TagRecordDto[];
   editingExpense: ExpenseRecordDto | null;
   onCancelEdit?: () => void;
@@ -248,16 +248,11 @@ export function ExpenseFormCard({
     ? String(editingExpense.transactionModeId)
     : String(transactionModes.find((mode) => mode.isDefault)?.id ?? transactionModes[0]?.id ?? "");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const defaultCategoryId = isEditing ? editingExpense?.categoryId ?? categories[0]?.id ?? 0 : 0;
-  const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCategoryId);
-  const resolvedSelectedCategoryId = categories.some((category) => category.id === selectedCategoryId)
-    ? selectedCategoryId
-    : defaultCategoryId;
+  const [selectedType, setSelectedType] = useState<"expense" | "income">(editingExpense?.type ?? "expense");
 
   const isAdvanced = isEditing || showAdvanced;
-  const selectedCategoryType = categories.find((category) => category.id === resolvedSelectedCategoryId)?.type ?? null;
-  const transactionCardClasses = getTransactionCardClasses(selectedCategoryType);
-  const isIncome = selectedCategoryType === "income";
+  const transactionCardClasses = getTransactionCardClasses(selectedType);
+  const isIncome = selectedType === "income";
 
   return (
     <Card className={cn("py-2", transactionCardClasses)}>
@@ -300,9 +295,9 @@ export function ExpenseFormCard({
         </div>
       </CardHeader>
       <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
-        {!categories.length ? (
+        {!userCategories.length ? (
           <div className="rounded-lg border border-dashed bg-background/80 p-4 text-sm text-muted-foreground">
-            Create categories first, then you can add transactions.
+            Create a subcategory first, then you can add transactions.
           </div>
         ) : !transactionModes.length ? (
           <div className="rounded-lg border border-dashed bg-background/80 p-4 text-sm text-muted-foreground">
@@ -315,6 +310,7 @@ export function ExpenseFormCard({
             className="space-y-4 rounded-lg p-4"
           >
             {editingExpense ? <input type="hidden" name="expenseId" value={editingExpense.id} /> : null}
+            <input type="hidden" name="type" value={selectedType} />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="expense-amount">Amount <span className="text-destructive">*</span></Label>
@@ -331,29 +327,30 @@ export function ExpenseFormCard({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Category / Subcategory <span className="text-destructive">*</span></Label>
-                <CategorySubcategorySelect
-
-                  categories={categories}
-                  subcategories={subcategories}
-                  defaultCategoryId={resolvedSelectedCategoryId}
-                  defaultSubcategoryId={editingExpense?.subcategoryId ?? null}
-                  onCategoryChange={setSelectedCategoryId}
-                />
-              </div>
-            </div>
-            {isIncome ? <input type="hidden" name="necessityScore" value={1} /> : null}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
                 <Label>Tags</Label>
                 <TagMultiSelect tags={tags} defaultSelectedTagIds={editingExpense?.tagIds ?? []} />
               </div>
-              {!isIncome ? (
-                <div>
-                  <NecessityScoreToggle defaultValue={editingExpense?.necessityScore ?? 0} />
-                </div>
-              ) : null}
             </div>
+            <div className="space-y-2">
+              <Label>
+                Category <span className="text-destructive">*</span>
+              </Label>
+              <TransactionCategorySelect
+                spaceCategories={spaceCategories}
+                userCategories={userCategories}
+                defaultUserCategoryId={editingExpense?.userCategoryId ?? null}
+                onChange={({ type }) => {
+                  if (type) setSelectedType(type);
+                }}
+              />
+            </div>
+            {!isIncome ? (
+              <div className="sm:max-w-xs">
+                <NecessityScoreToggle defaultValue={editingExpense?.necessityScore ?? 0} />
+              </div>
+            ) : (
+              <input type="hidden" name="necessityScore" value={1} />
+            )}
             <div className={cn(!isAdvanced && "hidden")}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -505,8 +502,8 @@ function ExpenseRowActions({
 
 function ExpenseTable({
   expenses,
-  categories,
-  subcategories,
+  spaceCategories,
+  userCategories,
   counterparties,
   transactionModes,
   tags,
@@ -515,8 +512,8 @@ function ExpenseTable({
   onEdit,
 }: {
   expenses: ExpenseRecordDto[];
-  categories: CategoryRecordDto[];
-  subcategories: SubcategoryRecordDto[];
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   tags: TagRecordDto[];
@@ -525,7 +522,6 @@ function ExpenseTable({
   onEdit: (expense: ExpenseRecordDto) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [transactionModeFilter, setTransactionModeFilter] = useState("all");
   const [necessityFilter, setNecessityFilter] = useState("all");
@@ -540,35 +536,16 @@ function ExpenseTable({
     return map;
   }, [tags]);
 
-  const categoryOptions = useMemo(
+  const subcategoryOptions = useMemo(
     () => [
-      { value: "all", label: "All categories" },
-      ...Array.from(new Map(expenses.map((expense) => [expense.categoryId, expense.categoryName])).entries()).map(
-        ([id, name]) => ({
-          value: String(id),
-          label: name,
-        })
-      ),
-    ],
-    [expenses]
-  );
-
-  const subcategoryOptions = useMemo(() => {
-    const subcategoriesById = new Map<number, string>();
-    for (const expense of expenses) {
-      if (expense.subcategoryId != null && !subcategoriesById.has(expense.subcategoryId)) {
-        subcategoriesById.set(expense.subcategoryId, expense.subcategoryName ?? "");
-      }
-    }
-
-    return [
       { value: "all", label: "All subcategories" },
-      ...Array.from(subcategoriesById.entries()).map(([id, name]) => ({
-        value: String(id),
-        label: name,
+      ...userCategories.map((userCategory) => ({
+        value: String(userCategory.id),
+        label: userCategory.name,
       })),
-    ];
-  }, [expenses]);
+    ],
+    [userCategories]
+  );
 
   const transactionModeOptions = useMemo(
     () => [
@@ -585,17 +562,16 @@ function ExpenseTable({
     const loweredQuery = query.trim().toLowerCase();
 
     return expenses.filter((expense) => {
-      if (categoryFilter !== "all" && String(expense.categoryId) !== categoryFilter) return false;
       if (typeFilter !== "all" && expense.type !== typeFilter) return false;
       if (transactionModeFilter !== "all" && String(expense.transactionModeId) !== transactionModeFilter) return false;
       if (necessityFilter !== "all" && String(expense.necessityScore) !== necessityFilter) return false;
-      if (subcategoryFilter !== "all" && String(expense.subcategoryId) !== subcategoryFilter) return false;
+      if (subcategoryFilter !== "all" && String(expense.userCategoryId) !== subcategoryFilter) return false;
       if (monthFilter !== "all" && expense.occurredAt.slice(0, 7) !== monthFilter) return false;
 
       if (!loweredQuery) return true;
 
       return [
-        expense.categoryName,
+        expense.spaceCategoryName ?? "",
         expense.counterPartyName ?? "",
         expense.transactionModeName ?? "",
         expense.note ?? "",
@@ -603,12 +579,11 @@ function ExpenseTable({
         expense.type,
         expense.transferStatus ?? "",
         String(expense.necessityScore),
-        expense.subcategoryName ?? "",
+        expense.userCategoryName ?? "",
       ].some((value) => value.toLowerCase().includes(loweredQuery));
     });
   }, [
     expenses,
-    categoryFilter,
     typeFilter,
     transactionModeFilter,
     necessityFilter,
@@ -636,13 +611,13 @@ function ExpenseTable({
         cell: ({ row }) => <Badge variant="secondary">{row.original.type}</Badge>,
       },
       {
-        accessorKey: "categoryName",
-        header: ({ column }) => <SortableHeader column={column} title="Category > Subcategory" />,
+        accessorKey: "userCategoryName",
+        header: ({ column }) => <SortableHeader column={column} title="Subcategory" />,
         cell: ({ row }) => (
           <span className="font-medium">
-            {row.original.subcategoryName
-              ? `${row.original.categoryName} > ${row.original.subcategoryName}`
-              : row.original.categoryName}
+            {row.original.spaceCategoryName
+              ? `${row.original.spaceCategoryName} > ${row.original.userCategoryName ?? "—"}`
+              : row.original.userCategoryName ?? "Unmapped"}
           </span>
         ),
       },
@@ -739,10 +714,6 @@ function ExpenseTable({
             />
           </div>
           <div className="space-y-2">
-            <Label>Category</Label>
-            <FilterSelect value={categoryFilter} onChange={setCategoryFilter} options={categoryOptions} />
-          </div>
-          <div className="space-y-2">
             <Label>Type</Label>
             <FilterSelect
               value={typeFilter}
@@ -786,7 +757,6 @@ function ExpenseTable({
               variant="outline"
               size="sm"
               onClick={() => {
-                setCategoryFilter("all");
                 setTypeFilter("all");
                 setTransactionModeFilter("all");
                 setNecessityFilter("all");
@@ -821,8 +791,8 @@ function ExpenseTable({
                     <InlineEditRow
                       key={row.id}
                       expense={row.original}
-                      categories={categories}
-                      subcategories={subcategories}
+                      spaceCategories={spaceCategories}
+                      userCategories={userCategories}
                       counterparties={counterparties}
                       transactionModes={transactionModes}
                       tags={tags}
@@ -902,10 +872,10 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
       <div ref={formRef}>
         <ExpenseFormCard
           key={editingExpense?.id ?? "new"}
-          categories={data.categories}
           counterparties={data.counterparties}
           transactionModes={data.transactionModes}
-          subcategories={data.subcategories}
+          spaceCategories={data.spaceCategories}
+          userCategories={data.userCategories}
           tags={data.tags}
           editingExpense={editingExpense}
           onCancelEdit={() => setEditingExpense(null)}
@@ -915,8 +885,8 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
       {showBulkAdd && (
         <div className="hidden md:block">
           <BulkAddSection
-            categories={data.categories}
-            subcategories={data.subcategories}
+            spaceCategories={data.spaceCategories}
+            userCategories={data.userCategories}
             counterparties={data.counterparties}
             transactionModes={data.transactionModes}
             tags={data.tags}
@@ -927,8 +897,8 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
 
       <ExpenseTable
         expenses={data.expenses}
-        categories={data.categories}
-        subcategories={data.subcategories}
+        spaceCategories={data.spaceCategories}
+        userCategories={data.userCategories}
         counterparties={data.counterparties}
         transactionModes={data.transactionModes}
         tags={data.tags}

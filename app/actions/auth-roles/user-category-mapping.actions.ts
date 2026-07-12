@@ -1,0 +1,173 @@
+"use server";
+
+import { z } from "zod";
+import { revalidatePath } from "next/cache";
+import { requireUser } from "@/app/lib/auth";
+import { ROUTES } from "@/app/lib/constants";
+import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
+import { getOrganizationMembership } from "@/app/actions/tables/organization-members.table.actions";
+import { getSpaceCategoriesByOrg } from "@/app/actions/tables/space-categories.table.actions";
+import { getUserCategoriesByOrg, getUserCategoryById } from "@/app/actions/tables/user-categories.table.actions";
+import {
+  deleteMapping,
+  getSpaceCategoryByIdAndOrg,
+  getMappingsForUserAndOrg,
+  upsertMapping,
+} from "@/app/actions/tables/user-category-space-category-mappings.table.actions";
+import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types";
+import type { SpaceCategoryRecordDto } from "@/app/lib/finance.types";
+
+export type UserCategoryMappingRowDto = {
+  userCategoryId: number;
+  userCategoryName: string;
+  personalSpaceCategoryName: string | null; // where this UserCategory lives in the owner's personal space, if mapped there
+  mappedSpaceCategoryId: number | null; // null = Unmapped for this space — no fallback
+};
+
+export type UserCategorySpaceMappingDataDto = {
+  targetOrgId: number;
+  organizationName: string;
+  availableSpaceCategories: SpaceCategoryRecordDto[];
+  rows: UserCategoryMappingRowDto[];
+};
+
+export async function requireSharedSpaceMembership(targetOrgId: number, userId: string) {
+  const [organization, membership] = await Promise.all([
+    getOrganizationById(targetOrgId),
+    getOrganizationMembership(targetOrgId, userId),
+  ]);
+
+  if (!organization || organization.isPersonal || !membership) {
+    return null;
+  }
+
+  return organization;
+}
+
+export async function getMyUserCategoryMappingsForSpace(targetOrgId: number): Promise<UserCategorySpaceMappingDataDto | null> {
+  const currentUser = await requireUser();
+  if (!currentUser.personalOrgId) return null;
+
+  const organization = await requireSharedSpaceMembership(targetOrgId, currentUser.id);
+  if (!organization) return null;
+
+  const [myUserCategories, targetSpaceCategories, existingMappings, mySpaceCategories] = await Promise.all([
+    getUserCategoriesByOrg(currentUser.personalOrgId),
+    getSpaceCategoriesByOrg(targetOrgId),
+    getMappingsForUserAndOrg(currentUser.id, targetOrgId),
+    getSpaceCategoriesByOrg(currentUser.personalOrgId),
+  ]);
+
+  const mappingByUserCategoryId = new Map(existingMappings.map((m) => [m.userCategoryId, m]));
+  const personalSpaceCategoryNameById = new Map(mySpaceCategories.map((c) => [c.id, c.name] as const));
+
+  const rows: UserCategoryMappingRowDto[] = myUserCategories.map((userCategory) => {
+    const mapping = mappingByUserCategoryId.get(userCategory.id);
+    return {
+      userCategoryId: userCategory.id,
+      userCategoryName: userCategory.name,
+      personalSpaceCategoryName:
+        userCategory.spaceCategoryId != null ? personalSpaceCategoryNameById.get(userCategory.spaceCategoryId) ?? null : null,
+      mappedSpaceCategoryId: mapping?.spaceCategoryId ?? null,
+    };
+  });
+
+  return {
+    targetOrgId,
+    organizationName: organization.name,
+    availableSpaceCategories: targetSpaceCategories,
+    rows,
+  };
+}
+
+const mappingSchema = z.object({
+  userCategoryId: z.coerce.number().int().positive(),
+  targetOrgId: z.coerce.number().int().positive(),
+  spaceCategoryId: z.coerce.number().int().positive(),
+});
+
+async function assertOwnsUserCategoryAndSpace(
+  currentUser: Awaited<ReturnType<typeof requireUser>>,
+  userCategoryId: number,
+  targetOrgId: number
+) {
+  if (!currentUser.personalOrgId) return null;
+
+  const [userCategory, organization] = await Promise.all([
+    getUserCategoryById(userCategoryId),
+    requireSharedSpaceMembership(targetOrgId, currentUser.id),
+  ]);
+
+  if (!userCategory || userCategory.orgId !== currentUser.personalOrgId || userCategory.createdBy !== currentUser.id) {
+    return null;
+  }
+  if (!organization) return null;
+
+  return { userCategory, organization };
+}
+
+export async function updateUserCategoryMappingAction(
+  _previousState: FinanceActionState,
+  formData: FormData
+): Promise<FinanceActionState> {
+  const currentUser = await requireUser();
+  const parsed = mappingSchema.safeParse({
+    userCategoryId: formData.get("userCategoryId"),
+    targetOrgId: formData.get("targetOrgId"),
+    spaceCategoryId: formData.get("spaceCategoryId"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Unable to update mapping" };
+  }
+
+  const ownership = await assertOwnsUserCategoryAndSpace(currentUser, parsed.data.userCategoryId, parsed.data.targetOrgId);
+  if (!ownership) {
+    return { error: "Category or space is not available to you" };
+  }
+
+  const spaceCategory = await getSpaceCategoryByIdAndOrg(parsed.data.spaceCategoryId, parsed.data.targetOrgId);
+  if (!spaceCategory) {
+    return { error: "SpaceCategory does not belong to this space" };
+  }
+
+  await upsertMapping({
+    userCategoryId: parsed.data.userCategoryId,
+    targetOrgId: parsed.data.targetOrgId,
+    spaceCategoryId: parsed.data.spaceCategoryId,
+    updatedBy: currentUser.id,
+  });
+
+  revalidatePath(ROUTES.CATEGORIES);
+  return { error: null };
+}
+
+const unmapSchema = z.object({
+  userCategoryId: z.coerce.number().int().positive(),
+  targetOrgId: z.coerce.number().int().positive(),
+});
+
+export async function unmapUserCategoryAction(
+  _previousState: FinanceActionState,
+  formData: FormData
+): Promise<FinanceActionState> {
+  const currentUser = await requireUser();
+  const parsed = unmapSchema.safeParse({
+    userCategoryId: formData.get("userCategoryId"),
+    targetOrgId: formData.get("targetOrgId"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Unable to unmap category" };
+  }
+
+  const ownership = await assertOwnsUserCategoryAndSpace(currentUser, parsed.data.userCategoryId, parsed.data.targetOrgId);
+  if (!ownership) {
+    return { error: "Category or space is not available to you" };
+  }
+
+  await deleteMapping(parsed.data.userCategoryId, parsed.data.targetOrgId);
+
+  revalidatePath(ROUTES.CATEGORIES);
+  return { error: null };
+}
