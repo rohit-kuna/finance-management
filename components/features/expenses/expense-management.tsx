@@ -25,7 +25,9 @@ import type {
   TagRecordDto,
   TransactionModeRecordDto,
 } from "@/app/lib/finance.types";
-import type { ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expense.types";
+import type { ExpenseMemberDto, ExpenseRecordDto, ExpensesDashboardDataDto } from "@/app/lib/expense.types";
+import { ALL_MEMBERS, filterByScope, type ExpenseScope } from "@/app/lib/expense-scope";
+import { ScopeToggle } from "@/components/scope-toggle";
 import { TransactionCategorySelect } from "@/components/features/expenses/category-subcategory-select";
 import { TagMultiSelect } from "@/components/features/expenses/tag-multiselect";
 import { InlineEditRow } from "@/components/features/expenses/inline-edit-row";
@@ -509,6 +511,7 @@ export function ExpenseTable({
   tags,
   currentUserId,
   isAdmin,
+  members = [],
   onEdit,
   readOnly = false,
   showMemberColumn = false,
@@ -521,10 +524,15 @@ export function ExpenseTable({
   tags: TagRecordDto[];
   currentUserId: string;
   isAdmin: boolean;
+  members?: ExpenseMemberDto[];
   onEdit?: (expense: ExpenseRecordDto) => void;
   readOnly?: boolean;
   showMemberColumn?: boolean;
 }) {
+  // The scope toggle only applies to the read-only shared-space view
+  // (readOnly + showMemberColumn together identify that usage) — personal
+  // space's own editable table always shows just the owner's transactions.
+  const hasScopeToggle = readOnly && showMemberColumn;
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [transactionModeFilter, setTransactionModeFilter] = useState("all");
@@ -533,6 +541,9 @@ export function ExpenseTable({
   const [monthFilter, setMonthFilter] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "occurredAt", desc: true }]);
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
+  const [scope, setScope] = useState<ExpenseScope>("personal");
+  const [selectedMemberId, setSelectedMemberId] = useState(ALL_MEMBERS);
+  const showUserCategory = !hasScopeToggle || scope === "personal";
 
   const tagsById = useMemo(() => {
     const map = new Map<number, string>();
@@ -564,12 +575,15 @@ export function ExpenseTable({
 
   const filteredExpenses = useMemo(() => {
     const loweredQuery = query.trim().toLowerCase();
+    const scopedExpenses = hasScopeToggle
+      ? filterByScope(expenses, currentUserId, scope, selectedMemberId)
+      : expenses;
 
-    return expenses.filter((expense) => {
+    return scopedExpenses.filter((expense) => {
       if (typeFilter !== "all" && expense.type !== typeFilter) return false;
       if (transactionModeFilter !== "all" && String(expense.transactionModeId) !== transactionModeFilter) return false;
       if (necessityFilter !== "all" && String(expense.necessityScore) !== necessityFilter) return false;
-      if (subcategoryFilter !== "all" && String(expense.userCategoryId) !== subcategoryFilter) return false;
+      if (showUserCategory && subcategoryFilter !== "all" && String(expense.userCategoryId) !== subcategoryFilter) return false;
       if (monthFilter !== "all" && expense.occurredAt.slice(0, 7) !== monthFilter) return false;
 
       if (!loweredQuery) return true;
@@ -583,17 +597,22 @@ export function ExpenseTable({
         expense.type,
         expense.transferStatus ?? "",
         String(expense.necessityScore),
-        expense.userCategoryName ?? "",
+        showUserCategory ? expense.userCategoryName ?? "" : "",
       ].some((value) => value.toLowerCase().includes(loweredQuery));
     });
   }, [
     expenses,
+    hasScopeToggle,
+    currentUserId,
+    scope,
+    selectedMemberId,
     typeFilter,
     transactionModeFilter,
     necessityFilter,
     subcategoryFilter,
     monthFilter,
     query,
+    showUserCategory,
   ]);
 
   const columns = useMemo<ColumnDef<ExpenseRecordDto>[]>(
@@ -627,14 +646,19 @@ export function ExpenseTable({
       },
       {
         accessorKey: "userCategoryName",
-        header: ({ column }) => <SortableHeader column={column} title="User Category" />,
-        cell: ({ row }) => (
-          <span className="font-medium">
-            {row.original.spaceCategoryName
-              ? `${row.original.spaceCategoryName} > ${row.original.userCategoryName ?? "—"}`
-              : row.original.userCategoryName ?? "Unmapped"}
-          </span>
+        header: ({ column }) => (
+          <SortableHeader column={column} title={showUserCategory ? "User Category" : "Space Category"} />
         ),
+        cell: ({ row }) =>
+          showUserCategory ? (
+            <span className="font-medium">
+              {row.original.spaceCategoryName
+                ? `${row.original.spaceCategoryName} > ${row.original.userCategoryName ?? "—"}`
+                : row.original.userCategoryName ?? "Unmapped"}
+            </span>
+          ) : (
+            <span className="font-medium">{row.original.spaceCategoryName ?? "Unmapped"}</span>
+          ),
       },
       {
         accessorKey: "note",
@@ -694,7 +718,7 @@ export function ExpenseTable({
             } satisfies ColumnDef<ExpenseRecordDto>,
           ]),
     ],
-    [currentUserId, isAdmin, onEdit, tagsById, showMemberColumn, readOnly]
+    [currentUserId, isAdmin, onEdit, tagsById, showMemberColumn, readOnly, showUserCategory]
   );
 
   const table = useReactTable({
@@ -716,11 +740,25 @@ export function ExpenseTable({
             <CardTitle className="text-2xl tracking-tight">Transactions</CardTitle>
             <p className="max-w-3xl text-sm text-muted-foreground">
               {readOnly
-                ? "Browse transactions mapped into this space, from every member."
+                ? scope === "personal"
+                  ? "Browse your own transactions mapped into this space."
+                  : "Browse transactions mapped into this space, from every member."
                 : "Filter, sort, edit, and remove your transactions, including optional counterparty links."}
             </p>
           </div>
-          <Badge variant="secondary">{filteredExpenses.length} records</Badge>
+          <div className="flex flex-wrap items-center gap-3">
+            {hasScopeToggle ? (
+              <ScopeToggle
+                scope={scope}
+                onScopeChange={setScope}
+                members={members}
+                selectedMemberId={selectedMemberId}
+                onMemberChange={setSelectedMemberId}
+                currentUserId={currentUserId}
+              />
+            ) : null}
+            <Badge variant="secondary">{filteredExpenses.length} records</Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
@@ -761,10 +799,12 @@ export function ExpenseTable({
               ]}
             />
           </div>
-          <div className="space-y-2">
-            <Label>User Categories</Label>
-            <FilterSelect value={subcategoryFilter} onChange={setSubcategoryFilter} options={subcategoryOptions} />
-          </div>
+          {showUserCategory ? (
+            <div className="space-y-2">
+              <Label>User Categories</Label>
+              <FilterSelect value={subcategoryFilter} onChange={setSubcategoryFilter} options={subcategoryOptions} />
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label>Month</Label>
             <MonthInput value={monthFilter === "all" ? "" : monthFilter} onChange={(event) => setMonthFilter(event.target.value || "all")} />

@@ -54,6 +54,13 @@ export type TransferDashboardDataDto = {
   };
 };
 
+export type ExpenseMemberDto = {
+  id: string;
+  email: string;
+  name: string;
+  role: AppRole;
+};
+
 export type ExpensesDashboardDataDto = {
   organization: {
     id: number;
@@ -69,6 +76,7 @@ export type ExpensesDashboardDataDto = {
   userCategories: UserCategoryRecordDto[];
   tags: TagRecordDto[];
   expenses: ExpenseRecordDto[];
+  members: ExpenseMemberDto[];
   currentUser: {
     id: string;
     name: string;

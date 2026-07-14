@@ -16,6 +16,7 @@ export async function TransactionsContent() {
         tags={data.tags}
         currentUserId={data.currentUser.id}
         isAdmin={data.currentUser.role === "ADMIN"}
+        members={data.members}
         readOnly
         showMemberColumn
       />

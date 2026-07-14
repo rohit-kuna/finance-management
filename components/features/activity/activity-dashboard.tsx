@@ -24,6 +24,8 @@ import { Label } from "@/components/ui/label";
 import { MonthInput } from "@/components/ui/month-input";
 import { cn } from "@/lib/utils";
 import type { ActivityDashboardDataDto } from "@/app/lib/activity.types";
+import { ALL_MEMBERS, filterByScope, type ExpenseScope } from "@/app/lib/expense-scope";
+import { ScopeToggle } from "@/components/scope-toggle";
 
 const moneyFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -70,7 +72,6 @@ const trendLegendItems = [
 ] as const;
 
 type NecessityScore = 1 | 2 | 3 | 4 | 5;
-type ActivityAudience = "personal" | "shared" | `member:${string}`;
 
 const necessityLabels: Record<NecessityScore, string> = {
   1: "Optional",
@@ -173,8 +174,22 @@ function FilterChip({
   );
 }
 
-function getScopedActivityData(data: ActivityDashboardDataDto, audience: ActivityAudience) {
-  if (audience === "shared") {
+function getScopedActivityData(
+  data: ActivityDashboardDataDto,
+  scope: ExpenseScope,
+  selectedMemberId: string
+) {
+  if (scope === "personal") {
+    return {
+      ...data,
+      budgets: data.budgets.filter(
+        (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
+      ),
+      expenses: data.expenses.filter((expense) => expense.userId === data.currentUser.id),
+    };
+  }
+
+  if (selectedMemberId === ALL_MEMBERS) {
     return {
       ...data,
       budgets: data.budgets.filter((budget) => budget.scope === "shared"),
@@ -182,24 +197,12 @@ function getScopedActivityData(data: ActivityDashboardDataDto, audience: Activit
     };
   }
 
-  if (audience.startsWith("member:")) {
-    const memberId = audience.slice("member:".length);
-
-    return {
-      ...data,
-      budgets: data.budgets.filter(
-        (budget) => budget.scope === "personal" && budget.userId === memberId
-      ),
-      expenses: data.expenses.filter((expense) => expense.userId === memberId),
-    };
-  }
-
   return {
     ...data,
     budgets: data.budgets.filter(
-      (budget) => budget.scope === "personal" && budget.userId === data.currentUser.id
+      (budget) => budget.scope === "personal" && budget.userId === selectedMemberId
     ),
-    expenses: data.expenses.filter((expense) => expense.userId === data.currentUser.id),
+    expenses: filterByScope(data.expenses, data.currentUser.id, scope, selectedMemberId),
   };
 }
 
@@ -486,13 +489,13 @@ function BudgetVsActualChart({
   expenses,
   monthStart,
   monthEnd,
-  audience,
+  scope,
 }: {
   budgets: ActivityDashboardDataDto["budgets"];
   expenses: ActivityDashboardDataDto["expenses"];
   monthStart: string;
   monthEnd: string;
-  audience: ActivityAudience;
+  scope: ExpenseScope;
 }) {
   const budgetMonths = useMemo(() => {
     const months = budgets
@@ -633,7 +636,7 @@ function BudgetVsActualChart({
                   content={
                     <OrderedLegend
                       items={
-                        audience === "shared"
+                        scope === "shared"
                           ? [
                               { label: "Shared budget", color: "var(--color-chart-4)" },
                               { label: "Shared spend", color: "var(--color-chart-1)" },
@@ -1050,6 +1053,8 @@ function CategoryDrilldownChart({
   breakdownDescription,
   totalDetailLabel,
   noSubcategoryLabel,
+  scope,
+  selectedMemberId,
 }: {
   expenses: ActivityDashboardDataDto["expenses"];
   monthStart: string;
@@ -1065,8 +1070,15 @@ function CategoryDrilldownChart({
   breakdownDescription: string;
   totalDetailLabel: string;
   noSubcategoryLabel: string;
+  scope: ExpenseScope;
+  selectedMemberId: string;
 }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  // Shared mode never surfaces User Categories (they're personal) — when
+  // viewing "All members" it drills into a per-member split instead; when
+  // narrowed to one member there's nothing left to drill into.
+  const isMemberBreakdown = scope === "shared";
+  const canDrilldown = scope === "personal" || selectedMemberId === ALL_MEMBERS;
 
   const categoryChartData = useMemo(() => {
     const filtered = expenses.filter((expense) => {
@@ -1134,22 +1146,20 @@ function CategoryDrilldownChart({
 
     const categoryTotal = filtered.reduce((sum, expense) => sum + Number(expense.amount), 0);
 
-    const subcategoryTotals = new Map<number, number>();
-    let noSubcategoryTotal = 0;
-
-    for (const expense of filtered) {
-      const amount = Number(expense.amount);
-      if (expense.userCategoryId == null) {
-        noSubcategoryTotal += amount;
-        continue;
-      }
-      subcategoryTotals.set(expense.userCategoryId, (subcategoryTotals.get(expense.userCategoryId) ?? 0) + amount);
-    }
-
     const combinationTotals = new Map<string, { label: string; amount: number; count: number }>();
+    let noSubcategoryTotal = 0;
+    const subcategoryTotals = new Map<string, number>();
+
     for (const expense of filtered) {
       const amount = Number(expense.amount);
-      const label = expense.userCategoryName ?? "No user category";
+      const label = isMemberBreakdown ? expense.userName : expense.userCategoryName ?? "No user category";
+
+      if (!isMemberBreakdown && expense.userCategoryId == null) {
+        noSubcategoryTotal += amount;
+      } else {
+        subcategoryTotals.set(label, (subcategoryTotals.get(label) ?? 0) + amount);
+      }
+
       const existing = combinationTotals.get(label);
       combinationTotals.set(label, {
         label,
@@ -1172,7 +1182,7 @@ function CategoryDrilldownChart({
       noSubcategoryTotal,
       combinations,
     };
-  }, [expenses, selectedCategory, monthStart, monthEnd, transactionType]);
+  }, [expenses, selectedCategory, monthStart, monthEnd, transactionType, isMemberBreakdown]);
 
   const hasCategoryData = categoryChartData.length > 0;
   const hasSubcategoryData = (subcategoryResult?.transactionCount ?? 0) > 0;
@@ -1184,7 +1194,13 @@ function CategoryDrilldownChart({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <SectionHeader
             title={selectedCategory ? `${selectedCategory.categoryName} Breakdown` : title}
-            description={selectedCategory ? breakdownDescription : description}
+            description={
+              selectedCategory
+                ? isMemberBreakdown
+                  ? `Spending split by member for ${selectedCategory.categoryName}.`
+                  : breakdownDescription
+                : description
+            }
           />
           {selectedCategory ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setSelectedCategoryId(null)}>
@@ -1240,11 +1256,15 @@ function CategoryDrilldownChart({
                         cy="50%"
                         outerRadius="75%"
                         label={({ name, value }) => `${name}: ${formatCompactMoney(Number(value ?? 0))}`}
-                        onClick={(entry) => {
-                          const row = entry as unknown as { categoryId: number };
-                          setSelectedCategoryId(row.categoryId);
-                        }}
-                        style={{ cursor: "pointer" }}
+                        onClick={
+                          canDrilldown
+                            ? (entry) => {
+                                const row = entry as unknown as { categoryId: number };
+                                setSelectedCategoryId(row.categoryId);
+                              }
+                            : undefined
+                        }
+                        style={{ cursor: canDrilldown ? "pointer" : "default" }}
                       >
                         {categoryChartData.map((entry) => (
                           <Cell
@@ -1264,7 +1284,11 @@ function CategoryDrilldownChart({
                             <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-lg">
                               <p className="mb-1 font-medium">{row.categoryName}</p>
                               <p>{formatMoney(row.amount)} ({row.percentage.toFixed(1)}%)</p>
-                              <p className="mt-1 text-xs text-muted-foreground">Click to view user categories</p>
+                              {canDrilldown ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {isMemberBreakdown ? "Click to view member breakdown" : "Click to view user categories"}
+                                </p>
+                              ) : null}
                             </div>
                           );
                         }}
@@ -1283,12 +1307,14 @@ function CategoryDrilldownChart({
                   <button
                     key={item.categoryId}
                     type="button"
+                    disabled={!canDrilldown}
                     onClick={() => setSelectedCategoryId(item.categoryId)}
                   >
                     <Badge
                       variant="outline"
                       className={cn(
-                        "cursor-pointer transition-colors hover:bg-accent",
+                        "transition-colors",
+                        canDrilldown ? "cursor-pointer hover:bg-accent" : "cursor-default",
                         index === 0 && "border-primary/40 bg-primary/5",
                         index === 1 && "border-chart-2/40 bg-chart-2/5",
                         index === 2 && "border-chart-3/40 bg-chart-3/5"
@@ -1311,8 +1337,13 @@ function CategoryDrilldownChart({
               <>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <MetricCard label={totalDetailLabel} value={formatMoney(subcategoryResult?.categoryTotal ?? 0)} tone={positiveTone} />
-                  <MetricCard label="Distinct user categories" value={String(subcategoryResult?.distinctSubcategoryCount ?? 0)} />
-                  <MetricCard label={noSubcategoryLabel} value={formatMoney(subcategoryResult?.noSubcategoryTotal ?? 0)} />
+                  <MetricCard
+                    label={isMemberBreakdown ? "Distinct members" : "Distinct user categories"}
+                    value={String(subcategoryResult?.distinctSubcategoryCount ?? 0)}
+                  />
+                  {isMemberBreakdown ? null : (
+                    <MetricCard label={noSubcategoryLabel} value={formatMoney(subcategoryResult?.noSubcategoryTotal ?? 0)} />
+                  )}
                 </div>
 
                 {pieData.length ? (
@@ -1378,12 +1409,12 @@ export function ActivityDashboard({
   );
   const minMonth = allMonthKeys[0] ?? getMonthKey(new Date().toISOString());
   const maxMonth = allMonthKeys[allMonthKeys.length - 1] ?? minMonth;
-  const [audience, setAudience] = useState<ActivityAudience>("personal");
+  const [scope, setScope] = useState<ExpenseScope>("personal");
+  const [selectedMemberId, setSelectedMemberId] = useState(ALL_MEMBERS);
   const [monthStart, setMonthStart] = useState(minMonth);
   const [monthEnd, setMonthEnd] = useState(maxMonth);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [chartQuery, setChartQuery] = useState("");
-  const isAdmin = data.currentUser.role === "ADMIN";
   const isPersonalSpace = Boolean(data.organization?.isPersonal);
 
   const matchesChartQuery = (title: string) => {
@@ -1391,7 +1422,10 @@ export function ActivityDashboard({
     return !loweredQuery || title.toLowerCase().includes(loweredQuery);
   };
 
-  const scopedData = useMemo(() => getScopedActivityData(data, audience), [data, audience]);
+  const scopedData = useMemo(
+    () => getScopedActivityData(data, scope, selectedMemberId),
+    [data, scope, selectedMemberId]
+  );
   const visibleData = useMemo(() => {
     const selectedCategories = new Set(selectedCategoryIds);
     const filteredBudgets = scopedData.budgets.filter((budget) => {
@@ -1416,7 +1450,19 @@ export function ActivityDashboard({
     <section className="space-y-6">
       <Card className="py-2">
         <CardHeader className="space-y-3 px-4 pt-6 sm:px-8 sm:pt-8">
-          <CardTitle className="text-3xl tracking-tight">Analytics</CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle className="text-3xl tracking-tight">Analytics</CardTitle>
+            {isPersonalSpace ? null : (
+              <ScopeToggle
+                scope={scope}
+                onScopeChange={setScope}
+                members={data.members}
+                selectedMemberId={selectedMemberId}
+                onMemberChange={setSelectedMemberId}
+                currentUserId={data.currentUser.id}
+              />
+            )}
+          </div>
           <p className="max-w-4xl text-sm text-muted-foreground">
             {isPersonalSpace
               ? "Visualize spending, income, and budget health for this personal space."
@@ -1436,34 +1482,10 @@ export function ActivityDashboard({
         <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
           <SectionHeader
             title="Global filters"
-            description="Choose who to view, narrow the month range, and limit charts to specific space categories."
+            description="Narrow the month range and limit charts to specific space categories."
           />
 
-          <div className="grid gap-4 md:grid-cols-3 md:items-end">
-            {isPersonalSpace ? null : (
-              <div className="space-y-2">
-                <Label htmlFor="activity-audience">Audience</Label>
-                <select
-                  id="activity-audience"
-                  value={audience}
-                  onChange={(event) => setAudience(event.target.value as ActivityAudience)}
-                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="personal">Personal</option>
-                  <option value="shared">Shared</option>
-                  {isAdmin ? (
-                    <optgroup label="Shared members">
-                      {data.members.map((member) => (
-                        <option key={member.id} value={`member:${member.id}`}>
-                          {member.id === data.currentUser.id ? `${member.name} (You)` : member.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                </select>
-              </div>
-            )}
-
+          <div className="grid gap-4 md:grid-cols-2 md:items-end">
             <div className="space-y-2">
               <Label htmlFor="activity-month-start">Month start</Label>
               <MonthInput
@@ -1530,7 +1552,7 @@ export function ActivityDashboard({
             expenses={visibleData.expenses}
             monthStart={monthStart}
             monthEnd={monthEnd}
-            audience={audience}
+            scope={scope}
           />
         ) : null}
 
@@ -1541,7 +1563,7 @@ export function ActivityDashboard({
             monthEnd={monthEnd}
             transactionType="expense"
             title="Spending by Space Category"
-            description="See which space categories consume the most spending across the selected month range. Click a slice to see its user category breakdown."
+            description="See which space categories consume the most spending across the selected month range. Click a slice to see its breakdown."
             emptyMessage="No spending found for the selected range."
             totalLabel="Total spending"
             topCategoryLabel="Top space category"
@@ -1550,6 +1572,8 @@ export function ActivityDashboard({
             breakdownDescription="Spending split across user categories, including transactions with multiple user categories at once."
             totalDetailLabel="Total spend"
             noSubcategoryLabel="No user category spend"
+            scope={scope}
+            selectedMemberId={selectedMemberId}
           />
         ) : null}
 
@@ -1560,7 +1584,7 @@ export function ActivityDashboard({
             monthEnd={monthEnd}
             transactionType="income"
             title="Income by Space Category"
-            description="See which space categories bring in the most income across the selected month range. Click a slice to see its user category breakdown."
+            description="See which space categories bring in the most income across the selected month range. Click a slice to see its breakdown."
             emptyMessage="No income found for the selected range."
             totalLabel="Total income"
             topCategoryLabel="Top income space category"
@@ -1569,6 +1593,8 @@ export function ActivityDashboard({
             breakdownDescription="Income split across user categories, including transactions with multiple user categories at once."
             totalDetailLabel="Total income"
             noSubcategoryLabel="No user category income"
+            scope={scope}
+            selectedMemberId={selectedMemberId}
           />
         ) : null}
 

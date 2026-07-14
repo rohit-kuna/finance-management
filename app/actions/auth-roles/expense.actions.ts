@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
+import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import { getSpaceCategoriesByOrg } from "@/app/actions/tables/space-categories.table.actions";
 import {
   createExpenseRecord,
@@ -145,6 +146,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
       userCategories: [],
       tags: [],
       expenses: [],
+      members: [],
       currentUser: {
         id: currentUser.id,
         name: currentUser.name,
@@ -164,7 +166,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
   const personalOrgId = currentUser.personalOrgId ?? currentUser.orgId;
   const organization = await getOrganizationById(currentUser.orgId);
 
-  const [spaceCategories, counterparties, userCategories, tags, expenses, transactionModes] = await Promise.all([
+  const [spaceCategories, counterparties, userCategories, tags, expenses, transactionModes, members] = await Promise.all([
     getSpaceCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
     getUserCategoriesByOrg(personalOrgId),
@@ -173,6 +175,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
       ? getExpensesByOrg(currentUser.orgId, 500, currentUser.id)
       : getExpensesForSharedSpace(currentUser.orgId, 500),
     getTransactionModesByUser(currentUser.orgId, currentUser.id),
+    organization?.isPersonal ?? true ? Promise.resolve([]) : getOrganizationMembers(currentUser.orgId),
   ]);
 
   return {
@@ -183,6 +186,12 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     userCategories,
     tags,
     expenses,
+    members: members.map((member) => ({
+      id: member.id,
+      email: member.email,
+      name: member.name,
+      role: member.role,
+    })),
     currentUser: {
       id: currentUser.id,
       name: currentUser.name,
