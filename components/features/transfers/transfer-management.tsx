@@ -135,7 +135,7 @@ export function TransferManagement({
 
   const categoryOptions = useMemo(
     () => [
-      { value: "all", label: "All categories" },
+      { value: "all", label: "All space categories" },
       ...Array.from(new Map(data.expenses.map((expense) => [expense.spaceCategoryId, expense.spaceCategoryName ?? "Unmapped"])).entries()).map(
         ([id, name]) => ({
           value: String(id),
@@ -283,7 +283,7 @@ export function TransferManagement({
               <FilterSelect value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
             </div>
             <div className="space-y-2">
-              <Label>Category</Label>
+              <Label>Space Category</Label>
               <FilterSelect value={categoryFilter} onChange={setCategoryFilter} options={categoryOptions} />
             </div>
             <div className="space-y-2">
@@ -302,7 +302,7 @@ export function TransferManagement({
               id="transfer-search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by counterparty, note, category, or user..."
+              placeholder="Search by counterparty, note, space category, or user..."
             />
           </div>
         </CardHeader>
@@ -340,7 +340,7 @@ export function TransferManagement({
                   </TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Counterparty</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Space Category</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Added by</TableHead>

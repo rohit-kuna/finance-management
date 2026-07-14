@@ -1,9 +1,9 @@
 import { Suspense } from "react";
-import { requireActiveOrgIsPersonal } from "@/app/lib/auth";
+import { requireUser } from "@/app/lib/auth";
 import { TransactionsContent, TransactionsContentSkeleton } from "@/app/(app)/transactions/transactions-content";
 
 export default async function TransactionsPage() {
-  await requireActiveOrgIsPersonal();
+  await requireUser();
 
   return (
     <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">

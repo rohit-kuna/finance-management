@@ -1,8 +1,26 @@
 import { getExpensesDashboardData } from "@/app/actions/auth-roles/expense.actions";
-import { ExpenseManagement } from "@/components/features/expenses/expense-management";
+import { ExpenseManagement, ExpenseTable } from "@/components/features/expenses/expense-management";
 
 export async function TransactionsContent() {
   const data = await getExpensesDashboardData();
+  const isPersonalSpace = data.organization?.isPersonal ?? true;
+
+  if (!isPersonalSpace) {
+    return (
+      <ExpenseTable
+        expenses={data.expenses}
+        spaceCategories={data.spaceCategories}
+        userCategories={data.userCategories}
+        counterparties={data.counterparties}
+        transactionModes={data.transactionModes}
+        tags={data.tags}
+        currentUserId={data.currentUser.id}
+        isAdmin={data.currentUser.role === "ADMIN"}
+        readOnly
+        showMemberColumn
+      />
+    );
+  }
 
   return <ExpenseManagement data={data} />;
 }

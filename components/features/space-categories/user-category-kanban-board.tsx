@@ -126,7 +126,7 @@ function CreateUserCategoryInput({ onCreate }: { onCreate: (name: string) => Pro
               handleCreate();
             }
           }}
-          placeholder="New subcategory..."
+          placeholder="New user category..."
           className="h-8 text-sm"
         />
         <button
@@ -134,8 +134,8 @@ function CreateUserCategoryInput({ onCreate }: { onCreate: (name: string) => Pro
           onClick={handleCreate}
           disabled={isPending || name.trim().length < 2}
           className="flex size-8 shrink-0 items-center justify-center rounded-md border border-input text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Create subcategory"
-          title="Create subcategory"
+          aria-label="Create user category"
+          title="Create user category"
         >
           <Plus className="size-4" />
         </button>
@@ -226,7 +226,7 @@ export function UserCategoryKanbanBoard({
       </DndContext>
       {boardError ? <p className="text-sm text-destructive">{boardError}</p> : null}
       {!spaceCategories.length ? (
-        <p className="text-sm text-muted-foreground">Create a category above to start mapping subcategories into it.</p>
+        <p className="text-sm text-muted-foreground">Create a space category above to start mapping user categories into it.</p>
       ) : null}
     </div>
   );

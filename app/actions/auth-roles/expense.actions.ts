@@ -42,7 +42,7 @@ const expenseSchema = z.object({
     { message: "Necessity must be -1 (Optional), 0 (Default), or 1 (Important)" }
   ),
   note: z.string().trim().max(500).nullable(),
-  userCategoryId: z.coerce.number({ error: "A subcategory is required" }).int().positive(),
+  userCategoryId: z.coerce.number({ error: "A user category is required" }).int().positive(),
   occurredAt: z.string().trim().min(1, "Expense date is required"),
   tagIds: z.array(z.coerce.number().int().positive()).optional().default([]),
 });
@@ -281,7 +281,7 @@ export async function createExpenseAction(
   }
   if (userCategoryId === null) {
     console.timeEnd("createExpenseAction");
-    return { error: "A subcategory is required" };
+    return { error: "A user category is required" };
   }
 
   const transferStatus = counterPartyId ? "open" : null;
@@ -365,7 +365,7 @@ export async function updateExpenseAction(
   }
   if (userCategoryId === null) {
     console.timeEnd("updateExpenseAction");
-    return { error: "A subcategory is required" };
+    return { error: "A user category is required" };
   }
 
   const transferStatus = counterPartyId ? (expense.transferStatus ?? "open") as TransferStatus : null;

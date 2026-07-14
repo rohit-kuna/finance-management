@@ -586,7 +586,7 @@ async function importUserScopedExpensesFromWorkbookAction(
       issues.push("Missing type");
     }
     if (!userCategoryValue.trim()) {
-      issues.push("Missing subcategory");
+      issues.push("Missing user category");
     }
     if (!timestampValue.trim()) {
       issues.push("Missing transactionTimestamp");
@@ -689,7 +689,7 @@ async function importUserScopedExpensesFromWorkbookAction(
         const previousSummary = seenDuplicateKeys.get(duplicateKey);
         skippedDuplicateRows.add(row.rowNumber);
         duplicateWarnings.push(
-          `Row ${row.rowNumber} skipped because it duplicates another uploaded row (${previousSummary ?? "same amount, user, subcategory, note, and date"})`
+          `Row ${row.rowNumber} skipped because it duplicates another uploaded row (${previousSummary ?? "same amount, user, user category, note, and date"})`
         );
         validatedRows.push({
           ...row,
@@ -780,7 +780,7 @@ async function importUserScopedExpensesFromWorkbookAction(
         // assignment happens later via the Kanban board, never at import time.
         const resolvedUserCategoryName = parseUserCategoryName(userCategoryValue);
         if (!resolvedUserCategoryName) {
-          throw new Error(`Row ${row.rowNumber}: a subcategory is required`);
+          throw new Error(`Row ${row.rowNumber}: a user category is required`);
         }
         const userCategoryKey = normalizeWorkbookName(resolvedUserCategoryName);
         let userCategoryId = userCategoryIdByName.get(userCategoryKey) ?? null;
@@ -798,7 +798,7 @@ async function importUserScopedExpensesFromWorkbookAction(
         }
 
         if (userCategoryId === null) {
-          throw new Error(`Row ${row.rowNumber}: unable to resolve a subcategory`);
+          throw new Error(`Row ${row.rowNumber}: unable to resolve a user category`);
         }
 
         const duplicateKey = toDuplicateKey({

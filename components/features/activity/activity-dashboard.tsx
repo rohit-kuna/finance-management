@@ -325,15 +325,15 @@ function CategoryGroupFilter({
 
   return (
     <div className="space-y-3">
-      <Label>Categories</Label>
+      <Label>Space Categories</Label>
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
           <FilterChip active={isAllSelected} onClick={() => onChange([])}>
             All
           </FilterChip>
         </div>
-        {renderGroup("Income", incomeCategories, "No income categories available.")}
-        {renderGroup("Expense", expenseCategories, "No expense categories available.")}
+        {renderGroup("Income", incomeCategories, "No income space categories available.")}
+        {renderGroup("Expense", expenseCategories, "No expense space categories available.")}
       </div>
     </div>
   );
@@ -668,7 +668,7 @@ function BudgetVsActualChart({
 
         {chartData.some((item) => item.isOverBudget) ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">Over budget categories:</span>
+            <span className="text-sm text-muted-foreground">Over budget space categories:</span>
             {chartData
               .filter((item) => item.isOverBudget)
               .map((item) => (
@@ -683,7 +683,7 @@ function BudgetVsActualChart({
           </div>
         ) : (
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
-            All visible categories are within budget for the selected range.
+            All visible space categories are within budget for the selected range.
           </div>
         )}
       </CardContent>
@@ -1149,7 +1149,7 @@ function CategoryDrilldownChart({
     const combinationTotals = new Map<string, { label: string; amount: number; count: number }>();
     for (const expense of filtered) {
       const amount = Number(expense.amount);
-      const label = expense.userCategoryName ?? "No subcategory";
+      const label = expense.userCategoryName ?? "No user category";
       const existing = combinationTotals.get(label);
       combinationTotals.set(label, {
         label,
@@ -1188,7 +1188,7 @@ function CategoryDrilldownChart({
           />
           {selectedCategory ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setSelectedCategoryId(null)}>
-              ← Back to categories
+              ← Back to space categories
             </Button>
           ) : null}
         </div>
@@ -1264,7 +1264,7 @@ function CategoryDrilldownChart({
                             <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-lg">
                               <p className="mb-1 font-medium">{row.categoryName}</p>
                               <p>{formatMoney(row.amount)} ({row.percentage.toFixed(1)}%)</p>
-                              <p className="mt-1 text-xs text-muted-foreground">Click to view subcategories</p>
+                              <p className="mt-1 text-xs text-muted-foreground">Click to view user categories</p>
                             </div>
                           );
                         }}
@@ -1311,7 +1311,7 @@ function CategoryDrilldownChart({
               <>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <MetricCard label={totalDetailLabel} value={formatMoney(subcategoryResult?.categoryTotal ?? 0)} tone={positiveTone} />
-                  <MetricCard label="Distinct subcategories" value={String(subcategoryResult?.distinctSubcategoryCount ?? 0)} />
+                  <MetricCard label="Distinct user categories" value={String(subcategoryResult?.distinctSubcategoryCount ?? 0)} />
                   <MetricCard label={noSubcategoryLabel} value={formatMoney(subcategoryResult?.noSubcategoryTotal ?? 0)} />
                 </div>
 
@@ -1335,7 +1335,7 @@ function CategoryDrilldownChart({
                               <Cell
                                 key={combination.label}
                                 fill={
-                                  combination.label === "No subcategory"
+                                  combination.label === "No user category"
                                     ? noSubcategoryColor
                                     : chartPalette[index % chartPalette.length]
                                 }
@@ -1355,7 +1355,7 @@ function CategoryDrilldownChart({
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-                    No subcategorized transactions found for {selectedCategory.categoryName} in the selected range.
+                    No user-categorized transactions found for {selectedCategory.categoryName} in the selected range.
                   </div>
                 )}
               </>
@@ -1425,7 +1425,7 @@ export function ActivityDashboard({
           </p>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">Members {visibleData.members.length}</Badge>
-            <Badge variant="outline">Categories {visibleData.spaceCategories.length}</Badge>
+            <Badge variant="outline">Space Categories {visibleData.spaceCategories.length}</Badge>
             <Badge variant="outline">Budget months {new Set(visibleData.budgets.map((budget) => budget.month)).size}</Badge>
             <Badge variant="outline">Range {rangeLabel}</Badge>
           </div>
@@ -1436,7 +1436,7 @@ export function ActivityDashboard({
         <CardHeader className="space-y-4 px-4 pt-6 sm:px-8 sm:pt-8">
           <SectionHeader
             title="Global filters"
-            description="Choose who to view, narrow the month range, and limit charts to specific categories."
+            description="Choose who to view, narrow the month range, and limit charts to specific space categories."
           />
 
           <div className="grid gap-4 md:grid-cols-3 md:items-end">
@@ -1534,41 +1534,41 @@ export function ActivityDashboard({
           />
         ) : null}
 
-        {matchesChartQuery("Spending by Category") ? (
+        {matchesChartQuery("Spending by Space Category") ? (
           <CategoryDrilldownChart
             expenses={visibleData.expenses}
             monthStart={monthStart}
             monthEnd={monthEnd}
             transactionType="expense"
-            title="Spending by Category"
-            description="See which categories consume the most spending across the selected month range. Click a slice to see its subcategory breakdown."
+            title="Spending by Space Category"
+            description="See which space categories consume the most spending across the selected month range. Click a slice to see its user category breakdown."
             emptyMessage="No spending found for the selected range."
             totalLabel="Total spending"
-            topCategoryLabel="Top category"
+            topCategoryLabel="Top space category"
             topCategoriesLabel="Top 3 share"
             positiveTone="warning"
-            breakdownDescription="Spending split across subcategories, including transactions with multiple subcategories at once."
+            breakdownDescription="Spending split across user categories, including transactions with multiple user categories at once."
             totalDetailLabel="Total spend"
-            noSubcategoryLabel="No subcategory spend"
+            noSubcategoryLabel="No user category spend"
           />
         ) : null}
 
-        {matchesChartQuery("Income by Category") ? (
+        {matchesChartQuery("Income by Space Category") ? (
           <CategoryDrilldownChart
             expenses={visibleData.expenses}
             monthStart={monthStart}
             monthEnd={monthEnd}
             transactionType="income"
-            title="Income by Category"
-            description="See which categories bring in the most income across the selected month range. Click a slice to see its subcategory breakdown."
+            title="Income by Space Category"
+            description="See which space categories bring in the most income across the selected month range. Click a slice to see its user category breakdown."
             emptyMessage="No income found for the selected range."
             totalLabel="Total income"
-            topCategoryLabel="Top income category"
+            topCategoryLabel="Top income space category"
             topCategoriesLabel="Top 3 share"
             positiveTone="success"
-            breakdownDescription="Income split across subcategories, including transactions with multiple subcategories at once."
+            breakdownDescription="Income split across user categories, including transactions with multiple user categories at once."
             totalDetailLabel="Total income"
-            noSubcategoryLabel="No subcategory income"
+            noSubcategoryLabel="No user category income"
           />
         ) : null}
 

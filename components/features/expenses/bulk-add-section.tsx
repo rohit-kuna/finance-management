@@ -411,7 +411,7 @@ export function BulkAddSection({
                   </TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Type</TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">
-                    Subcategory<Req />
+                    User Category<Req />
                   </TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Note</TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Tags</TableHead>

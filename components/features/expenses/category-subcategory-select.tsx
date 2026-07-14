@@ -7,28 +7,98 @@ import type { SpaceCategoryRecordDto, UserCategoryRecordDto } from "@/app/lib/fi
 import type { CategoryType } from "@/db/schema";
 import { cn } from "@/lib/utils";
 
-type ComboboxItem = { id: number; name: string };
+function CreateUserCategoryRow({
+  query,
+  disabled,
+  onCreate,
+}: {
+  query: string;
+  disabled?: boolean;
+  onCreate: (name: string) => void;
+}) {
+  if (query.length < 2 || disabled) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onCreate(query)}
+      className="block w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+    >
+      {`Create "${query}"`}
+    </button>
+  );
+}
+
+type Suggestion =
+  | { kind: "space"; item: SpaceCategoryRecordDto }
+  | { kind: "user"; item: UserCategoryRecordDto; spaceCategory: SpaceCategoryRecordDto };
+
+function CreateSpaceCategoryRow({
+  query,
+  onCreate,
+}: {
+  query: string;
+  onCreate: (name: string, type: CategoryType) => void;
+}) {
+  const [type, setType] = useState<CategoryType>("expense");
+
+  if (query.length < 2) return null;
+
+  return (
+    <div className="flex items-center gap-1 px-1 py-1">
+      <button
+        type="button"
+        onClick={() => onCreate(query, type)}
+        className="flex-1 rounded-sm px-1.5 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+      >
+        {`Add "${query}" ›`}
+      </button>
+      <select
+        value={type}
+        onChange={(event) => setType(event.target.value as CategoryType)}
+        onClick={(event) => event.stopPropagation()}
+        className="h-7 shrink-0 rounded-md border border-input bg-background px-1 text-xs"
+      >
+        <option value="expense">Expense</option>
+        <option value="income">Income</option>
+      </select>
+    </div>
+  );
+}
 
 /**
- * Generic type-to-search dropdown shared by the SpaceCategory and UserCategory
- * steps below. `renderCreate`, if provided, renders a trailing row for
- * creating a new item from the current query text.
+ * Single cascading field for picking a transaction's category: type to
+ * search/create a SpaceCategory first (implicitly setting the transaction's
+ * type from it); once picked it collapses into a chip prefix and the same
+ * field switches to searching/creating a UserCategory scoped to it. A
+ * UserCategory created here is mapped to the chosen SpaceCategory immediately
+ * — this is the explicit "place a transaction in a category" flow, distinct
+ * from the Kanban board's "+ New" flow where new UserCategories always start
+ * Unmapped. Backspace on an empty query (or the chip's × button) clears the
+ * SpaceCategory choice and drops back to the first step.
  */
-function Combobox<T extends ComboboxItem>({
-  items,
-  selected,
-  onSelect,
-  placeholder,
-  disabled,
-  renderCreate,
+export function TransactionCategorySelect({
+  spaceCategories,
+  userCategories,
+  defaultUserCategoryId = null,
+  onChange,
 }: {
-  items: T[];
-  selected: T | null;
-  onSelect: (item: T | null) => void;
-  placeholder: string;
-  disabled?: boolean;
-  renderCreate?: (query: string, close: () => void) => React.ReactNode;
+  spaceCategories: SpaceCategoryRecordDto[];
+  userCategories: UserCategoryRecordDto[];
+  defaultUserCategoryId?: number | null;
+  onChange?: (state: { userCategoryId: number | null; type: CategoryType | null }) => void;
 }) {
+  const [localSpaceCategories, setLocalSpaceCategories] = useState<SpaceCategoryRecordDto[]>([]);
+  const [localUserCategories, setLocalUserCategories] = useState<UserCategoryRecordDto[]>([]);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const defaultUserCategory = userCategories.find((c) => c.id === defaultUserCategoryId) ?? null;
+  const [selectedSpaceCategoryId, setSelectedSpaceCategoryId] = useState<number | null>(
+    defaultUserCategory?.spaceCategoryId ?? null
+  );
+  const [selectedUserCategoryId, setSelectedUserCategoryId] = useState<number | null>(defaultUserCategoryId);
+
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -36,22 +106,71 @@ function Combobox<T extends ComboboxItem>({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
+  const allSpaceCategories = useMemo(() => {
+    const serverIds = new Set(spaceCategories.map((c) => c.id));
+    const additions = localSpaceCategories.filter((c) => !serverIds.has(c.id));
+    return additions.length ? [...additions, ...spaceCategories] : spaceCategories;
+  }, [spaceCategories, localSpaceCategories]);
+
+  const allUserCategories = useMemo(() => {
+    const serverIds = new Set(userCategories.map((c) => c.id));
+    const additions = localUserCategories.filter((c) => !serverIds.has(c.id));
+    return additions.length ? [...additions, ...userCategories] : userCategories;
+  }, [userCategories, localUserCategories]);
+
+  const selectedSpaceCategory = allSpaceCategories.find((c) => c.id === selectedSpaceCategoryId) ?? null;
+  const selectedUserCategory = allUserCategories.find((c) => c.id === selectedUserCategoryId) ?? null;
+  const stage: "space" | "user" = selectedSpaceCategory ? "user" : "space";
+
+  const userCategoryOptions = useMemo(
+    () => allUserCategories.filter((c) => c.spaceCategoryId === selectedSpaceCategoryId),
+    [allUserCategories, selectedSpaceCategoryId]
+  );
+
   const trimmedQuery = query.trim();
   const loweredQuery = trimmedQuery.toLowerCase();
 
-  const suggestions = useMemo(() => {
-    if (!loweredQuery) return items;
-    return items.filter((item) => item.name.toLowerCase().includes(loweredQuery));
-  }, [items, loweredQuery]);
+  const suggestions = useMemo<Suggestion[]>(() => {
+    if (stage === "user") {
+      const matches = loweredQuery
+        ? userCategoryOptions.filter((item) => item.name.toLowerCase().includes(loweredQuery))
+        : userCategoryOptions;
+      return matches.map((item) => ({ kind: "user", item, spaceCategory: selectedSpaceCategory! }));
+    }
 
-  function selectItem(item: T) {
-    onSelect(item);
-    setQuery("");
-    setIsOpen(false);
-  }
+    const spaceMatches: Suggestion[] = (
+      loweredQuery ? allSpaceCategories.filter((item) => item.name.toLowerCase().includes(loweredQuery)) : allSpaceCategories
+    ).map((item) => ({ kind: "space", item }));
+
+    // While still picking the SpaceCategory, also surface existing
+    // UserCategories whose name matches — shown with their full path —
+    // so a query can jump straight to "Groceries › Kirana" without first
+    // selecting Groceries.
+    const userMatches: Suggestion[] = loweredQuery
+      ? allUserCategories
+          .filter((item) => item.spaceCategoryId != null && item.name.toLowerCase().includes(loweredQuery))
+          .map((item) => {
+            const spaceCategory = allSpaceCategories.find((c) => c.id === item.spaceCategoryId);
+            return spaceCategory ? ({ kind: "user", item, spaceCategory } as Suggestion) : null;
+          })
+          .filter((suggestion): suggestion is Suggestion => suggestion != null)
+      : [];
+
+    return [...spaceMatches, ...userMatches];
+  }, [stage, loweredQuery, allSpaceCategories, allUserCategories, userCategoryOptions, selectedSpaceCategory]);
+
+  const canCreate =
+    trimmedQuery.length >= 2 &&
+    (stage === "space"
+      ? !allSpaceCategories.some((item) => item.name.toLowerCase() === loweredQuery)
+      : !userCategoryOptions.some((item) => item.name.toLowerCase() === loweredQuery));
+
+  useEffect(() => {
+    onChange?.({ userCategoryId: selectedUserCategoryId, type: selectedSpaceCategory?.type ?? null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUserCategoryId, selectedSpaceCategory?.type]);
 
   function openDropdown() {
-    if (disabled) return;
     if (!containerRef.current) {
       setIsOpen(true);
       return;
@@ -62,11 +181,87 @@ function Combobox<T extends ComboboxItem>({
   }
 
   function handleFocus() {
-    setQuery(selected?.name ?? "");
+    setQuery(stage === "user" ? selectedUserCategory?.name ?? "" : "");
     openDropdown();
   }
 
+  function selectSpaceCategory(item: SpaceCategoryRecordDto) {
+    setCreateError(null);
+    setSelectedSpaceCategoryId(item.id);
+    setSelectedUserCategoryId(null);
+    setQuery("");
+    setHighlightedIndex(-1);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  function selectUserCategory(item: UserCategoryRecordDto, spaceCategory: SpaceCategoryRecordDto) {
+    setCreateError(null);
+    setSelectedSpaceCategoryId(spaceCategory.id);
+    setSelectedUserCategoryId(item.id);
+    setQuery("");
+    setIsOpen(false);
+  }
+
+  function pickSuggestion(suggestion: Suggestion) {
+    if (suggestion.kind === "space") {
+      selectSpaceCategory(suggestion.item);
+    } else {
+      selectUserCategory(suggestion.item, suggestion.spaceCategory);
+    }
+  }
+
+  function clearSpaceCategory() {
+    setCreateError(null);
+    setSelectedSpaceCategoryId(null);
+    setSelectedUserCategoryId(null);
+    setQuery("");
+    setHighlightedIndex(-1);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      openDropdown();
+    });
+  }
+
+  function handleCreateSpaceCategory(name: string, type: CategoryType) {
+    if (isPending) return;
+    setCreateError(null);
+    startTransition(async () => {
+      const result = await createSpaceCategoryInline(name, type);
+      if ("error" in result) {
+        setCreateError(result.error);
+        return;
+      }
+      setLocalSpaceCategories((current) =>
+        current.some((c) => c.id === result.spaceCategory.id) ? current : [result.spaceCategory, ...current]
+      );
+      selectSpaceCategory(result.spaceCategory);
+    });
+  }
+
+  function handleCreateUserCategory(name: string) {
+    if (isPending || selectedSpaceCategoryId == null || !selectedSpaceCategory) return;
+    setCreateError(null);
+    const spaceCategory = selectedSpaceCategory;
+    startTransition(async () => {
+      const result = await createUserCategoryInline(name, selectedSpaceCategoryId);
+      if ("error" in result) {
+        setCreateError(result.error);
+        return;
+      }
+      setLocalUserCategories((current) =>
+        current.some((c) => c.id === result.userCategory.id) ? current : [result.userCategory, ...current]
+      );
+      selectUserCategory(result.userCategory, spaceCategory);
+    });
+  }
+
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Backspace" && query === "" && stage === "user") {
+      event.preventDefault();
+      clearSpaceCategory();
+      return;
+    }
+
     if (event.key === "Escape") {
       setIsOpen(false);
       setQuery("");
@@ -97,27 +292,22 @@ function Combobox<T extends ComboboxItem>({
     if (event.key === "Enter") {
       event.preventDefault();
       if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
-        selectItem(suggestions[highlightedIndex]);
+        pickSuggestion(suggestions[highlightedIndex]);
         return;
       }
-      const exact = suggestions.find((item) => item.name.toLowerCase() === loweredQuery);
-      if (exact) selectItem(exact);
+      const exact = suggestions.find((suggestion) => suggestion.item.name.toLowerCase() === loweredQuery);
+      if (exact) pickSuggestion(exact);
     }
   }
 
-  const closeAndMaybeClearSelection = useCallback(() => {
-    setIsOpen((wasOpen) => {
-      if (wasOpen && !trimmedQuery && selected) {
-        onSelect(null);
-      }
-      return false;
-    });
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false);
     setQuery("");
-  }, [trimmedQuery, selected, onSelect]);
+  }, []);
 
   function handleBlur(event: React.FocusEvent<HTMLDivElement>) {
     if (!containerRef.current?.contains(event.relatedTarget as Node | null)) {
-      closeAndMaybeClearSelection();
+      closeDropdown();
     }
   }
 
@@ -125,12 +315,12 @@ function Combobox<T extends ComboboxItem>({
     if (!isOpen) return;
     function handlePointerDown(event: PointerEvent) {
       if (!containerRef.current?.contains(event.target as Node | null)) {
-        closeAndMaybeClearSelection();
+        closeDropdown();
       }
     }
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isOpen, closeAndMaybeClearSelection]);
+  }, [isOpen, closeDropdown]);
 
   useEffect(() => {
     setHighlightedIndex(-1);
@@ -151,242 +341,83 @@ function Combobox<T extends ComboboxItem>({
     };
   }, [isOpen]);
 
+  const inputValue = isOpen ? query : stage === "user" ? selectedUserCategory?.name ?? "" : "";
+  const placeholder =
+    stage === "space"
+      ? "Type to find or create a space category..."
+      : "Type to find or create a user category...";
+
   return (
     <div ref={containerRef} className="relative" onBlur={handleBlur}>
-      <input
-        ref={inputRef}
-        type="text"
-        value={isOpen ? query : selected?.name ?? ""}
-        onChange={(event) => {
-          if (!isOpen) openDropdown();
-          setQuery(event.target.value);
-        }}
-        onFocus={handleFocus}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-      />
+      {selectedUserCategoryId != null ? <input type="hidden" name="userCategoryId" value={selectedUserCategoryId} /> : null}
+      <div
+        className="flex h-10 w-full items-center gap-1.5 rounded-md border border-input bg-background px-2 text-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {selectedSpaceCategory ? (
+          <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+            {selectedSpaceCategory.name} <span aria-hidden="true">&gt;</span>
+          </span>
+        ) : null}
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(event) => {
+            if (!isOpen) openDropdown();
+            setQuery(event.target.value);
+          }}
+          onFocus={handleFocus}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+        />
+      </div>
       {isOpen ? (
         <ul style={dropdownStyle} className="max-h-64 overflow-auto rounded-md border border-border bg-popover p-1 text-sm shadow-md">
-          {suggestions.map((item, index) => (
-            <li key={item.id}>
+          {suggestions.map((suggestion, index) => (
+            <li key={`${suggestion.kind}-${suggestion.item.id}`}>
               <button
                 type="button"
-                onClick={() => selectItem(item)}
+                onClick={() => pickSuggestion(suggestion)}
                 className={cn(
                   "block w-full rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground",
                   highlightedIndex === index && "bg-accent text-accent-foreground"
                 )}
               >
-                {item.name}
+                {suggestion.kind === "user" && stage === "space" ? (
+                  <>
+                    <span className="text-muted-foreground">{suggestion.spaceCategory.name} &rsaquo; </span>
+                    {suggestion.item.name}
+                  </>
+                ) : (
+                  suggestion.item.name
+                )}
               </button>
             </li>
           ))}
-          {!suggestions.length && !renderCreate ? (
-            <li className="px-2 py-1.5 text-muted-foreground">No matches</li>
+          {!suggestions.length && !canCreate ? (
+            <li className="px-2 py-1.5 text-muted-foreground">
+              {stage === "user" ? "No user categories yet" : "No matches"}
+            </li>
           ) : null}
-          {renderCreate ? <li className="border-t pt-1">{renderCreate(trimmedQuery, () => setIsOpen(false))}</li> : null}
+          {canCreate ? (
+            <li className="border-t pt-1">
+              {stage === "space" ? (
+                <CreateSpaceCategoryRow query={trimmedQuery} onCreate={handleCreateSpaceCategory} />
+              ) : (
+                <CreateUserCategoryRow query={trimmedQuery} disabled={isPending} onCreate={handleCreateUserCategory} />
+              )}
+            </li>
+          ) : null}
         </ul>
       ) : null}
-    </div>
-  );
-}
-
-function CreateUserCategoryRow({
-  query,
-  disabled,
-  onCreate,
-}: {
-  query: string;
-  disabled?: boolean;
-  onCreate: (name: string) => void;
-}) {
-  if (query.length < 2 || disabled) return null;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onCreate(query)}
-      className="block w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-    >
-      {`Create "${query}"`}
-    </button>
-  );
-}
-
-function CreateSpaceCategoryRow({
-  query,
-  onCreate,
-}: {
-  query: string;
-  onCreate: (name: string, type: CategoryType) => void;
-}) {
-  const [type, setType] = useState<CategoryType>("expense");
-
-  if (query.length < 2) return null;
-
-  return (
-    <div className="flex items-center gap-1 px-1 py-1">
-      <button
-        type="button"
-        onClick={() => onCreate(query, type)}
-        className="flex-1 rounded-sm px-1.5 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-      >
-        {`Create "${query}"`}
-      </button>
-      <select
-        value={type}
-        onChange={(event) => setType(event.target.value as CategoryType)}
-        onClick={(event) => event.stopPropagation()}
-        className="h-7 shrink-0 rounded-md border border-input bg-background px-1 text-xs"
-      >
-        <option value="expense">Expense</option>
-        <option value="income">Income</option>
-      </select>
-    </div>
-  );
-}
-
-/**
- * Two-step category picker for a transaction: pick a SpaceCategory first
- * (implicitly setting the transaction's type from it), then pick or create a
- * UserCategory scoped to that SpaceCategory. A UserCategory created here is
- * mapped to the chosen SpaceCategory immediately — this is the explicit
- * "place a transaction in a category" flow, distinct from the Kanban board's
- * "+ New" flow where new UserCategories always start Unmapped.
- */
-export function TransactionCategorySelect({
-  spaceCategories,
-  userCategories,
-  defaultUserCategoryId = null,
-  onChange,
-}: {
-  spaceCategories: SpaceCategoryRecordDto[];
-  userCategories: UserCategoryRecordDto[];
-  defaultUserCategoryId?: number | null;
-  onChange?: (state: { userCategoryId: number | null; type: CategoryType | null }) => void;
-}) {
-  const [localSpaceCategories, setLocalSpaceCategories] = useState<SpaceCategoryRecordDto[]>([]);
-  const [localUserCategories, setLocalUserCategories] = useState<UserCategoryRecordDto[]>([]);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  const defaultUserCategory = userCategories.find((c) => c.id === defaultUserCategoryId) ?? null;
-  const [selectedSpaceCategoryId, setSelectedSpaceCategoryId] = useState<number | null>(
-    defaultUserCategory?.spaceCategoryId ?? null
-  );
-  const [selectedUserCategoryId, setSelectedUserCategoryId] = useState<number | null>(defaultUserCategoryId);
-
-  const allSpaceCategories = useMemo(() => {
-    const serverIds = new Set(spaceCategories.map((c) => c.id));
-    const additions = localSpaceCategories.filter((c) => !serverIds.has(c.id));
-    return additions.length ? [...additions, ...spaceCategories] : spaceCategories;
-  }, [spaceCategories, localSpaceCategories]);
-
-  const allUserCategories = useMemo(() => {
-    const serverIds = new Set(userCategories.map((c) => c.id));
-    const additions = localUserCategories.filter((c) => !serverIds.has(c.id));
-    return additions.length ? [...additions, ...userCategories] : userCategories;
-  }, [userCategories, localUserCategories]);
-
-  const selectedSpaceCategory = allSpaceCategories.find((c) => c.id === selectedSpaceCategoryId) ?? null;
-  const selectedUserCategory = allUserCategories.find((c) => c.id === selectedUserCategoryId) ?? null;
-
-  const userCategoryOptions = useMemo(
-    () => allUserCategories.filter((c) => c.spaceCategoryId === selectedSpaceCategoryId),
-    [allUserCategories, selectedSpaceCategoryId]
-  );
-
-  useEffect(() => {
-    onChange?.({ userCategoryId: selectedUserCategoryId, type: selectedSpaceCategory?.type ?? null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedUserCategoryId, selectedSpaceCategory?.type]);
-
-  function handleSelectSpaceCategory(item: SpaceCategoryRecordDto | null) {
-    setCreateError(null);
-    setSelectedSpaceCategoryId(item?.id ?? null);
-    setSelectedUserCategoryId(null);
-  }
-
-  function handleCreateSpaceCategory(name: string, type: CategoryType) {
-    if (isPending) return;
-    setCreateError(null);
-    startTransition(async () => {
-      const result = await createSpaceCategoryInline(name, type);
-      if ("error" in result) {
-        setCreateError(result.error);
-        return;
-      }
-      setLocalSpaceCategories((current) =>
-        current.some((c) => c.id === result.spaceCategory.id) ? current : [result.spaceCategory, ...current]
-      );
-      setSelectedSpaceCategoryId(result.spaceCategory.id);
-      setSelectedUserCategoryId(null);
-    });
-  }
-
-  function handleCreateUserCategory(name: string) {
-    if (isPending || selectedSpaceCategoryId == null) return;
-    setCreateError(null);
-    startTransition(async () => {
-      const result = await createUserCategoryInline(name, selectedSpaceCategoryId);
-      if ("error" in result) {
-        setCreateError(result.error);
-        return;
-      }
-      setLocalUserCategories((current) =>
-        current.some((c) => c.id === result.userCategory.id) ? current : [result.userCategory, ...current]
-      );
-      setSelectedUserCategoryId(result.userCategory.id);
-    });
-  }
-
-  return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {selectedUserCategoryId != null ? <input type="hidden" name="userCategoryId" value={selectedUserCategoryId} /> : null}
-      <div>
-        <Combobox
-          items={allSpaceCategories}
-          selected={selectedSpaceCategory}
-          onSelect={handleSelectSpaceCategory}
-          placeholder="Type to find or create a category..."
-          renderCreate={(query, close) => (
-            <CreateSpaceCategoryRow
-              query={query}
-              onCreate={(name, type) => {
-                handleCreateSpaceCategory(name, type);
-                close();
-              }}
-            />
-          )}
-        />
-      </div>
-      <div>
-        <Combobox
-          items={userCategoryOptions}
-          selected={selectedUserCategory}
-          onSelect={(item) => setSelectedUserCategoryId(item?.id ?? null)}
-          placeholder={selectedSpaceCategoryId == null ? "Pick a category first" : "Type to find or create a subcategory..."}
-          disabled={selectedSpaceCategoryId == null}
-          renderCreate={(query, close) => (
-            <CreateUserCategoryRow
-              query={query}
-              disabled={isPending}
-              onCreate={(name) => {
-                handleCreateUserCategory(name);
-                close();
-              }}
-            />
-          )}
-        />
-      </div>
       {defaultUserCategory && defaultUserCategory.spaceCategoryId == null && selectedUserCategoryId === defaultUserCategoryId ? (
-        <p className="text-xs text-muted-foreground sm:col-span-2">
-          {`Currently Unmapped — pick a category to place "${defaultUserCategory.name}" into it.`}
+        <p className="mt-1 text-xs text-muted-foreground">
+          {`Currently Unmapped — pick a space category to place "${defaultUserCategory.name}" into it.`}
         </p>
       ) : null}
-      {createError ? <p className="text-xs text-destructive sm:col-span-2">{createError}</p> : null}
+      {createError ? <p className="mt-1 text-xs text-destructive">{createError}</p> : null}
     </div>
   );
 }

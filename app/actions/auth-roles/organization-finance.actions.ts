@@ -32,7 +32,7 @@ import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types"
 import type { OrganizationFinanceDataDto, SpaceCategoryRecordDto } from "@/app/lib/finance.types";
 
 const spaceCategorySchema = z.object({
-  name: z.string().trim().min(2, "Category name is required").max(100),
+  name: z.string().trim().min(2, "Space category name is required").max(100),
   type: z.enum(["expense", "income"]).default("expense"),
 });
 
@@ -150,13 +150,13 @@ export async function createSpaceCategoryAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to create category" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to create space category" };
   }
 
   const orgId = assertOrgId(currentUser);
 
   if (await getSpaceCategoryByOrgAndName(orgId, parsed.data.name)) {
-    return { error: "Category already exists" };
+    return { error: "Space category already exists" };
   }
 
   await createSpaceCategoryRecord({
@@ -183,7 +183,7 @@ export async function createSpaceCategoryInline(
   const parsed = spaceCategorySchema.safeParse({ name, type });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to create category" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to create space category" };
   }
 
   const orgId = assertOrgId(currentUser);
@@ -201,7 +201,7 @@ export async function createSpaceCategoryInline(
   });
 
   if (!record) {
-    return { error: "Unable to create category" };
+    return { error: "Unable to create space category" };
   }
 
   revalidatePath(ROUTES.CATEGORIES);
@@ -232,22 +232,22 @@ export async function updateSpaceCategoryAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to update category" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to update space category" };
   }
 
   if (!spaceCategoryIdResult.success) {
-    return { error: "Category is required" };
+    return { error: "Space category is required" };
   }
 
   const spaceCategory = await getSpaceCategoryById(spaceCategoryIdResult.data.spaceCategoryId);
   if (!spaceCategory || spaceCategory.orgId !== currentUser.orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Space category does not belong to your organization" };
   }
 
   if (spaceCategory.type === "expense" && parsed.data.type === "income") {
     const usage = await getSpaceCategoryUsageCounts(spaceCategory.id);
     if (usage.budgetCount > 0) {
-      return { error: "Categories used by budgets must remain expense type" };
+      return { error: "Space categories used by budgets must remain expense type" };
     }
   }
 
@@ -270,18 +270,18 @@ export async function deleteSpaceCategoryAction(
   });
 
   if (!spaceCategoryIdResult.success) {
-    return { error: "Category is required" };
+    return { error: "Space category is required" };
   }
 
   const spaceCategory = await getSpaceCategoryById(spaceCategoryIdResult.data.spaceCategoryId);
   if (!spaceCategory || spaceCategory.orgId !== currentUser.orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Space category does not belong to your organization" };
   }
 
   const usage = await getSpaceCategoryUsageCounts(spaceCategory.id);
   if (usage.budgetCount > 0) {
     return {
-      error: "Category is in use by existing budgets and cannot be deleted",
+      error: "Space category is in use by existing budgets and cannot be deleted",
     };
   }
 
@@ -327,10 +327,10 @@ export async function createPersonalBudgetAction(
 
   const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
   if (!spaceCategory || spaceCategory.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Space category does not belong to your organization" };
   }
   if (spaceCategory.type !== "expense") {
-    return { error: "Budgets can only use expense categories" };
+    return { error: "Budgets can only use expense space categories" };
   }
 
   const bounds = getBudgetMonthBounds(parsed.data.month);
@@ -367,10 +367,10 @@ export async function createSharedBudgetAction(
 
   const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
   if (!spaceCategory || spaceCategory.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Space category does not belong to your organization" };
   }
   if (spaceCategory.type !== "expense") {
-    return { error: "Budgets can only use expense categories" };
+    return { error: "Budgets can only use expense space categories" };
   }
 
   const bounds = getBudgetMonthBounds(parsed.data.month);
@@ -413,10 +413,10 @@ export async function updatePersonalBudgetAction(
 
   const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
   if (!spaceCategory || spaceCategory.orgId !== currentUser.orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Space category does not belong to your organization" };
   }
   if (spaceCategory.type !== "expense") {
-    return { error: "Budgets can only use expense categories" };
+    return { error: "Budgets can only use expense space categories" };
   }
 
   const bounds = getBudgetMonthBounds(parsed.data.month);
@@ -462,10 +462,10 @@ export async function updateSharedBudgetAction(
 
   const spaceCategory = await getSpaceCategoryById(parsed.data.spaceCategoryId);
   if (!spaceCategory || spaceCategory.orgId !== orgId) {
-    return { error: "Category does not belong to your organization" };
+    return { error: "Space category does not belong to your organization" };
   }
   if (spaceCategory.type !== "expense") {
-    return { error: "Budgets can only use expense categories" };
+    return { error: "Budgets can only use expense space categories" };
   }
 
   const bounds = getBudgetMonthBounds(parsed.data.month);

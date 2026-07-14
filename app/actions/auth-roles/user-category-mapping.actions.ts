@@ -123,12 +123,12 @@ export async function updateUserCategoryMappingAction(
 
   const ownership = await assertOwnsUserCategoryAndSpace(currentUser, parsed.data.userCategoryId, parsed.data.targetOrgId);
   if (!ownership) {
-    return { error: "Category or space is not available to you" };
+    return { error: "Space category or space is not available to you" };
   }
 
   const spaceCategory = await getSpaceCategoryByIdAndOrg(parsed.data.spaceCategoryId, parsed.data.targetOrgId);
   if (!spaceCategory) {
-    return { error: "SpaceCategory does not belong to this space" };
+    return { error: "Space category does not belong to this space" };
   }
 
   await upsertMapping({
@@ -158,12 +158,12 @@ export async function unmapUserCategoryAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to unmap category" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to unmap user category" };
   }
 
   const ownership = await assertOwnsUserCategoryAndSpace(currentUser, parsed.data.userCategoryId, parsed.data.targetOrgId);
   if (!ownership) {
-    return { error: "Category or space is not available to you" };
+    return { error: "Space category or space is not available to you" };
   }
 
   await deleteMapping(parsed.data.userCategoryId, parsed.data.targetOrgId);

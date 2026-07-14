@@ -17,7 +17,7 @@ import type { FinanceActionState } from "@/app/actions/auth-roles/finance.types"
 import type { UserCategoryRecordDto } from "@/app/lib/finance.types";
 
 const userCategoryNameSchema = z.object({
-  name: z.string().trim().min(2, "Category name is required").max(100),
+  name: z.string().trim().min(2, "User category name is required").max(100),
 });
 
 const userCategoryIdSchema = z.object({
@@ -70,7 +70,7 @@ export async function createUserCategoryInline(
   const parsed = userCategoryNameSchema.safeParse({ name });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to create category" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to create user category" };
   }
 
   const orgId = assertPersonalOrgId(currentUser);
@@ -83,7 +83,7 @@ export async function createUserCategoryInline(
   if (spaceCategoryId != null) {
     const spaceCategory = await getSpaceCategoryById(spaceCategoryId);
     if (!spaceCategory || spaceCategory.orgId !== orgId) {
-      return { error: "SpaceCategory does not belong to your personal space" };
+      return { error: "Space category does not belong to your personal space" };
     }
     resolvedSpaceCategoryId = spaceCategoryId;
   }
@@ -96,7 +96,7 @@ export async function createUserCategoryInline(
   });
 
   if (!record) {
-    return { error: "Unable to create category" };
+    return { error: "Unable to create user category" };
   }
 
   revalidatePath(ROUTES.CATEGORIES);
@@ -112,21 +112,21 @@ export async function renameUserCategoryAction(
   const idResult = userCategoryIdSchema.safeParse({ userCategoryId: formData.get("userCategoryId") });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Unable to update category" };
+    return { error: parsed.error.issues[0]?.message ?? "Unable to update user category" };
   }
   if (!idResult.success) {
-    return { error: "Category is required" };
+    return { error: "User category is required" };
   }
 
   const orgId = assertPersonalOrgId(currentUser);
   const userCategory = await getUserCategoryById(idResult.data.userCategoryId);
 
   if (!userCategory || userCategory.orgId !== orgId || userCategory.createdBy !== currentUser.id) {
-    return { error: "Category does not belong to you" };
+    return { error: "User category does not belong to you" };
   }
 
   if (await getUserCategoryByOrgAndName(orgId, parsed.data.name, userCategory.id)) {
-    return { error: "You already have a category with this name" };
+    return { error: "You already have a user category with this name" };
   }
 
   await updateUserCategoryRecord(userCategory.id, { name: parsed.data.name, updatedAt: new Date() });
@@ -148,13 +148,13 @@ export async function setUserCategorySpaceCategoryAction(input: {
   const userCategory = await getUserCategoryById(input.userCategoryId);
 
   if (!userCategory || userCategory.orgId !== orgId || userCategory.createdBy !== currentUser.id) {
-    return { error: "Category does not belong to you" };
+    return { error: "User category does not belong to you" };
   }
 
   if (input.spaceCategoryId !== null) {
     const spaceCategory = await getSpaceCategoryById(input.spaceCategoryId);
     if (!spaceCategory || spaceCategory.orgId !== orgId) {
-      return { error: "SpaceCategory does not belong to your personal space" };
+      return { error: "Space category does not belong to your personal space" };
     }
   }
 
@@ -171,19 +171,19 @@ export async function deleteUserCategoryAction(
   const idResult = userCategoryIdSchema.safeParse({ userCategoryId: formData.get("userCategoryId") });
 
   if (!idResult.success) {
-    return { error: "Category is required" };
+    return { error: "User category is required" };
   }
 
   const orgId = assertPersonalOrgId(currentUser);
   const userCategory = await getUserCategoryById(idResult.data.userCategoryId);
 
   if (!userCategory || userCategory.orgId !== orgId || userCategory.createdBy !== currentUser.id) {
-    return { error: "Category does not belong to you" };
+    return { error: "User category does not belong to you" };
   }
 
   const usageCount = await getUserCategoryUsageCount(userCategory.id);
   if (usageCount > 0) {
-    return { error: "Category is in use by existing transactions and cannot be deleted" };
+    return { error: "User category is in use by existing transactions and cannot be deleted" };
   }
 
   await deleteUserCategoryRecord(userCategory.id);

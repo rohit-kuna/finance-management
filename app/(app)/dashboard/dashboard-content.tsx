@@ -1,22 +1,38 @@
 import { getExpensesDashboardData } from "@/app/actions/auth-roles/expense.actions";
-import { ExpenseFormCard } from "@/components/features/expenses/expense-management";
+import { ExpenseFormCard, ExpenseTable } from "@/components/features/expenses/expense-management";
 import { ExpenseActivityChart } from "@/components/features/activity/activity-dashboard-dynamic";
 
 export async function DashboardContent() {
   const data = await getExpensesDashboardData();
   const ownExpenses = data.expenses.filter((expense) => expense.userId === data.currentUser.id);
   const currentMonth = new Date().toISOString().slice(0, 7);
+  const isPersonalSpace = data.organization?.isPersonal ?? true;
 
   return (
     <>
-      <ExpenseFormCard
-        counterparties={data.counterparties}
-        transactionModes={data.transactionModes}
-        spaceCategories={data.spaceCategories}
-        userCategories={data.userCategories}
-        tags={data.tags}
-        editingExpense={null}
-      />
+      {isPersonalSpace ? (
+        <ExpenseFormCard
+          counterparties={data.counterparties}
+          transactionModes={data.transactionModes}
+          spaceCategories={data.spaceCategories}
+          userCategories={data.userCategories}
+          tags={data.tags}
+          editingExpense={null}
+        />
+      ) : (
+        <ExpenseTable
+          expenses={data.expenses}
+          spaceCategories={data.spaceCategories}
+          userCategories={data.userCategories}
+          counterparties={data.counterparties}
+          transactionModes={data.transactionModes}
+          tags={data.tags}
+          currentUserId={data.currentUser.id}
+          isAdmin={data.currentUser.role === "ADMIN"}
+          readOnly
+          showMemberColumn
+        />
+      )}
 
       <ExpenseActivityChart expenses={ownExpenses} monthStart={currentMonth} monthEnd={currentMonth} />
     </>

@@ -50,11 +50,13 @@ type HeaderNavConfig = {
   settingsGroups: HeaderNavGroup[];
 };
 
-// A shared space is a read-only lens — Transactions, Transfers, Tags, Modes,
-// Counterparties, and Import Export all require transaction entry/metadata
-// management, which only ever happens in personal space (see
-// requireActiveOrgIsPersonal). Analytics, Budgets, and Categories work in
-// both; Space/Users are admin-only regardless of space.
+// A shared space is a read-only lens — Transfers, Tags, Modes, Counterparties,
+// and Import Export all require transaction entry/metadata management, which
+// only ever happens in personal space (see requireActiveOrgIsPersonal).
+// Transactions stays visible in both: personal space gets full add/edit,
+// shared space gets a read-only results list (see TransactionsContent).
+// Analytics, Budgets, and Categories work in both; Space/Users are
+// admin-only regardless of space.
 function getNavConfig(
   role: AppRole,
   hasOrganization: boolean,
@@ -65,11 +67,11 @@ function getNavConfig(
   }
 
   const topItems: HeaderNavItem[] = [
+    { label: "Transactions", href: ROUTES.TRANSACTIONS },
     { label: "Analytics", href: ROUTES.ANALYTICS },
     { label: "Budgets", href: ROUTES.BUDGETS },
   ];
   if (isPersonalSpace) {
-    topItems.unshift({ label: "Transactions", href: ROUTES.TRANSACTIONS });
     topItems.push({ label: "Transfers", href: ROUTES.TRANSFERS });
   }
 

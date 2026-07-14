@@ -109,7 +109,7 @@ function BudgetEditor({
         <input type="hidden" name="budgetId" value={budget.id} />
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Category</Label>
+            <Label>Space Category</Label>
             <CategorySelect categories={categories} name="spaceCategoryId" defaultValue={budget.spaceCategoryId} />
           </div>
           <div className="space-y-2">
@@ -256,7 +256,7 @@ function AllocationSummaryPanel({
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:max-w-sm">
         <Label htmlFor="allocation-category-filter" className="text-sm font-medium">
-          Category
+          Space Category
         </Label>
         <select
           id="allocation-category-filter"
@@ -297,7 +297,7 @@ function PersonalBudgetSection({
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            Ask an admin to create expense categories before adding budgets.
+            Ask an admin to create expense space categories before adding budgets.
           </div>
         </CardContent>
       </Card>
@@ -312,7 +312,7 @@ function PersonalBudgetSection({
       <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
         <form action={createAction} className="grid gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Category</Label>
+            <Label>Space Category</Label>
             <CategorySelect categories={categories} name="spaceCategoryId" />
           </div>
           <div className="space-y-2">
@@ -367,7 +367,7 @@ function SharedBudgetSection({
         </CardHeader>
         <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
           <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            Create expense categories before adding shared budgets.
+            Create expense space categories before adding shared budgets.
           </div>
         </CardContent>
       </Card>
@@ -382,7 +382,7 @@ function SharedBudgetSection({
       <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
         <form action={createAction} className="grid gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Category</Label>
+            <Label>Space Category</Label>
             <CategorySelect categories={categories} name="spaceCategoryId" />
           </div>
           <div className="space-y-2">
@@ -550,7 +550,7 @@ export function BudgetManagement({
 
       {!expenseCategories.length ? (
         <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-          You need expense categories before budgets can be created. Ask an admin to add them first.
+          You need expense space categories before budgets can be created. Ask an admin to add them first.
         </div>
       ) : null}
     </section>

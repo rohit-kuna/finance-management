@@ -222,7 +222,7 @@ export async function bulkCreateExpenseAction(
     getTransactionModeById(input.transactionModeId),
   ]);
 
-  if (!userCategory) return { success: false, error: "Subcategory not found" };
+  if (!userCategory) return { success: false, error: "User category not found" };
   if (!mode || mode.userId !== currentUser.id) return { success: false, error: "Transaction mode not found" };
 
   let counterPartyId: number | null = null;

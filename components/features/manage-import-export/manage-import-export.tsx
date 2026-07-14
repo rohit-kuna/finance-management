@@ -456,7 +456,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
               <CardTitle className="text-3xl tracking-tight">Manage import export</CardTitle>
               <p className="max-w-3xl text-sm text-muted-foreground">
                 Upload an Excel expense sheet for the signed-in user, map the workbook headers you
-                need, and then match categories, counterparties, and transaction modes that already
+                need, and then match space categories, counterparties, and transaction modes that already
                 exist in your account before import.
               </p>
             </div>
@@ -528,13 +528,13 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
             <p>Column names are flexible. Map your workbook headers before reviewing the rows.</p>
             <p>Counterparties and modes must already exist in your account before you import.</p>
             <p>Every imported row is assigned to the signed-in user, so there is no user column or user mapping.</p>
-            <p>Every row needs a subcategory. If it doesn&apos;t already exist, it&apos;s created automatically, starting Unmapped — map it into a category afterward on the Categories page.</p>
+            <p>Every row needs a user category. If it doesn&apos;t already exist, it&apos;s created automatically, starting Unmapped — map it into a space category afterward on the Categories page.</p>
             <p>If a sheet value does not match an existing counterparty or mode, create it first in the app and then come back to map it.</p>
             <p>Mode rows are optional. If you do not map a mode column, expenses import without a transaction mode.</p>
             <p>Blank `necessity_score` defaults to 1.</p>
             <p>The spreadsheet `type` column (expense/income) is required on every row.</p>
             <p>
-              Duplicate rows are rejected when `amount`, `user_id`, `subcategory_id`, `note`, and
+              Duplicate rows are rejected when `amount`, `user_id`, `user_category_id`, `note`, and
               `transactionTimestamp` all match an existing expense.
             </p>
             <p>Imports are atomic, so any bad row stops the whole batch.</p>
@@ -852,8 +852,8 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     <div className="space-y-4">
                       <SectionTitle
                         eyebrow={subcategoryStepLabel}
-                        title="Subcategories"
-                        description="Sheet subcategories are matched to your existing subcategories by name. Any subcategory that doesn't already exist will be created automatically during import, starting Unmapped — no action needed here."
+                        title="User Categories"
+                        description="Sheet user categories are matched to your existing user categories by name. Any user category that doesn't already exist will be created automatically during import, starting Unmapped — no action needed here."
                       />
                       <div className="space-y-3 rounded-lg border bg-muted/15 p-4">
                         <div className="grid gap-3">
@@ -864,7 +864,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                             >
                               <div className="space-y-1">
                                 <p className="text-sm font-medium">{check.sheetValue}</p>
-                                <p className="text-xs text-muted-foreground">sheet subcategory value</p>
+                                <p className="text-xs text-muted-foreground">sheet user category value</p>
                               </div>
                               <Badge variant={check.hasMatch ? "success" : "outline"} className="shrink-0">
                                 {check.hasMatch ? "Matched" : "Will be created"}
@@ -876,7 +876,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                     </div>
                   ) : (
                     <div className="rounded-lg border bg-muted/15 p-4 text-sm text-muted-foreground">
-                      No subcategories column is mapped, so imported expenses will not have subcategories.
+                      No user categories column is mapped, so imported expenses will not have user categories.
                     </div>
                   )}
 
@@ -956,7 +956,7 @@ export function ManageImportExport({ data }: { data: ManageImportExportDataDto }
                         <p className="font-medium">Ready to import</p>
                         <p className="text-sm text-muted-foreground">
                           The import runs in a single transaction. If any mapping or row fails,
-                          nothing is written to the database. Missing categories, counterparties,
+                          nothing is written to the database. Missing space categories, counterparties,
                           or modes must be created first.
                         </p>
                       </div>

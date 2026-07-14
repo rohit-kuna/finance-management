@@ -297,7 +297,7 @@ export function ExpenseFormCard({
       <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
         {!userCategories.length ? (
           <div className="rounded-lg border border-dashed bg-background/80 p-4 text-sm text-muted-foreground">
-            Create a subcategory first, then you can add transactions.
+            Create a user category first, then you can add transactions.
           </div>
         ) : !transactionModes.length ? (
           <div className="rounded-lg border border-dashed bg-background/80 p-4 text-sm text-muted-foreground">
@@ -327,30 +327,30 @@ export function ExpenseFormCard({
                 />
               </div>
               <div className="space-y-2">
+                <Label>
+                  Category <span className="text-destructive">*</span>
+                </Label>
+                <TransactionCategorySelect
+                  spaceCategories={spaceCategories}
+                  userCategories={userCategories}
+                  defaultUserCategoryId={editingExpense?.userCategoryId ?? null}
+                  onChange={({ type }) => {
+                    if (type) setSelectedType(type);
+                  }}
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
                 <Label>Tags</Label>
                 <TagMultiSelect tags={tags} defaultSelectedTagIds={editingExpense?.tagIds ?? []} />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>
-                Category <span className="text-destructive">*</span>
-              </Label>
-              <TransactionCategorySelect
-                spaceCategories={spaceCategories}
-                userCategories={userCategories}
-                defaultUserCategoryId={editingExpense?.userCategoryId ?? null}
-                onChange={({ type }) => {
-                  if (type) setSelectedType(type);
-                }}
-              />
-            </div>
-            {!isIncome ? (
-              <div className="sm:max-w-xs">
+              {!isIncome ? (
                 <NecessityScoreToggle defaultValue={editingExpense?.necessityScore ?? 0} />
-              </div>
-            ) : (
-              <input type="hidden" name="necessityScore" value={1} />
-            )}
+              ) : (
+                <input type="hidden" name="necessityScore" value={1} />
+              )}
+            </div>
             <div className={cn(!isAdvanced && "hidden")}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -500,7 +500,7 @@ function ExpenseRowActions({
   );
 }
 
-function ExpenseTable({
+export function ExpenseTable({
   expenses,
   spaceCategories,
   userCategories,
@@ -510,6 +510,8 @@ function ExpenseTable({
   currentUserId,
   isAdmin,
   onEdit,
+  readOnly = false,
+  showMemberColumn = false,
 }: {
   expenses: ExpenseRecordDto[];
   spaceCategories: SpaceCategoryRecordDto[];
@@ -519,7 +521,9 @@ function ExpenseTable({
   tags: TagRecordDto[];
   currentUserId: string;
   isAdmin: boolean;
-  onEdit: (expense: ExpenseRecordDto) => void;
+  onEdit?: (expense: ExpenseRecordDto) => void;
+  readOnly?: boolean;
+  showMemberColumn?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -538,7 +542,7 @@ function ExpenseTable({
 
   const subcategoryOptions = useMemo(
     () => [
-      { value: "all", label: "All subcategories" },
+      { value: "all", label: "All user categories" },
       ...userCategories.map((userCategory) => ({
         value: String(userCategory.id),
         label: userCategory.name,
@@ -599,6 +603,17 @@ function ExpenseTable({
         header: ({ column }) => <SortableHeader column={column} title="Date" />,
         cell: ({ row }) => formatExpenseDate(row.original.occurredAt),
       },
+      ...(showMemberColumn
+        ? [
+            {
+              accessorKey: "userName",
+              header: ({ column }: { column: Column<ExpenseRecordDto, unknown> }) => (
+                <SortableHeader column={column} title="Member" />
+              ),
+              cell: ({ row }: { row: { original: ExpenseRecordDto } }) => row.original.userName,
+            } satisfies ColumnDef<ExpenseRecordDto>,
+          ]
+        : []),
       {
         accessorKey: "amount",
         header: ({ column }) => <SortableHeader column={column} title="Amount" />,
@@ -612,7 +627,7 @@ function ExpenseTable({
       },
       {
         accessorKey: "userCategoryName",
-        header: ({ column }) => <SortableHeader column={column} title="Subcategory" />,
+        header: ({ column }) => <SortableHeader column={column} title="User Category" />,
         cell: ({ row }) => (
           <span className="font-medium">
             {row.original.spaceCategoryName
@@ -661,21 +676,25 @@ function ExpenseTable({
         header: "Counterparty",
         cell: ({ row }) => row.original.counterPartyName ?? "—",
       },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <span onClick={(e) => e.stopPropagation()}>
-            <ExpenseRowActions
-              expense={row.original}
-              onEdit={onEdit}
-              canManage={isAdmin || row.original.userId === currentUserId}
-            />
-          </span>
-        ),
-      },
+      ...(readOnly
+        ? []
+        : [
+            {
+              id: "actions",
+              header: "",
+              cell: ({ row }: { row: { original: ExpenseRecordDto } }) => (
+                <span onClick={(e) => e.stopPropagation()}>
+                  <ExpenseRowActions
+                    expense={row.original}
+                    onEdit={onEdit!}
+                    canManage={isAdmin || row.original.userId === currentUserId}
+                  />
+                </span>
+              ),
+            } satisfies ColumnDef<ExpenseRecordDto>,
+          ]),
     ],
-    [currentUserId, isAdmin, onEdit, tagsById]
+    [currentUserId, isAdmin, onEdit, tagsById, showMemberColumn, readOnly]
   );
 
   const table = useReactTable({
@@ -696,7 +715,9 @@ function ExpenseTable({
           <div>
             <CardTitle className="text-2xl tracking-tight">Transactions</CardTitle>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Filter, sort, edit, and remove your transactions, including optional counterparty links.
+              {readOnly
+                ? "Browse transactions mapped into this space, from every member."
+                : "Filter, sort, edit, and remove your transactions, including optional counterparty links."}
             </p>
           </div>
           <Badge variant="secondary">{filteredExpenses.length} records</Badge>
@@ -741,7 +762,7 @@ function ExpenseTable({
             />
           </div>
           <div className="space-y-2">
-            <Label>Subcategories</Label>
+            <Label>User Categories</Label>
             <FilterSelect value={subcategoryFilter} onChange={setSubcategoryFilter} options={subcategoryOptions} />
           </div>
           <div className="space-y-2">
@@ -786,7 +807,7 @@ function ExpenseTable({
             <TableBody>
               {table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => {
-                  const isEditing = editingRowId === row.original.id;
+                  const isEditing = !readOnly && editingRowId === row.original.id;
                   return isEditing ? (
                     <InlineEditRow
                       key={row.id}
@@ -801,10 +822,10 @@ function ExpenseTable({
                   ) : (
                     <TableRow
                       key={row.id}
-                      className="md:cursor-pointer"
-                      title="Click to edit"
+                      className={cn(!readOnly && "md:cursor-pointer")}
+                      title={readOnly ? undefined : "Click to edit"}
                       onClick={() => {
-                        if (window.matchMedia("(min-width: 768px)").matches) {
+                        if (!readOnly && window.matchMedia("(min-width: 768px)").matches) {
                           setEditingRowId(row.original.id);
                         }
                       }}

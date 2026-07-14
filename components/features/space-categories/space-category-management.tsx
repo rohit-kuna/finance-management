@@ -84,8 +84,8 @@ export function SpaceCategoryManagement({
           <CardTitle className="max-w-3xl text-3xl leading-tight tracking-tight">Manage Categories</CardTitle>
           <p className="max-w-3xl text-sm text-muted-foreground">
             {isPersonalSpace
-              ? "Create categories, then create subcategories and drag them onto a category to organize your transactions. New subcategories start Unmapped."
-              : "This is a shared space — categories here are top-level only. Drag your own subcategories onto a category to map them into this space; unmapped ones won't show up in this space's reports."}
+              ? "Create space categories, then create user categories and drag them onto a space category to organize your transactions. New user categories start Unmapped."
+              : "This is a shared space — space categories here are top-level only. Drag your own user categories onto a space category to map them into this space; unmapped ones won't show up in this space's reports."}
           </p>
         </CardHeader>
       </Card>
@@ -93,7 +93,7 @@ export function SpaceCategoryManagement({
       {canManageSpaceCategories ? (
         <Card className="py-2">
           <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
-            <CardTitle className="text-xl tracking-tight">Add a category</CardTitle>
+            <CardTitle className="text-xl tracking-tight">Add a Space Category</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-6 sm:px-8 sm:pb-8">
             <CreateSpaceCategoryForm />

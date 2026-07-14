@@ -13,7 +13,7 @@ export function CreateSpaceCategoryForm() {
   return (
     <form action={formAction} className="grid gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end">
       <div className="space-y-2">
-        <Label htmlFor="new-space-category-name">Category name</Label>
+        <Label htmlFor="new-space-category-name">Space Category name</Label>
         <Input id="new-space-category-name" name="name" placeholder="e.g. Groceries" required minLength={2} maxLength={100} />
       </div>
       <div className="space-y-2">
@@ -29,7 +29,7 @@ export function CreateSpaceCategoryForm() {
         </select>
       </div>
       <Button type="submit" disabled={pending}>
-        {pending ? "Adding..." : "Add category"}
+        {pending ? "Adding..." : "Add Space Category"}
       </Button>
       {state.error ? <p className="text-xs text-destructive sm:col-span-3">{state.error}</p> : null}
     </form>
