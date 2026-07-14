@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAdmin, requireUser, setActiveOrgCookie } from "@/app/lib/auth";
+import { requireAdmin, requireUser, revalidateAppShell, setActiveOrgCookie } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
 import { getUserById, setUserScope } from "@/app/actions/tables/users.table.actions";
@@ -94,7 +94,7 @@ export async function createOrganizationAction(formData: FormData) {
     isDefault: memberships.length === 0,
   });
   await setActiveOrgCookie(organization.id);
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
 }
 
 export async function regenerateOrganizationInviteAction() {
@@ -134,7 +134,7 @@ export async function updateOrganizationNameAction(formData: FormData) {
   }
 
   revalidatePath(ROUTES.ORGANIZATION, "page");
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
 }
 
 export async function updateOrganizationMemberRoleAction(formData: FormData) {
@@ -194,7 +194,7 @@ export async function acceptOrganizationInvite(inviteCode: string) {
       role: ROLES.USER,
       isDefault: memberships.length === 0,
     });
-    revalidatePath(ROUTES.DASHBOARD, "layout");
+    revalidateAppShell();
   }
 
   if (!currentUser.scope) {
@@ -202,6 +202,7 @@ export async function acceptOrganizationInvite(inviteCode: string) {
   }
 
   await setActiveOrgCookie(organization.id);
+  revalidateAppShell();
 
   return {
     success: true,

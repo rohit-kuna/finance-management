@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { requireUser, setActiveOrgCookie } from "@/app/lib/auth";
+import { requireUser, revalidateAppShell, setActiveOrgCookie } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
 import { buildInviteCode } from "@/app/lib/invite-code";
@@ -100,7 +99,7 @@ export async function joinOrganizationByInviteCodeAction(
       role: ROLES.USER,
       isDefault: memberships.length === 0,
     });
-    revalidatePath(ROUTES.DASHBOARD, "layout");
+    revalidateAppShell();
   }
 
   if (!currentUser.scope) {
@@ -149,7 +148,7 @@ export async function createOrganizationFromOnboardingAction(
     isDefault: memberships.length === 0,
   });
   await setActiveOrgCookie(organization.id);
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
 
   redirect(ROUTES.DASHBOARD);
 }
@@ -188,7 +187,7 @@ export async function createPersonalSpaceAction() {
     isDefault: memberships.length === 0,
   });
   await setActiveOrgCookie(organization.id);
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
   redirect(ROUTES.DASHBOARD);
 }
 
@@ -225,7 +224,7 @@ export async function choosePersonalScopeAction() {
     isDefault: true,
   });
   await setActiveOrgCookie(organization.id);
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
   redirect(ROUTES.DASHBOARD);
 }
 
@@ -241,7 +240,7 @@ export async function chooseSharedScopeAction() {
   }
 
   await setUserScope(currentUser.id, "shared");
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
   redirect(ROUTES.DASHBOARD);
 }
 
@@ -263,7 +262,7 @@ export async function openOrganizationAction(formData: FormData) {
   }
 
   await setActiveOrgCookie(parsed.data.orgId);
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
   redirect(ROUTES.DASHBOARD);
 }
 
@@ -285,5 +284,5 @@ export async function setDefaultOrganizationAction(formData: FormData) {
   }
 
   await setDefaultOrganizationForUser(currentUser.id, parsed.data.orgId);
-  revalidatePath(ROUTES.DASHBOARD, "layout");
+  revalidateAppShell();
 }

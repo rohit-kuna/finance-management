@@ -2,6 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { syncUserWithDb } from "@/app/lib/user-sync";
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
@@ -55,6 +56,35 @@ export async function setActiveOrgCookie(orgId: number) {
     maxAge: ACTIVE_ORG_COOKIE_MAX_AGE,
     path: "/",
   });
+}
+
+// Every top-level nav destination, keyed off ROUTES so this can't drift out
+// of sync with the actual route list. Called whenever the active org changes
+// (switch space, create org, join org) so the client's Router Cache can't
+// keep serving an already-visited route's nav (which depends on
+// isPersonalSpace, computed from the active org) from before the switch —
+// revalidatePath(path, "layout") only reliably busts the cache for paths
+// it's explicitly given, so every nav destination needs its own call rather
+// than relying on a single "/dashboard" call to transitively cover the rest.
+const APP_SHELL_ROUTES = [
+  ROUTES.DASHBOARD,
+  ROUTES.ANALYTICS,
+  ROUTES.BUDGETS,
+  ROUTES.TRANSACTIONS,
+  ROUTES.TRANSFERS,
+  ROUTES.CATEGORIES,
+  ROUTES.ORGANIZATION,
+  ROUTES.USERS,
+  ROUTES.TAGS,
+  ROUTES.TRANSACTION_MODES,
+  ROUTES.COUNTERPARTIES,
+  ROUTES.MANAGE_IMPORT_EXPORT,
+] as const;
+
+export function revalidateAppShell() {
+  for (const route of APP_SHELL_ROUTES) {
+    revalidatePath(route, "layout");
+  }
 }
 
 export async function clearActiveOrgCookie() {

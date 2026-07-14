@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { ROLES } from "@/app/lib/roles";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
 
+// Always render fresh — isPersonalSpace (and the whole nav it drives) must
+// never be served from a cached render, since it changes per active-org
+// cookie, not per URL.
+export const dynamic = "force-dynamic";
+
 function getDisplayName(name?: string | null, email?: string | null) {
   return name?.trim() || email?.trim() || "User";
 }
