@@ -6,7 +6,11 @@ import { requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
 import { getOrganizationMembership } from "@/app/actions/tables/organization-members.table.actions";
-import { getSpaceCategoriesByOrg } from "@/app/actions/tables/space-categories.table.actions";
+import {
+  createSpaceCategoryRecord,
+  getSpaceCategoriesByOrg,
+  getSpaceCategoryByOrgAndName,
+} from "@/app/actions/tables/space-categories.table.actions";
 import { getUserCategoriesByOrg, getUserCategoryById } from "@/app/actions/tables/user-categories.table.actions";
 import {
   deleteMapping,
@@ -78,6 +82,98 @@ export async function getMyUserCategoryMappingsForSpace(targetOrgId: number): Pr
     availableSpaceCategories: targetSpaceCategories,
     rows,
   };
+}
+
+export type ImportableSpaceCategoryDto = SpaceCategoryRecordDto & {
+  alreadyExists: boolean; // caller already has a personal SpaceCategory with this name — hinted, not auto-imported
+};
+
+export type ImportCategoriesDataDto = {
+  targetOrgId: number;
+  organizationName: string;
+  categories: ImportableSpaceCategoryDto[];
+};
+
+export async function getImportableCategoriesForSpace(targetOrgId: number): Promise<ImportCategoriesDataDto | null> {
+  const currentUser = await requireUser();
+  if (!currentUser.personalOrgId) return null;
+
+  const organization = await requireSharedSpaceMembership(targetOrgId, currentUser.id);
+  if (!organization) return null;
+
+  const [targetSpaceCategories, mySpaceCategories] = await Promise.all([
+    getSpaceCategoriesByOrg(targetOrgId),
+    getSpaceCategoriesByOrg(currentUser.personalOrgId),
+  ]);
+
+  const myNames = new Set(mySpaceCategories.map((c) => c.name.trim().toLowerCase()));
+
+  return {
+    targetOrgId,
+    organizationName: organization.name,
+    categories: targetSpaceCategories.map((category) => ({
+      ...category,
+      alreadyExists: myNames.has(category.name.trim().toLowerCase()),
+    })),
+  };
+}
+
+const importCategoriesSchema = z.object({
+  targetOrgId: z.coerce.number().int().positive(),
+  spaceCategoryIds: z.array(z.coerce.number().int().positive()).min(1, "Select at least one category to import"),
+});
+
+/**
+ * Copies selected SpaceCategories from a shared space into the caller's
+ * personal space as new personal SpaceCategories (top-level Kanban columns)
+ * — a head start on personal category structure, not a mapping. A category
+ * whose name already exists personally is silently skipped (the picker
+ * already hints this) rather than erroring, since re-running an import is
+ * expected.
+ */
+export async function importSharedSpaceCategoriesAction(
+  _previousState: FinanceActionState,
+  formData: FormData
+): Promise<FinanceActionState> {
+  const currentUser = await requireUser();
+  if (!currentUser.personalOrgId) {
+    return { error: "Set up your personal space first" };
+  }
+
+  const parsed = importCategoriesSchema.safeParse({
+    targetOrgId: formData.get("targetOrgId"),
+    spaceCategoryIds: formData.getAll("spaceCategoryId"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Unable to import categories" };
+  }
+
+  const organization = await requireSharedSpaceMembership(parsed.data.targetOrgId, currentUser.id);
+  if (!organization) {
+    return { error: "Space is not available to you" };
+  }
+
+  const personalOrgId = currentUser.personalOrgId;
+
+  for (const spaceCategoryId of parsed.data.spaceCategoryIds) {
+    const spaceCategory = await getSpaceCategoryByIdAndOrg(spaceCategoryId, parsed.data.targetOrgId);
+    if (!spaceCategory) continue;
+
+    const existing = await getSpaceCategoryByOrgAndName(personalOrgId, spaceCategory.name);
+    if (existing) continue;
+
+    await createSpaceCategoryRecord({
+      orgId: personalOrgId,
+      name: spaceCategory.name,
+      type: spaceCategory.type,
+      createdBy: currentUser.id,
+    });
+  }
+
+  revalidatePath(ROUTES.CATEGORIES);
+  revalidatePath(ROUTES.IMPORT_CATEGORIES);
+  return { error: null };
 }
 
 const mappingSchema = z.object({

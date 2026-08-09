@@ -26,7 +26,7 @@ import type { OnboardingActionState } from "@/app/actions/auth-roles/onboarding.
  * regardless of whether they onboarded as "personal" or "shared" scope.
  * Idempotent: returns the existing personal org if one is already there.
  */
-async function ensurePersonalOrganizationForUser(userId: string) {
+export async function ensurePersonalOrganizationForUser(userId: string) {
   const existing = await getPersonalOrganizationForUser(userId);
   if (existing) return existing;
 
@@ -106,7 +106,6 @@ export async function joinOrganizationByInviteCodeAction(
     await setUserScope(currentUser.id, "shared");
   }
 
-  await setActiveOrgCookie(organization.id);
   redirect(ROUTES.DASHBOARD);
 }
 

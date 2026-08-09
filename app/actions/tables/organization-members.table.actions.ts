@@ -129,6 +129,15 @@ export async function getOrganizationMembers(orgId: number): Promise<Organizatio
     .orderBy(asc(organizationMembers.joinedAt));
 }
 
+export async function removeOrganizationMember(orgId: number, userId: string) {
+  const [membership] = await db
+    .delete(organizationMembers)
+    .where(and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)))
+    .returning();
+
+  return membership ?? null;
+}
+
 export async function getOrganizationAdminCount(orgId: number) {
   const [record] = await db
     .select({ count: count() })

@@ -60,7 +60,8 @@ function getPersonalSpaceNavConfig(role: AppRole): HeaderNavConfig {
     { label: "Transactions", href: ROUTES.TRANSACTIONS },
     { label: "Analytics", href: ROUTES.ANALYTICS },
     { label: "Budgets", href: ROUTES.BUDGETS },
-    { label: "Transfers", href: ROUTES.TRANSFERS },
+    { label: "Categories", href: ROUTES.CATEGORIES },
+    { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
   ];
 
   const settingsItems: HeaderNavItem[] = [];
@@ -68,15 +69,15 @@ function getPersonalSpaceNavConfig(role: AppRole): HeaderNavConfig {
     settingsItems.push({ label: "Space", href: ROUTES.ORGANIZATION }, { label: "Users", href: ROUTES.USERS });
   }
   settingsItems.push(
-    { label: "Categories", href: ROUTES.CATEGORIES },
     { label: "Tags", href: ROUTES.TAGS },
     { label: "Modes", href: ROUTES.TRANSACTION_MODES },
     { label: "Counterparties", href: ROUTES.COUNTERPARTIES }
   );
 
   const toolsItems: HeaderNavItem[] = [
+    { label: "Transfers", href: ROUTES.TRANSFERS },
     { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
-    { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
+    { label: "Import categories", href: ROUTES.IMPORT_CATEGORIES },
   ];
 
   return {
@@ -97,22 +98,18 @@ function getSharedSpaceNavConfig(role: AppRole): HeaderNavConfig {
     { label: "Transactions", href: ROUTES.TRANSACTIONS },
     { label: "Analytics", href: ROUTES.ANALYTICS },
     { label: "Budgets", href: ROUTES.BUDGETS },
+    { label: "Categories", href: ROUTES.CATEGORIES },
+    { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
   ];
 
   const settingsItems: HeaderNavItem[] = [];
   if (role === ROLES.ADMIN) {
     settingsItems.push({ label: "Space", href: ROUTES.ORGANIZATION }, { label: "Users", href: ROUTES.USERS });
   }
-  settingsItems.push({ label: "Categories", href: ROUTES.CATEGORIES });
-
-  const toolsItems: HeaderNavItem[] = [{ label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION }];
 
   return {
     topItems,
-    settingsGroups: [
-      { label: "Settings", items: settingsItems },
-      { label: "Tools", items: toolsItems },
-    ],
+    settingsGroups: settingsItems.length ? [{ label: "Settings", items: settingsItems }] : [],
   };
 }
 

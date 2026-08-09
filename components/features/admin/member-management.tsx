@@ -1,15 +1,42 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { AdminDashboardData } from "@/app/lib/admin-dashboard.types";
-import { updateOrganizationMemberRoleAction } from "@/app/actions/auth-roles/admin.actions";
+import { removeOrganizationMemberAction, updateOrganizationMemberRoleAction } from "@/app/actions/auth-roles/admin.actions";
 import { ROLES } from "@/app/lib/roles";
 
 type MemberManagementProps = {
   data: AdminDashboardData;
+  currentUserId: string;
 };
 
-export function MemberManagement({ data }: MemberManagementProps) {
+export function MemberManagement({ data, currentUserId }: MemberManagementProps) {
+  const canRemoveMembers = !data.organization?.isPersonal;
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleRemove() {
+    if (!removeTarget) return;
+    setRemoveError(null);
+    const formData = new FormData();
+    formData.append("userId", removeTarget.id);
+
+    startTransition(async () => {
+      try {
+        await removeOrganizationMemberAction(formData);
+        setRemoveTarget(null);
+      } catch (error) {
+        setRemoveError(error instanceof Error ? error.message : "Unable to remove member");
+      }
+    });
+  }
+
   return (
     <Card className="py-2">
       <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
@@ -25,6 +52,7 @@ export function MemberManagement({ data }: MemberManagementProps) {
                   <th className="px-4 py-3 font-medium">Email</th>
                   <th className="px-4 py-3 font-medium">Role</th>
                   <th className="px-4 py-3 font-medium">Updated role</th>
+                  {canRemoveMembers ? <th className="px-4 py-3 font-medium">Remove</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -60,6 +88,25 @@ export function MemberManagement({ data }: MemberManagementProps) {
                         </Button>
                       </form>
                     </td>
+                    {canRemoveMembers ? (
+                      <td className="px-4 py-3">
+                        {member.id !== currentUserId ? (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon-sm"
+                            disabled={pending}
+                            onClick={() => setRemoveTarget({ id: member.id, name: member.name })}
+                            aria-label={`Remove ${member.name}`}
+                            title={`Remove ${member.name}`}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">You</span>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -70,7 +117,18 @@ export function MemberManagement({ data }: MemberManagementProps) {
             No members yet. Once users accept the invite link, they will appear here.
           </div>
         )}
+        {removeError ? <p className="mt-3 text-sm text-destructive">{removeError}</p> : null}
       </CardContent>
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !pending) setRemoveTarget(null);
+        }}
+        title="Remove member"
+        description={`Are you sure you want to remove "${removeTarget?.name}" from this space? They'll lose access immediately.`}
+        confirmLabel="Remove"
+        onConfirm={handleRemove}
+      />
     </Card>
   );
 }

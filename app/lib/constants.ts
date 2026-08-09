@@ -9,6 +9,7 @@ export const ROUTES = {
   SWITCH_ORGANIZATION: "/switch-organization",
   USERS: "/users",
   CATEGORIES: "/categories",
+  IMPORT_CATEGORIES: "/import-categories",
   SUBCATEGORIES: "/subcategories",
   TAGS: "/tags",
   COUNTERPARTIES: "/counterparties",

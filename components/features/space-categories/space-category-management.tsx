@@ -1,10 +1,15 @@
 "use client";
 
-import { createUserCategoryInline, setUserCategorySpaceCategoryAction } from "@/app/actions/auth-roles/user-categories.actions";
+import {
+  createUserCategoryInline,
+  deleteUserCategoryAction,
+  setUserCategorySpaceCategoryAction,
+} from "@/app/actions/auth-roles/user-categories.actions";
 import {
   updateUserCategoryMappingAction,
   unmapUserCategoryAction,
 } from "@/app/actions/auth-roles/user-category-mapping.actions";
+import { deleteSpaceCategoryAction } from "@/app/actions/auth-roles/organization-finance.actions";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
 import type { SpaceCategoryRecordDto, UserCategoryRecordDto } from "@/app/lib/finance.types";
 import type { UserCategoryMappingRowDto } from "@/app/actions/auth-roles/user-category-mapping.actions";
@@ -77,6 +82,22 @@ export function SpaceCategoryManagement({
     return { error: "error" in result ? result.error : null };
   }
 
+  async function handleDeleteSpaceCategory(spaceCategoryId: number) {
+    const result = await deleteSpaceCategoryAction(
+      financeInitialState,
+      buildMappingFormData({ spaceCategoryId: String(spaceCategoryId) })
+    );
+    return { error: result.error };
+  }
+
+  async function handleDeleteUserCategory(userCategoryId: number) {
+    const result = await deleteUserCategoryAction(
+      financeInitialState,
+      buildMappingFormData({ userCategoryId: String(userCategoryId) })
+    );
+    return { error: result.error };
+  }
+
   return (
     <section className="space-y-6">
       <Card className="py-2">
@@ -111,6 +132,8 @@ export function SpaceCategoryManagement({
             items={items}
             onAssign={handleAssign}
             onCreate={isPersonalSpace ? handleCreate : undefined}
+            onDeleteSpaceCategory={canManageSpaceCategories ? handleDeleteSpaceCategory : undefined}
+            onDeleteUserCategory={isPersonalSpace ? handleDeleteUserCategory : undefined}
           />
         </CardContent>
       </Card>

@@ -7,6 +7,7 @@ import { requireAdmin, requireUser, revalidateAppShell, setActiveOrgCookie } fro
 import { ROUTES } from "@/app/lib/constants";
 import { ROLES } from "@/app/lib/roles";
 import { getUserById, setUserScope } from "@/app/actions/tables/users.table.actions";
+import { ensurePersonalOrganizationForUser } from "@/app/actions/auth-roles/onboarding.actions";
 import {
   createOrganizationRecord,
   getOrganizationById,
@@ -20,6 +21,7 @@ import {
   getOrganizationMembers,
   getOrganizationMembership,
   getOrganizationsForUser,
+  removeOrganizationMember,
   updateOrganizationMemberRole,
 } from "@/app/actions/tables/organization-members.table.actions";
 import type { AdminDashboardData } from "@/app/lib/admin-dashboard.types";
@@ -37,6 +39,10 @@ const updateOrganizationNameSchema = z.object({
 const updateMemberRoleSchema = z.object({
   userId: z.string().uuid(),
   role: z.enum([ROLES.ADMIN, ROLES.USER]),
+});
+
+const removeMemberSchema = z.object({
+  userId: z.string().uuid(),
 });
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
@@ -176,6 +182,52 @@ export async function updateOrganizationMemberRoleAction(formData: FormData) {
   revalidatePath(ROUTES.ORGANIZATION, "page");
 }
 
+/**
+ * Shared-space-only: removing yourself from your own personal space, or
+ * removing the last admin, would leave the space unmanageable, so both are
+ * blocked. Removing a member only revokes their access to this shared
+ * space — it never touches their personal space or its data.
+ */
+export async function removeOrganizationMemberAction(formData: FormData) {
+  const currentUser = await requireAdmin();
+  const parsed = removeMemberSchema.safeParse({
+    userId: formData.get("userId"),
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Unable to remove member");
+  }
+
+  if (!currentUser.orgId) {
+    throw new Error("Create an organization first");
+  }
+
+  if (parsed.data.userId === currentUser.id) {
+    throw new Error("You can't remove yourself from the space");
+  }
+
+  const organization = await getOrganizationById(currentUser.orgId);
+  if (!organization || organization.isPersonal) {
+    throw new Error("Cannot remove members from a personal space");
+  }
+
+  const targetMembership = await getOrganizationMembership(currentUser.orgId, parsed.data.userId);
+  if (!targetMembership) {
+    throw new Error("Member does not belong to your organization");
+  }
+
+  if (targetMembership.role === ROLES.ADMIN) {
+    const adminCount = await getOrganizationAdminCount(currentUser.orgId);
+    if (adminCount <= 1) {
+      throw new Error("Keep at least one admin in the organization");
+    }
+  }
+
+  await removeOrganizationMember(currentUser.orgId, parsed.data.userId);
+  revalidatePath(ROUTES.USERS, "page");
+  revalidatePath(ROUTES.ORGANIZATION, "page");
+}
+
 export async function acceptOrganizationInvite(inviteCode: string) {
   const currentUser = await requireUser();
   const organization = await getOrganizationByInviteCode(inviteCode);
@@ -187,6 +239,7 @@ export async function acceptOrganizationInvite(inviteCode: string) {
   const existingMembership = await getOrganizationMembership(organization.id, currentUser.id);
 
   if (!existingMembership) {
+    await ensurePersonalOrganizationForUser(currentUser.id);
     const memberships = await getOrganizationsForUser(currentUser.id);
     await addOrganizationMember({
       orgId: organization.id,
@@ -200,9 +253,6 @@ export async function acceptOrganizationInvite(inviteCode: string) {
   if (!currentUser.scope) {
     await setUserScope(currentUser.id, "shared");
   }
-
-  await setActiveOrgCookie(organization.id);
-  revalidateAppShell();
 
   return {
     success: true,

@@ -286,7 +286,8 @@ export async function deleteSpaceCategoryAction(
   }
 
   await deleteSpaceCategoryRecord(spaceCategory.id);
-  redirect(ROUTES.CATEGORIES);
+  revalidatePath(ROUTES.CATEGORIES);
+  return { error: null };
 }
 
 async function ensurePersonalBudgetOwnership(budgetId: number, currentUserId: string) {
