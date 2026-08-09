@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   flexRender,
   getCoreRowModel,
@@ -18,6 +19,7 @@ import {
   deleteExpenseAction,
   updateExpenseAction,
 } from "@/app/actions/auth-roles/expense.actions";
+import { ROUTES } from "@/app/lib/constants";
 import type {
   CounterpartyRecordDto,
   SpaceCategoryRecordDto,
@@ -515,6 +517,7 @@ export function ExpenseTable({
   onEdit,
   readOnly = false,
   showMemberColumn = false,
+  quickView = false,
 }: {
   expenses: ExpenseRecordDto[];
   spaceCategories: SpaceCategoryRecordDto[];
@@ -528,11 +531,15 @@ export function ExpenseTable({
   onEdit?: (expense: ExpenseRecordDto) => void;
   readOnly?: boolean;
   showMemberColumn?: boolean;
+  // Compact Dashboard variant: current month only, search-only filtering,
+  // and a link out to the full Transactions page instead of every filter.
+  quickView?: boolean;
 }) {
   // The scope toggle only applies to the read-only shared-space view
   // (readOnly + showMemberColumn together identify that usage) — personal
   // space's own editable table always shows just the owner's transactions.
   const hasScopeToggle = readOnly && showMemberColumn;
+  const currentMonthKey = useMemo(() => new Date().toISOString().slice(0, 7), []);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [transactionModeFilter, setTransactionModeFilter] = useState("all");
@@ -580,11 +587,16 @@ export function ExpenseTable({
       : expenses;
 
     return scopedExpenses.filter((expense) => {
-      if (typeFilter !== "all" && expense.type !== typeFilter) return false;
-      if (transactionModeFilter !== "all" && String(expense.transactionModeId) !== transactionModeFilter) return false;
-      if (necessityFilter !== "all" && String(expense.necessityScore) !== necessityFilter) return false;
-      if (showUserCategory && subcategoryFilter !== "all" && String(expense.userCategoryId) !== subcategoryFilter) return false;
-      if (monthFilter !== "all" && expense.occurredAt.slice(0, 7) !== monthFilter) return false;
+      if (quickView) {
+        if (expense.occurredAt.slice(0, 7) !== currentMonthKey) return false;
+        if (typeFilter !== "all" && expense.type !== typeFilter) return false;
+      } else {
+        if (typeFilter !== "all" && expense.type !== typeFilter) return false;
+        if (transactionModeFilter !== "all" && String(expense.transactionModeId) !== transactionModeFilter) return false;
+        if (necessityFilter !== "all" && String(expense.necessityScore) !== necessityFilter) return false;
+        if (showUserCategory && subcategoryFilter !== "all" && String(expense.userCategoryId) !== subcategoryFilter) return false;
+        if (monthFilter !== "all" && expense.occurredAt.slice(0, 7) !== monthFilter) return false;
+      }
 
       if (!loweredQuery) return true;
 
@@ -613,6 +625,8 @@ export function ExpenseTable({
     monthFilter,
     query,
     showUserCategory,
+    quickView,
+    currentMonthKey,
   ]);
 
   const columns = useMemo<ColumnDef<ExpenseRecordDto>[]>(
@@ -737,13 +751,17 @@ export function ExpenseTable({
       <CardHeader className="px-4 pt-6 sm:px-8 sm:pt-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-2xl tracking-tight">Transactions</CardTitle>
+            <CardTitle className="text-2xl tracking-tight">{quickView ? "Quick View" : "Transactions"}</CardTitle>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              {readOnly
+              {quickView
                 ? scope === "personal"
-                  ? "Browse your own transactions mapped into this space."
-                  : "Browse transactions mapped into this space, from every member."
-                : "Filter, sort, edit, and remove your transactions, including optional counterparty links."}
+                  ? "Your transactions this month."
+                  : "Every member's transactions this month."
+                : readOnly
+                  ? scope === "personal"
+                    ? "Browse your own transactions mapped into this space."
+                    : "Browse transactions mapped into this space, from every member."
+                  : "Filter, sort, edit, and remove your transactions, including optional counterparty links."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -757,79 +775,117 @@ export function ExpenseTable({
                 currentUserId={currentUserId}
               />
             ) : null}
+            {quickView ? (
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href={ROUTES.TRANSACTIONS}>View all transactions</Link>
+              </Button>
+            ) : null}
             <Badge variant="secondary">{filteredExpenses.length} records</Badge>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
-        <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="expense-search">Search</Label>
-            <Input
-              id="expense-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by note, category, type..."
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Type</Label>
-            <FilterSelect
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={[{ value: "all", label: "All types" }, ...expenseTypes]}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Transaction mode</Label>
-            <FilterSelect
-              value={transactionModeFilter}
-              onChange={setTransactionModeFilter}
-              options={transactionModeOptions}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Necessity</Label>
-            <FilterSelect
-              value={necessityFilter}
-              onChange={setNecessityFilter}
-              options={[
-                { value: "all", label: "All" },
-                ...necessityOptions.map((o) => ({ value: String(o.value), label: o.label })),
-              ]}
-            />
-          </div>
-          {showUserCategory ? (
-            <div className="space-y-2">
-              <Label>User Categories</Label>
-              <FilterSelect value={subcategoryFilter} onChange={setSubcategoryFilter} options={subcategoryOptions} />
+        {quickView ? (
+          <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="expense-search">Search</Label>
+              <Input
+                id="expense-search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by note, category, type..."
+              />
             </div>
-          ) : null}
-          <div className="space-y-2">
-            <Label>Month</Label>
-            <MonthInput value={monthFilter === "all" ? "" : monthFilter} onChange={(event) => setMonthFilter(event.target.value || "all")} />
-          </div>
-          <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-4">
-            <Button type="button" variant="outline" size="sm" onClick={() => setQuery("")}>
-              Clear search
-            </Button>
+            <div className="space-y-2 sm:w-48">
+              <Label>Type</Label>
+              <FilterSelect
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={[{ value: "all", label: "All types" }, ...expenseTypes]}
+              />
+            </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => {
-                setTypeFilter("all");
-                setTransactionModeFilter("all");
-                setNecessityFilter("all");
-                setSubcategoryFilter("all");
-                setMonthFilter("all");
                 setQuery("");
+                setTypeFilter("all");
               }}
             >
-              Reset filters
+              Clear search
             </Button>
           </div>
-        </div>
+        ) : (
+          <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="expense-search">Search</Label>
+              <Input
+                id="expense-search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by note, category, type..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <FilterSelect
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={[{ value: "all", label: "All types" }, ...expenseTypes]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Transaction mode</Label>
+              <FilterSelect
+                value={transactionModeFilter}
+                onChange={setTransactionModeFilter}
+                options={transactionModeOptions}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Necessity</Label>
+              <FilterSelect
+                value={necessityFilter}
+                onChange={setNecessityFilter}
+                options={[
+                  { value: "all", label: "All" },
+                  ...necessityOptions.map((o) => ({ value: String(o.value), label: o.label })),
+                ]}
+              />
+            </div>
+            {showUserCategory ? (
+              <div className="space-y-2">
+                <Label>User Categories</Label>
+                <FilterSelect value={subcategoryFilter} onChange={setSubcategoryFilter} options={subcategoryOptions} />
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <Label>Month</Label>
+              <MonthInput value={monthFilter === "all" ? "" : monthFilter} onChange={(event) => setMonthFilter(event.target.value || "all")} />
+            </div>
+            <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-4">
+              <Button type="button" variant="outline" size="sm" onClick={() => setQuery("")}>
+                Clear search
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTypeFilter("all");
+                  setTransactionModeFilter("all");
+                  setNecessityFilter("all");
+                  setSubcategoryFilter("all");
+                  setMonthFilter("all");
+                  setQuery("");
+                }}
+              >
+                Reset filters
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className={cn("rounded-lg border", editingRowId === null ? "overflow-x-auto" : "overflow-visible")}>
           <Table className="min-w-[1400px]">

@@ -50,49 +50,62 @@ type HeaderNavConfig = {
   settingsGroups: HeaderNavGroup[];
 };
 
-// A shared space is a read-only lens — Transfers, Tags, Modes, Counterparties,
-// and Import Export all require transaction entry/metadata management, which
-// only ever happens in personal space (see requireActiveOrgIsPersonal).
-// Transactions stays visible in both: personal space gets full add/edit,
-// shared space gets a read-only results list (see TransactionsContent).
-// Analytics, Budgets, and Categories work in both; Space/Users are
-// admin-only regardless of space.
-function getNavConfig(
-  role: AppRole,
-  hasOrganization: boolean,
-  isPersonalSpace: boolean
-): HeaderNavConfig {
-  if (!hasOrganization) {
-    return { topItems: [], settingsGroups: [] };
-  }
+// Personal space gets the full nav: transaction entry/metadata management
+// (Transfers, Tags, Modes, Counterparties, Import Export) only ever happens
+// here (see requireActiveOrgIsPersonal). Kept as its own unconditional list
+// rather than a shared branch, so it can never accidentally pick up or drop
+// items meant for the other space.
+function getPersonalSpaceNavConfig(role: AppRole): HeaderNavConfig {
+  const topItems: HeaderNavItem[] = [
+    { label: "Transactions", href: ROUTES.TRANSACTIONS },
+    { label: "Analytics", href: ROUTES.ANALYTICS },
+    { label: "Budgets", href: ROUTES.BUDGETS },
+    { label: "Transfers", href: ROUTES.TRANSFERS },
+  ];
 
+  const settingsItems: HeaderNavItem[] = [];
+  if (role === ROLES.ADMIN) {
+    settingsItems.push({ label: "Space", href: ROUTES.ORGANIZATION }, { label: "Users", href: ROUTES.USERS });
+  }
+  settingsItems.push(
+    { label: "Categories", href: ROUTES.CATEGORIES },
+    { label: "Tags", href: ROUTES.TAGS },
+    { label: "Modes", href: ROUTES.TRANSACTION_MODES },
+    { label: "Counterparties", href: ROUTES.COUNTERPARTIES }
+  );
+
+  const toolsItems: HeaderNavItem[] = [
+    { label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT },
+    { label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION },
+  ];
+
+  return {
+    topItems,
+    settingsGroups: [
+      { label: "Settings", items: settingsItems },
+      { label: "Tools", items: toolsItems },
+    ],
+  };
+}
+
+// A shared space is a read-only lens — Transactions gets a read-only results
+// list (see TransactionsContent), and Transfers/Tags/Modes/Counterparties/
+// Import Export never appear here at all, since those all require
+// transaction entry/metadata management. Space/Users stay admin-only.
+function getSharedSpaceNavConfig(role: AppRole): HeaderNavConfig {
   const topItems: HeaderNavItem[] = [
     { label: "Transactions", href: ROUTES.TRANSACTIONS },
     { label: "Analytics", href: ROUTES.ANALYTICS },
     { label: "Budgets", href: ROUTES.BUDGETS },
   ];
-  if (isPersonalSpace) {
-    topItems.push({ label: "Transfers", href: ROUTES.TRANSFERS });
-  }
 
   const settingsItems: HeaderNavItem[] = [];
   if (role === ROLES.ADMIN) {
     settingsItems.push({ label: "Space", href: ROUTES.ORGANIZATION }, { label: "Users", href: ROUTES.USERS });
   }
   settingsItems.push({ label: "Categories", href: ROUTES.CATEGORIES });
-  if (isPersonalSpace) {
-    settingsItems.push(
-      { label: "Tags", href: ROUTES.TAGS },
-      { label: "Modes", href: ROUTES.TRANSACTION_MODES },
-      { label: "Counterparties", href: ROUTES.COUNTERPARTIES }
-    );
-  }
 
-  const toolsItems: HeaderNavItem[] = [];
-  if (isPersonalSpace) {
-    toolsItems.push({ label: "Import Export", href: ROUTES.MANAGE_IMPORT_EXPORT });
-  }
-  toolsItems.push({ label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION });
+  const toolsItems: HeaderNavItem[] = [{ label: "Switch space", href: ROUTES.SWITCH_ORGANIZATION }];
 
   return {
     topItems,
@@ -166,7 +179,11 @@ export function AuthHeader({
   initials,
 }: AuthHeaderProps) {
   const { signOut } = useClerk();
-  const { topItems, settingsGroups } = getNavConfig(role, hasOrganization, isPersonalSpace);
+  const { topItems, settingsGroups } = !hasOrganization
+    ? { topItems: [], settingsGroups: [] }
+    : isPersonalSpace
+      ? getPersonalSpaceNavConfig(role)
+      : getSharedSpaceNavConfig(role);
   const hasSettingsItems = settingsGroups.some((group) => group.items.length);
   const logoHref = ROUTES.DASHBOARD;
 

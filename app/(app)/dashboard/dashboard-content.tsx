@@ -1,5 +1,6 @@
 import { getExpensesDashboardData } from "@/app/actions/auth-roles/expense.actions";
 import { ExpenseFormCard, ExpenseTable } from "@/components/features/expenses/expense-management";
+import { CategoryMappingHint } from "@/components/features/expenses/category-mapping-hint";
 import { ExpenseActivityChart } from "@/components/features/activity/activity-dashboard-dynamic";
 
 export async function DashboardContent() {
@@ -29,10 +30,14 @@ export async function DashboardContent() {
           tags={data.tags}
           currentUserId={data.currentUser.id}
           isAdmin={data.currentUser.role === "ADMIN"}
+          members={data.members}
           readOnly
           showMemberColumn
+          quickView
         />
       )}
+
+      <CategoryMappingHint spaceCategories={data.spaceCategories} userCategories={data.userCategories} />
 
       <ExpenseActivityChart expenses={ownExpenses} monthStart={currentMonth} monthEnd={currentMonth} />
     </>
