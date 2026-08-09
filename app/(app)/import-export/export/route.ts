@@ -1,21 +1,25 @@
+import { requireActiveOrgIsPersonal } from "@/app/lib/auth";
 import { getManageImportExportData } from "@/app/actions/auth-roles/manage-import-export.actions";
 import { getExpensesByOrg } from "@/app/actions/tables/expenses.table.actions";
 import { buildExpenseExportWorkbook } from "@/app/lib/manage-import-export.workbook";
 
 export async function GET(request: Request) {
   void request;
+  const currentUser = await requireActiveOrgIsPersonal();
   const data = await getManageImportExportData();
 
-  if (!data.organization || !data.currentUser.orgId) {
+  if (!data.organization || !currentUser.personalOrgId) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // Transactions only ever live in the personal org — export from
+  // personalOrgId, never the (possibly shared) active orgId.
   // Exports must cover every transaction, not the UI's default page size —
   // pass an explicit no-op limit rather than relying on getExpensesByOrg's default cap.
   const filteredExpenses = await getExpensesByOrg(
-    data.currentUser.orgId,
+    currentUser.personalOrgId,
     Number.MAX_SAFE_INTEGER,
-    data.currentUser.id
+    currentUser.id
   );
   const tagNameById = new Map(data.tags.map((tag) => [tag.id, tag.name]));
   const workbook = buildExpenseExportWorkbook(

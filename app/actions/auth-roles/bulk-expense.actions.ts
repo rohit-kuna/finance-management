@@ -82,8 +82,10 @@ export async function parseBulkAddWorkbookAction(
   const currentUser = await requireUser();
   if (!currentUser.orgId) return { rows: [], error: "Join an organization first" };
   if (!currentUser.personalOrgId) return { rows: [], error: "Set up your personal space first" };
+  if (currentUser.orgId !== currentUser.personalOrgId) {
+    return { rows: [], error: "Bulk add is only available in your personal space" };
+  }
 
-  const orgId = currentUser.orgId;
   const personalOrgId = currentUser.personalOrgId;
   const file = formData.get("file");
   if (!(file instanceof File) || !file.name.endsWith(".xlsx")) {
@@ -100,9 +102,9 @@ export async function parseBulkAddWorkbookAction(
 
   const [userCategories, counterparties, tags, modes] = await Promise.all([
     getUserCategoriesByOrg(personalOrgId),
-    getCounterpartiesByOrg(orgId),
-    getTagsByOrg(orgId),
-    ensureDefaultTransactionModesForUser(orgId, currentUser.id),
+    getCounterpartiesByOrg(personalOrgId),
+    getTagsByOrg(personalOrgId),
+    ensureDefaultTransactionModesForUser(personalOrgId, currentUser.id),
   ]);
 
   const defaultMode = modes.find((m) => m.isDefault) ?? modes[0] ?? null;
@@ -213,8 +215,10 @@ export async function bulkCreateExpenseAction(
   const currentUser = await requireUser();
   if (!currentUser.orgId) return { success: false, error: "Join an organization first" };
   if (!currentUser.personalOrgId) return { success: false, error: "Set up your personal space first" };
+  if (currentUser.orgId !== currentUser.personalOrgId) {
+    return { success: false, error: "Bulk add is only available in your personal space" };
+  }
 
-  const orgId = currentUser.orgId;
   const personalOrgId = currentUser.personalOrgId;
 
   const [userCategory, mode] = await Promise.all([
@@ -228,10 +232,10 @@ export async function bulkCreateExpenseAction(
   let counterPartyId: number | null = null;
   if (input.counterPartyId) {
     const cp = await getCounterpartyById(input.counterPartyId);
-    if (cp && cp.orgId === orgId) counterPartyId = cp.id;
+    if (cp && cp.orgId === personalOrgId) counterPartyId = cp.id;
   }
 
-  const orgTags = await getTagsByOrg(orgId);
+  const orgTags = await getTagsByOrg(personalOrgId);
   const validTagIds = new Set(orgTags.map((t) => t.id));
   const tagIds = input.tagIds.filter((id) => validTagIds.has(id));
 

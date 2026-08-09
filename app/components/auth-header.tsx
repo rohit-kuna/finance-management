@@ -66,7 +66,9 @@ function getPersonalSpaceNavConfig(role: AppRole): HeaderNavConfig {
 
   const settingsItems: HeaderNavItem[] = [];
   if (role === ROLES.ADMIN) {
-    settingsItems.push({ label: "Space", href: ROUTES.ORGANIZATION }, { label: "Users", href: ROUTES.USERS });
+    // No Users link here — a personal space always has exactly one (admin)
+    // member, so there's nothing to manage.
+    settingsItems.push({ label: "Space", href: ROUTES.ORGANIZATION });
   }
   settingsItems.push(
     { label: "Tags", href: ROUTES.TAGS },

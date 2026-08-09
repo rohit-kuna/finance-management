@@ -430,17 +430,23 @@ async function importUserScopedExpensesFromWorkbookAction(
       preview: null,
     };
   }
+  if (currentUser.orgId !== currentUser.personalOrgId) {
+    return {
+      error: "Import is only available in your personal space",
+      success: null,
+      preview: null,
+    };
+  }
 
-  const orgId = currentUser.orgId;
   const personalOrgId = currentUser.personalOrgId;
 
   const [orgCounterparties, orgUserCategories, orgTags, existingUserExpenses, userTransactionModes] = await Promise.all([
-    getCounterpartiesByOrg(orgId),
+    getCounterpartiesByOrg(personalOrgId),
     getUserCategoriesByOrg(personalOrgId),
-    getTagsByOrg(orgId),
+    getTagsByOrg(personalOrgId),
     // Dedup correctness requires every existing transaction, not the UI's default page size.
-    getExpensesByOrg(orgId, Number.MAX_SAFE_INTEGER, currentUser.id),
-    getTransactionModesByUser(orgId, currentUser.id),
+    getExpensesByOrg(personalOrgId, Number.MAX_SAFE_INTEGER, currentUser.id),
+    getTransactionModesByUser(personalOrgId, currentUser.id),
   ]);
   const headerIndex = buildWorkbookHeaderIndex(payload.headers);
 
@@ -845,7 +851,7 @@ async function importUserScopedExpensesFromWorkbookAction(
             if (tagId === null) {
               const [createdTag] = await tx
                 .insert(tagsTable)
-                .values({ orgId, name: tagName, createdBy: currentUser.id })
+                .values({ orgId: personalOrgId, name: tagName, createdBy: currentUser.id })
                 .returning();
 
               if (createdTag) {
