@@ -441,7 +441,7 @@ async function importUserScopedExpensesFromWorkbookAction(
       getSubcategoriesByOrg(orgId),
       getTagsByOrg(orgId),
       // Dedup correctness requires every existing transaction, not the UI's default page size.
-      getExpensesByOrg(orgId, Number.MAX_SAFE_INTEGER, currentUser.id),
+      getExpensesByOrg(orgId, Number.MAX_SAFE_INTEGER, [currentUser.id]),
       getTransactionModesByUser(orgId, currentUser.id),
     ]);
   const headerIndex = buildWorkbookHeaderIndex(payload.headers);

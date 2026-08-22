@@ -1,6 +1,6 @@
 "use server";
 
-import { aliasedTable, and, desc, eq, sql } from "drizzle-orm";
+import { aliasedTable, and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   categories,
@@ -90,9 +90,9 @@ function expenseSelectShape() {
 
 type ExpenseJoinRow = Parameters<typeof toExpenseDto>[0];
 
-export async function getExpensesByOrg(orgId: number, limit = 500, userId?: string): Promise<ExpenseRecordDto[]> {
-  const whereClause = userId
-    ? and(eq(financeTransactions.orgId, orgId), eq(financeTransactions.userId, userId))
+export async function getExpensesByOrg(orgId: number, limit = 500, userIds?: string[]): Promise<ExpenseRecordDto[]> {
+  const whereClause = userIds && userIds.length
+    ? and(eq(financeTransactions.orgId, orgId), inArray(financeTransactions.userId, userIds))
     : eq(financeTransactions.orgId, orgId);
 
   const records: ExpenseJoinRow[] = await db
@@ -134,6 +134,23 @@ export async function getExpenseOwnershipRow(id: number): Promise<{
 
   if (!record) return null;
   return { ...record, occurredAt: record.occurredAt.toISOString() };
+}
+
+export async function getExpenseOwnershipRows(ids: number[]): Promise<{
+  id: number;
+  orgId: number;
+  userId: string;
+}[]> {
+  if (!ids.length) return [];
+
+  return db
+    .select({
+      id: financeTransactions.id,
+      orgId: financeTransactions.orgId,
+      userId: financeTransactions.userId,
+    })
+    .from(financeTransactions)
+    .where(inArray(financeTransactions.id, ids));
 }
 
 export async function getExpenseById(id: number): Promise<ExpenseRecordDto | null> {
@@ -232,4 +249,10 @@ export async function updateExpenseRecord(
 export async function deleteExpenseRecord(id: number) {
   const [record] = await db.delete(financeTransactions).where(eq(financeTransactions.id, id)).returning();
   return record ?? null;
+}
+
+export async function deleteExpenseRecords(ids: number[]) {
+  if (!ids.length) return [];
+
+  return db.delete(financeTransactions).where(inArray(financeTransactions.id, ids)).returning();
 }
