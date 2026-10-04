@@ -69,6 +69,7 @@ export type ExpensesDashboardDataDto = {
   subcategories: SubcategoryRecordDto[];
   tags: TagRecordDto[];
   expenses: ExpenseRecordDto[];
+  members: { id: string; name: string }[];
   currentUser: {
     id: string;
     name: string;

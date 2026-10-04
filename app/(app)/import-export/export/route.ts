@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const filteredExpenses = await getExpensesByOrg(
     data.currentUser.orgId,
     Number.MAX_SAFE_INTEGER,
-    data.currentUser.id
+    [data.currentUser.id]
   );
   const tagNameById = new Map(data.tags.map((tag) => [tag.id, tag.name]));
   const workbook = buildExpenseExportWorkbook(

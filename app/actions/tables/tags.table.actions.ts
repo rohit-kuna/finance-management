@@ -58,18 +58,22 @@ export async function getTagByOrgAndName(orgId: number, name: string, excludeId?
 
 export async function getValidTagIdsByOrg(orgId: number, tagIds: number[]): Promise<number[]> {
   if (!tagIds.length) return [];
+  const uniqueTagIds = [...new Set(tagIds)];
   const records = await db
     .select({ id: tags.id })
     .from(tags)
-    .where(and(inArray(tags.id, tagIds), eq(tags.orgId, orgId)));
-  return records.map((r) => r.id);
+    .where(and(inArray(tags.id, uniqueTagIds), eq(tags.orgId, orgId)));
+  const validIds = new Set(records.map((r) => r.id));
+  // Preserve the user's selected order while excluding IDs outside the organization.
+  return uniqueTagIds.filter((id) => validIds.has(id));
 }
 
 export async function setTransactionTags(transactionId: number, tagIds: number[]) {
+  const uniqueTagIds = [...new Set(tagIds)];
   await db.transaction(async (tx) => {
     await tx.delete(transactionTags).where(eq(transactionTags.transactionId, transactionId));
-    if (tagIds.length) {
-      await tx.insert(transactionTags).values(tagIds.map((tagId) => ({ transactionId, tagId })));
+    if (uniqueTagIds.length) {
+      await tx.insert(transactionTags).values(uniqueTagIds.map((tagId) => ({ transactionId, tagId })));
     }
   });
 }

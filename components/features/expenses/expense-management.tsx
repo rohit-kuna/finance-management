@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -10,12 +10,23 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, PencilLine, Trash2, X } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarDays,
+  ChevronDown,
+  PencilLine,
+  Trash2,
+  X,
+} from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { financeInitialState } from "@/app/actions/auth-roles/finance.types";
 import {
   createExpenseAction,
   deleteExpenseAction,
+  deleteExpensesAction,
   updateExpenseAction,
 } from "@/app/actions/auth-roles/expense.actions";
 import type {
@@ -45,6 +56,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -503,6 +515,131 @@ function ExpenseRowActions({
   );
 }
 
+function MemberMultiSelect({
+  members,
+  selectedIds,
+  onChange,
+}: {
+  members: { id: string; name: string }[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node | null)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
+  function toggleMember(id: string) {
+    onChange(selectedIds.includes(id) ? selectedIds.filter((memberId) => memberId !== id) : [...selectedIds, id]);
+  }
+
+  const selectedNames = members.filter((member) => selectedIds.includes(member.id)).map((member) => member.name);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        <span className="truncate text-left">{selectedNames.length ? selectedNames.join(", ") : "All members"}</span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </button>
+      {isOpen ? (
+        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-sm shadow-md">
+          {members.map((member) => (
+            <li key={member.id}>
+              <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(member.id)}
+                  onChange={() => toggleMember(member.id)}
+                  className="size-4"
+                />
+                {member.name}
+              </label>
+            </li>
+          ))}
+          {selectedIds.length ? (
+            <li className="mt-1 border-t border-border pt-1">
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="block w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Clear selection
+              </button>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function BulkDeleteBar({
+  selectedIds,
+  onCleared,
+}: {
+  selectedIds: number[];
+  onCleared: () => void;
+}) {
+  const [deleteState, deleteAction, deletePending] = useActionState(deleteExpensesAction, financeInitialState);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const deleteFormRef = useRef<HTMLFormElement>(null);
+
+  if (!selectedIds.length) return null;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <span className="text-sm font-medium">
+        {selectedIds.length} transaction{selectedIds.length === 1 ? "" : "s"} selected
+      </span>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onCleared}>
+          Clear selection
+        </Button>
+        <form ref={deleteFormRef} action={deleteAction}>
+          {selectedIds.map((id) => (
+            <input key={id} type="hidden" name="expenseIds" value={id} />
+          ))}
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={deletePending}
+            onClick={() => setConfirmOpen(true)}
+          >
+            <Trash2 className="mr-2 size-4" />
+            {deletePending ? "Deleting..." : "Delete Selected"}
+          </Button>
+        </form>
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Delete selected transactions"
+          description={`Are you sure you want to delete ${selectedIds.length} transaction${
+            selectedIds.length === 1 ? "" : "s"
+          }? This cannot be undone.`}
+          onConfirm={() => deleteFormRef.current?.requestSubmit()}
+        />
+      </div>
+      <ActionError message={deleteState.error} />
+    </div>
+  );
+}
+
 function ExpenseTable({
   expenses,
   categories,
@@ -510,6 +647,7 @@ function ExpenseTable({
   counterparties,
   transactionModes,
   tags,
+  members,
   currentUserId,
   isAdmin,
   onEdit,
@@ -520,6 +658,7 @@ function ExpenseTable({
   counterparties: CounterpartyRecordDto[];
   transactionModes: TransactionModeRecordDto[];
   tags: TagRecordDto[];
+  members: { id: string; name: string }[];
   currentUserId: string;
   isAdmin: boolean;
   onEdit: (expense: ExpenseRecordDto) => void;
@@ -533,6 +672,35 @@ function ExpenseTable({
   const [monthFilter, setMonthFilter] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "occurredAt", desc: true }]);
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [scopeMode, setScopeMode] = useState<"personal" | "all">("personal");
+  const [memberFilter, setMemberFilter] = useState<string[]>([]);
+  const showAllScope = isAdmin && scopeMode === "all";
+
+  const scopedExpenses = useMemo(() => {
+    if (!showAllScope) {
+      return expenses.filter((expense) => expense.userId === currentUserId);
+    }
+    if (!memberFilter.length) return expenses;
+    return expenses.filter((expense) => memberFilter.includes(expense.userId));
+  }, [expenses, showAllScope, memberFilter, currentUserId]);
+
+  const canManageRow = useCallback(
+    (expense: ExpenseRecordDto) => isAdmin || expense.userId === currentUserId,
+    [isAdmin, currentUserId]
+  );
+
+  function toggleRowSelected(id: number) {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   const tagsById = useMemo(() => {
     const map = new Map<number, string>();
@@ -543,19 +711,19 @@ function ExpenseTable({
   const categoryOptions = useMemo(
     () => [
       { value: "all", label: "All categories" },
-      ...Array.from(new Map(expenses.map((expense) => [expense.categoryId, expense.categoryName])).entries()).map(
-        ([id, name]) => ({
-          value: String(id),
-          label: name,
-        })
-      ),
+      ...Array.from(
+        new Map(scopedExpenses.map((expense) => [expense.categoryId, expense.categoryName])).entries()
+      ).map(([id, name]) => ({
+        value: String(id),
+        label: name,
+      })),
     ],
-    [expenses]
+    [scopedExpenses]
   );
 
   const subcategoryOptions = useMemo(() => {
     const subcategoriesById = new Map<number, string>();
-    for (const expense of expenses) {
+    for (const expense of scopedExpenses) {
       if (expense.subcategoryId != null && !subcategoriesById.has(expense.subcategoryId)) {
         subcategoriesById.set(expense.subcategoryId, expense.subcategoryName ?? "");
       }
@@ -568,7 +736,7 @@ function ExpenseTable({
         label: name,
       })),
     ];
-  }, [expenses]);
+  }, [scopedExpenses]);
 
   const transactionModeOptions = useMemo(
     () => [
@@ -584,7 +752,7 @@ function ExpenseTable({
   const filteredExpenses = useMemo(() => {
     const loweredQuery = query.trim().toLowerCase();
 
-    return expenses.filter((expense) => {
+    return scopedExpenses.filter((expense) => {
       if (categoryFilter !== "all" && String(expense.categoryId) !== categoryFilter) return false;
       if (typeFilter !== "all" && expense.type !== typeFilter) return false;
       if (transactionModeFilter !== "all" && String(expense.transactionModeId) !== transactionModeFilter) return false;
@@ -607,7 +775,7 @@ function ExpenseTable({
       ].some((value) => value.toLowerCase().includes(loweredQuery));
     });
   }, [
-    expenses,
+    scopedExpenses,
     categoryFilter,
     typeFilter,
     transactionModeFilter,
@@ -617,8 +785,77 @@ function ExpenseTable({
     query,
   ]);
 
+  const totalAmount = useMemo(
+    () => filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0),
+    [filteredExpenses]
+  );
+
+  const selectableIds = useMemo(
+    () => filteredExpenses.filter(canManageRow).map((expense) => expense.id),
+    [filteredExpenses, canManageRow]
+  );
+  const selectedCount = selectableIds.filter((id) => selectedIds.has(id)).length;
+  const allSelected = selectableIds.length > 0 && selectedCount === selectableIds.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected;
+    }
+  }, [someSelected]);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((previous) => {
+      if (allSelected) {
+        const next = new Set(previous);
+        for (const id of selectableIds) next.delete(id);
+        return next;
+      }
+      return new Set([...previous, ...selectableIds]);
+    });
+  }, [allSelected, selectableIds]);
+
   const columns = useMemo<ColumnDef<ExpenseRecordDto>[]>(
     () => [
+      {
+        id: "select",
+        header: () => (
+          <input
+            ref={selectAllRef}
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleSelectAll}
+            disabled={!selectableIds.length}
+            aria-label="Select all transactions"
+            className="size-4"
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => toggleRowSelected(row.original.id)}
+            onClick={(event) => event.stopPropagation()}
+            disabled={!canManageRow(row.original)}
+            aria-label="Select transaction"
+            className="size-4"
+          />
+        ),
+      },
+      ...(showAllScope
+        ? [
+            {
+              accessorKey: "userName",
+              header: ({ column }: { column: Column<ExpenseRecordDto, unknown> }) => (
+                <SortableHeader column={column} title="User" />
+              ),
+              cell: ({ row }: { row: { original: ExpenseRecordDto } }) => (
+                <span className="font-medium">{row.original.userName}</span>
+              ),
+            } satisfies ColumnDef<ExpenseRecordDto>,
+          ]
+        : []),
       {
         accessorKey: "occurredAt",
         header: ({ column }) => <SortableHeader column={column} title="Date" />,
@@ -700,7 +937,18 @@ function ExpenseTable({
         ),
       },
     ],
-    [currentUserId, isAdmin, onEdit, tagsById]
+    [
+      currentUserId,
+      isAdmin,
+      onEdit,
+      tagsById,
+      selectedIds,
+      allSelected,
+      selectableIds,
+      canManageRow,
+      toggleSelectAll,
+      showAllScope,
+    ]
   );
 
   const table = useReactTable({
@@ -724,10 +972,34 @@ function ExpenseTable({
               Filter, sort, edit, and remove your transactions, including optional counterparty links.
             </p>
           </div>
-          <Badge variant="secondary">{filteredExpenses.length} records</Badge>
+          <div className="flex items-center gap-3">
+            {isAdmin ? (
+              <div className="flex items-center gap-3 rounded-full border border-border/70 bg-background/90 px-3 py-2 shadow-sm">
+                <span className={cn("text-xs font-medium uppercase tracking-wide", scopeMode === "personal" && "text-foreground")}>
+                  Personal
+                </span>
+                <Switch
+                  checked={scopeMode === "all"}
+                  onCheckedChange={(checked) => {
+                    setScopeMode(checked ? "all" : "personal");
+                    if (!checked) setMemberFilter([]);
+                  }}
+                  aria-label="Toggle between personal and all members' transactions"
+                />
+                <span className={cn("text-xs font-medium uppercase tracking-wide", scopeMode === "all" && "text-foreground")}>
+                  All
+                </span>
+              </div>
+            ) : null}
+            <Badge variant="secondary">{filteredExpenses.length} records</Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 px-4 pb-6 sm:px-8 sm:pb-8">
+        <BulkDeleteBar
+          selectedIds={Array.from(selectedIds).filter((id) => selectableIds.includes(id))}
+          onCleared={() => setSelectedIds(new Set())}
+        />
         <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="expense-search">Search</Label>
@@ -738,6 +1010,12 @@ function ExpenseTable({
               placeholder="Search by note, category, type..."
             />
           </div>
+          {showAllScope ? (
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Members</Label>
+              <MemberMultiSelect members={members} selectedIds={memberFilter} onChange={setMemberFilter} />
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label>Category</Label>
             <FilterSelect value={categoryFilter} onChange={setCategoryFilter} options={categoryOptions} />
@@ -793,6 +1071,7 @@ function ExpenseTable({
                 setSubcategoryFilter("all");
                 setMonthFilter("all");
                 setQuery("");
+                setMemberFilter([]);
               }}
             >
               Reset filters
@@ -855,6 +1134,18 @@ function ExpenseTable({
                 </TableRow>
               )}
             </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={columns.length}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      {filteredExpenses.length} record{filteredExpenses.length === 1 ? "" : "s"}
+                    </span>
+                    <span>Total: {formatMoney(totalAmount.toFixed(2))}</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            </TableFooter>
           </Table>
         </div>
       </CardContent>
@@ -932,6 +1223,7 @@ export function ExpenseManagement({ data }: { data: ExpensesDashboardDataDto }) 
         counterparties={data.counterparties}
         transactionModes={data.transactionModes}
         tags={data.tags}
+        members={data.members}
         currentUserId={data.currentUser.id}
         isAdmin={isAdmin}
         onEdit={handleEdit}

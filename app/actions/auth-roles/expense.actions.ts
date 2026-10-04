@@ -5,11 +5,14 @@ import { z } from "zod";
 import { requireUser } from "@/app/lib/auth";
 import { ROUTES } from "@/app/lib/constants";
 import { getOrganizationById } from "@/app/actions/tables/organizations.table.actions";
+import { getOrganizationMembers } from "@/app/actions/tables/organization-members.table.actions";
 import { getCategoriesByOrg, getCategoryById } from "@/app/actions/tables/categories.table.actions";
 import {
   createExpenseRecord,
   deleteExpenseRecord,
+  deleteExpenseRecords,
   getExpenseOwnershipRow,
+  getExpenseOwnershipRows,
   getExpensesByOrg,
   updateExpenseRecord,
 } from "@/app/actions/tables/expenses.table.actions";
@@ -51,6 +54,10 @@ const expenseSchema = z.object({
 
 const expenseIdSchema = z.object({
   expenseId: z.coerce.number().int().positive(),
+});
+
+const expenseIdsSchema = z.object({
+  expenseIds: z.array(z.coerce.number().int().positive()).min(1, "Select at least one transaction"),
 });
 
 const transferStatusSchema = z.enum(["open", "settled", "closed"]);
@@ -143,6 +150,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
       subcategories: [],
       tags: [],
       expenses: [],
+      members: [],
       currentUser: {
         id: currentUser.id,
         name: currentUser.name,
@@ -152,15 +160,19 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     };
   }
 
-  const [organization, categories, counterparties, subcategories, tags, expenses, transactionModes] = await Promise.all([
-    getOrganizationById(currentUser.orgId),
-    getCategoriesByOrg(currentUser.orgId),
-    getCounterpartiesByOrg(currentUser.orgId),
-    getSubcategoriesByOrg(currentUser.orgId),
-    getTagsByOrg(currentUser.orgId),
-    getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
-    getTransactionModesByUser(currentUser.orgId, currentUser.id),
-  ]);
+  const isAdmin = currentUser.role === "ADMIN";
+
+  const [organization, categories, counterparties, subcategories, tags, expenses, transactionModes, memberRows] =
+    await Promise.all([
+      getOrganizationById(currentUser.orgId),
+      getCategoriesByOrg(currentUser.orgId),
+      getCounterpartiesByOrg(currentUser.orgId),
+      getSubcategoriesByOrg(currentUser.orgId),
+      getTagsByOrg(currentUser.orgId),
+      getExpensesByOrg(currentUser.orgId, 500, isAdmin ? undefined : [currentUser.id]),
+      getTransactionModesByUser(currentUser.orgId, currentUser.id),
+      isAdmin ? getOrganizationMembers(currentUser.orgId) : Promise.resolve([]),
+    ]);
 
   return {
     organization: toOrganizationDto(organization),
@@ -170,6 +182,7 @@ export async function getExpensesDashboardData(): Promise<ExpensesDashboardDataD
     subcategories,
     tags,
     expenses,
+    members: memberRows.map((member) => ({ id: member.id, name: member.name })),
     currentUser: {
       id: currentUser.id,
       name: currentUser.name,
@@ -202,7 +215,7 @@ export async function getTransfersDashboardData(): Promise<TransferDashboardData
     getOrganizationById(currentUser.orgId),
     getCategoriesByOrg(currentUser.orgId),
     getCounterpartiesByOrg(currentUser.orgId),
-    getExpensesByOrg(currentUser.orgId, 500, currentUser.id),
+    getExpensesByOrg(currentUser.orgId, 500, [currentUser.id]),
     getTransactionModesByUser(currentUser.orgId, currentUser.id),
   ]);
   const visibleTransfers = expenses.filter((expense) => expense.counterPartyId !== null);
@@ -437,6 +450,34 @@ export async function deleteExpenseAction(
   }
 
   await deleteExpenseRecord(expense.id);
+
+  redirect(ROUTES.TRANSACTIONS);
+}
+
+export async function deleteExpensesAction(
+  _previousState: FinanceActionState,
+  formData: FormData
+): Promise<FinanceActionState> {
+  const currentUser = await requireUser();
+  const orgId = assertOrgId(currentUser);
+  const expenseIdsResult = expenseIdsSchema.safeParse({
+    expenseIds: formData.getAll("expenseIds"),
+  });
+
+  if (!expenseIdsResult.success) {
+    return { error: expenseIdsResult.error.issues[0]?.message ?? "Select at least one transaction" };
+  }
+
+  const rows = await getExpenseOwnershipRows(expenseIdsResult.data.expenseIds);
+  const deletableIds = rows
+    .filter((row) => row.orgId === orgId && (currentUser.role === "ADMIN" || row.userId === currentUser.id))
+    .map((row) => row.id);
+
+  if (!deletableIds.length) {
+    return { error: "None of the selected transactions could be deleted" };
+  }
+
+  await deleteExpenseRecords(deletableIds);
 
   redirect(ROUTES.TRANSACTIONS);
 }
